@@ -95,8 +95,23 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .file-drop.dragover { border-color: var(--accent); background: #1a2233; }
 
 .checks { display: flex; flex-wrap: wrap; gap: 10px; }
+.checks.stack { flex-direction: column; gap: 6px; }
 .checks label { font-weight: 400; display: inline-flex; gap: 5px; align-items: center; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+
+/* SEO metadata */
+.meta-row { margin-top: 8px; }
+.meta-row b { display: block; color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
+.meta-pre { max-height: 160px; margin: 0; }
+.tag { display: inline-block; background: #1a2233; color: var(--accent); border-radius: 10px; padding: 1px 8px; font-size: 11px; margin: 2px 2px 0 0; }
+
+/* review scores */
+.overall { font-size: 13px; margin-bottom: 8px; padding: 6px 8px; background: #171a22; border-radius: 6px; }
+.score { margin-bottom: 8px; }
+.score-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.bar { height: 7px; background: #14161d; border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 4px; transition: width .4s; }
 
 pre {
   background: #14161d;

@@ -42,17 +42,35 @@ Extension đóng vai trò **trung gian điều khiển**: không gọi API trả
 | Bước | Tab | Việc làm |
 |---|---|---|
 | 1 | **SRT** | Kéo thả file `.srt` hoặc dán nội dung → **Nạp SRT** |
-| 2 | **Phân tích** | Chọn mẫu prompt (Master Prompt v2 có sẵn, sửa được), tick AI muốn chạy (chạy song song nhiều AI để so sánh) → **Gửi phân tích**. Extension tự mở tab, gõ prompt, chờ AI trả lời xong |
-| 3 | **Cắt ghép** | Bảng segment được dựng từ output AI, **validate tự động** với SRT gốc: `khớp 100%` / `lệch text` / `không khớp timecode`. Sắp xếp ↑↓, xóa đoạn thừa |
-| 4 | **Đánh giá** | Gửi kịch bản cho một AI khác chấm điểm Hook / Flow / Retention / CTA |
+| 2 | **Phân tích** | Bật **Knowledge Pack**, chọn **nền tảng** + **số góc cắt**, tick AI muốn chạy (song song nhiều AI để so sánh) → **Gửi phân tích** |
+| 3 | **Cắt ghép** | Bảng segment dựng từ output AI, **validate tự động** với SRT gốc: `khớp 100%` / `lệch text` / `không khớp timecode`. Chuyển giữa các **angle**, sắp xếp ↑↓, xóa đoạn, xuất file, **sinh SEO metadata** |
+| 4 | **Đánh giá** | Gửi kịch bản cho **nhiều AI** chấm điểm Hook / Flow / Retention / CTA → **điểm số + consensus** trực quan |
+
+### 🧠 Content Intelligence (từ SEOSONA OS)
+
+Extension bơm kiến thức thật vào prompt thay vì để AI tự đoán. Các block bật/tắt trong tab Phân tích, trích từ `SEOSONA OS/2_KNOWLEDGE`:
+
+- **Hook formulas** — 5 mẫu (Stat / Claim / Question / Story / Counter-intuitive)
+- **Cấu trúc 5 phần** — Hook → Intro → Value → Retention Hook → CTA
+- **Công thức copywriting** — PAS / QUEST / SCAR / AIDA
+- **Brand voice SEOSONA (VN)** — DO/DON'T, xưng hô, chống giọng AI
+- **Platform presets** — YouTube Shorts / TikTok / Reels / YouTube dài (tự set độ dài + tỉ lệ + kiểu hook)
+- **Multi-angle** — 1 SRT → tối đa 5 góc cắt khác nhau trong một lần chạy
+
+> Kiến thức đóng gói tĩnh trong `extension/lib/knowledge.js` (extension chạy sandbox không đọc trực tiếp ổ đĩa). Muốn đồng bộ động với `~/.seosona` thì làm script build kéo snippet — xem Roadmap.
 
 ### Xuất file (tab Cắt ghép)
 
 - **`.cut.srt`** — SRT mới đã ghép, timeline chạy liên tục từ 0 (đúng duration từng cue gốc)
 - **`.cutlist.csv`** — bảng cắt cho editor (source in/out, duration, text)
-- **`.edl`** — CMX3600, import thẳng vào **Premiere / DaVinci Resolve** (chọn FPS + tên clip nguồn)
+- **`.edl`** — CMX3600, import vào **Premiere / DaVinci Resolve** (chọn FPS + tên clip nguồn)
+- **`.fcpxml`** — FCPXML 1.9, import vào **DaVinci Resolve / Final Cut Pro**
+- **`.captions.txt`** — caption từng dòng cho **CapCut** / dán tay
 - **`.script.md`** — kịch bản dạng bảng markdown
-- **`.project.json`** — lưu toàn bộ project
+- **`.metadata.txt`** — title / description / hashtag / thumbnail prompt (sinh bằng AI)
+- **`.project.json`** — lưu toàn bộ project (nhiều angle + metadata)
+
+File xuất tự thêm hậu tố angle (`.a1`, `.a2`…) khi có nhiều góc cắt.
 
 ## Kiến trúc code
 
@@ -68,9 +86,10 @@ extension/
 │   └── claude.js          # claude.ai
 ├── lib/
 │   ├── srt-parser.js      # parse/serialize SRT, timecode utils
-│   ├── templates.js       # Master Prompt v2 + prompt đánh giá ({{SRT}}, {{SCRIPT}})
-│   ├── output-parser.js   # parse bảng markdown của AI → segment, map về cue gốc
-│   └── exporter.js        # SRT ghép / CSV / EDL CMX3600 / Markdown / JSON
+│   ├── knowledge.js       # Knowledge Pack: hook/formula/brand-voice/platform (từ SEOSONA OS)
+│   ├── templates.js       # Master Prompt v2 + PromptBuilder (ghép knowledge+platform+angle) + prompt đánh giá/metadata
+│   ├── output-parser.js   # parse bảng markdown → segment; multi-angle; điểm số; metadata
+│   └── exporter.js        # SRT ghép / CSV / EDL / FCPXML / captions / metadata / Markdown / JSON
 └── sidepanel/             # UI điều khiển (index.html, app.js, styles.css)
 ```
 
@@ -88,11 +107,16 @@ UI các trang AI đổi thường xuyên. Khi một provider hỏng, chỉ cần
 
 ## Roadmap
 
-- [ ] Đính kèm SRT dạng file upload (hiện nhúng thẳng vào prompt — SRT rất dài có thể chạm giới hạn input)
-- [ ] Chấm điểm chéo nhiều AI + tổng hợp consensus
-- [ ] Xuất FCPXML / Premiere XML (hiện có EDL)
+- [x] Content Intelligence: bơm hook/formula/brand-voice từ SEOSONA OS vào prompt
+- [x] Platform presets + multi-angle (1 SRT → N shorts)
+- [x] Chấm điểm chéo nhiều AI + tổng hợp consensus (điểm số trực quan)
+- [x] Sinh SEO metadata (title/description/hashtag/thumbnail)
+- [x] Xuất FCPXML + caption CapCut (bên cạnh EDL)
+- [ ] Đồng bộ động Knowledge Pack từ `~/.seosona` (script build kéo snippet)
+- [ ] Đính kèm SRT dạng file upload (hiện nhúng vào prompt — SRT rất dài có thể chạm giới hạn input)
 - [ ] Chia SRT dài thành nhiều phần, chạy tuần tự
 - [ ] Queue nhiều file SRT chạy hàng loạt
+- [ ] Ghi output ngược vào SEOSONA OS theo chuẩn đặt tên
 
 ## Prompt gốc
 

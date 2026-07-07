@@ -227,6 +227,26 @@ Chỉ đánh giá dựa trên phụ đề nguyên văn được cung cấp, khô
 {{SCRIPT}}
 `;
 
+// Prompt sinh metadata SEO (title/description/hashtags/thumbnail) từ kịch bản đã cắt
+const METADATA_PROMPT = `Bạn là chuyên gia YouTube/TikTok SEO. Dưới đây là kịch bản short-form đã cắt ghép (phụ đề nguyên văn + timecode). Hãy sinh metadata để đăng, tối ưu SEO và CTR.
+
+Công thức tiêu đề: [Từ khóa chính] — [Lợi ích/Kết quả] ([Năm hoặc Con số]). Tổng 60-70 ký tự, có số/ngoặc, không clickbait.
+
+Trả ĐÚNG định dạng sau (giữ nguyên nhãn):
+
+TITLE: <tiêu đề>
+DESCRIPTION:
+<2-3 câu có từ khóa chính, kèm mục TIMESTAMPS nếu hợp lý>
+HASHTAGS: #tag1 #tag2 #tag3 #tag4 #tag5
+THUMBNAIL: <mô tả prompt ảnh bìa: tối đa 3 từ text, mặt người + cảm xúc, độ tương phản cao>
+
+Viết bằng tiếng Việt. Bám sát nội dung kịch bản, không bịa số liệu.
+
+===== KỊCH BẢN =====
+
+{{SCRIPT}}
+`;
+
 const PROMPT_TEMPLATES = {
   analyze_v2: {
     name: 'Phân tích & cắt ghép — Master Prompt v2',
@@ -238,4 +258,42 @@ const PROMPT_TEMPLATES = {
     kind: 'evaluate',
     body: EVALUATE_PROMPT,
   },
+  metadata: {
+    name: 'Sinh metadata SEO (title/desc/hashtag)',
+    kind: 'metadata',
+    body: METADATA_PROMPT,
+  },
 };
+
+// ---------------------------------------------------------------- prompt builder
+// Ghép: rule gốc + kiến thức SEOSONA + platform preset + định dạng output (đơn/đa angle) + SRT.
+const PromptBuilder = (() => {
+  const SRT_MARKER = '===== SRT FILE CONTENT =====';
+
+  function angleOutputFormat(angleCount) {
+    if (angleCount <= 1) return '';
+    return `\n## YÊU CẦU MULTI-ANGLE
+Tạo ${angleCount} PHIÊN BẢN CẮT GHÉP KHÁC NHAU (khác góc tiếp cận: ví dụ góc pain-point, góc case-study, góc counter-intuitive...). Mỗi phiên bản là một bảng riêng, đứng trước bằng tiêu đề markdown dạng:
+
+### Angle 1: <tên góc tiếp cận ngắn gọn>
+
+rồi tới bảng 4 cột của phiên bản đó. Mỗi phiên bản vẫn tuân thủ toàn bộ guardrail (giữ nguyên phụ đề & timecode).\n`;
+  }
+
+  // opts: { srtRaw, base(body template), blockIds[], platformId, angleCount }
+  function buildAnalyze(opts) {
+    const base = opts.base || MASTER_PROMPT_V2;
+    const idx = base.indexOf(SRT_MARKER);
+    const head = idx >= 0 ? base.slice(0, idx) : base.replace('{{SRT}}', '');
+    const knowledge = Knowledge.buildKnowledgeSection(opts.blockIds || []);
+    const platform = Knowledge.platformInstruction(opts.platformId || 'none');
+    const angles = angleOutputFormat(opts.angleCount || 1);
+
+    const injections = [knowledge, platform ? '\n' + platform + '\n' : '', angles]
+      .filter(Boolean).join('\n');
+
+    return `${head}\n${injections}\n${SRT_MARKER}\n\n${opts.srtRaw}\n`;
+  }
+
+  return { buildAnalyze };
+})();

@@ -9,7 +9,7 @@
 <body>
 <header>
   <h1>🎬 SRT Studio</h1>
-  <span class="sub">Phân tích · Đánh giá · Cắt ghép SRT bằng AI web</span>
+  <span class="sub">Phân tích · Đánh giá · Cắt ghép SRT bằng AI web · SEOSONA</span>
 </header>
 
 <nav id="tabs">
@@ -39,9 +39,23 @@
     <label>Mẫu prompt</label>
     <select id="tplSelect"></select>
     <details>
-      <summary>Xem / sửa prompt</summary>
-      <textarea id="tplBody" rows="12"></textarea>
+      <summary>Xem / sửa prompt gốc</summary>
+      <textarea id="tplBody" rows="10"></textarea>
     </details>
+
+    <label>🧠 Kiến thức SEOSONA bơm vào prompt</label>
+    <div id="knowledgeChecks" class="checks stack"></div>
+
+    <div class="row">
+      <div class="field">
+        <label>🎯 Nền tảng</label>
+        <select id="platformSelect"></select>
+      </div>
+      <div class="field">
+        <label>🎭 Số góc cắt (angle)</label>
+        <input type="number" id="angleCount" value="1" min="1" max="5" style="width:64px">
+      </div>
+    </div>
 
     <label>Chạy trên</label>
     <div id="providerChecks" class="checks">
@@ -73,43 +87,68 @@
 <!-- ============ TAB 3: EDIT ============ -->
 <section id="tab-edit" class="tab">
   <div class="card">
+    <div id="angleSwitch" class="checks" hidden></div>
     <div id="editSummary" class="info"></div>
     <div id="segmentList"></div>
   </div>
+
   <div class="card">
-    <label>Xuất file</label>
+    <label>Xuất file dựng</label>
     <div class="row">
       <button id="btnExportSrt">💾 SRT ghép</button>
       <button id="btnExportCsv">📋 CSV cut-list</button>
-      <button id="btnExportEdl">🎞️ EDL (Premiere/Resolve)</button>
+      <button id="btnExportEdl">🎞️ EDL</button>
+      <button id="btnExportFcpxml">🎬 FCPXML</button>
+      <button id="btnExportCaptions">💬 Caption (CapCut)</button>
       <button id="btnExportMd">📝 Markdown</button>
       <button id="btnExportJson">🧩 Project JSON</button>
     </div>
     <div class="row">
       <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60" style="width:56px"></label>
-      <label class="inline">Tên clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4" style="width:140px"></label>
+      <label class="inline">Tên clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4" style="width:130px"></label>
     </div>
+  </div>
+
+  <div class="card">
+    <label>🔎 SEO metadata (title · description · hashtag · thumbnail)</label>
+    <div class="row">
+      <select id="metaProvider">
+        <option value="chatgpt">ChatGPT</option>
+        <option value="gemini">Gemini</option>
+        <option value="grok">Grok</option>
+        <option value="claude">Claude</option>
+      </select>
+      <button id="btnMeta" class="primary">Sinh metadata</button>
+      <button id="btnExportMeta" hidden>⬇️ Xuất .txt</button>
+    </div>
+    <div id="metaStatus"></div>
+    <div id="metaView"></div>
   </div>
 </section>
 
 <!-- ============ TAB 4: REVIEW ============ -->
 <section id="tab-review" class="tab">
   <div class="card">
-    <p class="hint">Gửi kịch bản đã cắt ghép cho một AI khác chấm điểm hook / flow / retention.</p>
+    <p class="hint">Gửi kịch bản đã cắt ghép cho một hay nhiều AI chấm điểm hook / flow / retention, rồi tổng hợp.</p>
     <label>Đánh giá bằng</label>
-    <select id="reviewProvider">
-      <option value="chatgpt">ChatGPT</option>
-      <option value="gemini">Gemini</option>
-      <option value="grok">Grok</option>
-      <option value="claude">Claude</option>
-    </select>
+    <div id="reviewChecks" class="checks">
+      <label><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
+      <label><input type="checkbox" value="gemini"> Gemini</label>
+      <label><input type="checkbox" value="grok"> Grok</label>
+      <label><input type="checkbox" value="claude"> Claude</label>
+    </div>
     <button id="btnReview" class="primary">⭐ Gửi đánh giá</button>
     <div id="reviewStatus"></div>
-    <pre id="reviewResult"></pre>
+  </div>
+  <div class="card" id="reviewScoreCard" hidden>
+    <label>Điểm số</label>
+    <div id="reviewScores"></div>
+    <details><summary>Xem nhận xét chi tiết</summary><pre id="reviewResult"></pre></details>
   </div>
 </section>
 
 <script src="../lib/srt-parser.js"></script>
+<script src="../lib/knowledge.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>
 <script src="../lib/exporter.js"></script>

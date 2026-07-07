@@ -100,6 +100,70 @@ const Exporter = (() => {
     return JSON.stringify(state, null, 2);
   }
 
+  function xmlEscape(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+  }
+
+  // FCPXML 1.9 — import tốt vào DaVinci Resolve / Final Cut Pro (bổ trợ cho EDL).
+  // Thời gian biểu diễn theo frame hữu tỉ "N/FPSs".
+  function buildFcpxml(segments, sourceCues, { fps = 30, clipName = 'SOURCE.MP4', title = 'SRT STUDIO CUT' } = {}) {
+    const cues = segmentsToCues(segments, sourceCues);
+    const f = (ms) => `${Math.round(ms / 1000 * fps)}/${fps}s`;
+    const totalMs = cues.reduce((s, c) => s + (c.end - c.start), 0);
+    const srcEndMs = sourceCues.length ? sourceCues[sourceCues.length - 1].end : totalMs;
+    const assetDur = Math.max(srcEndMs, totalMs) + 1000;
+
+    let offset = 0;
+    const clips = cues.map((c, i) => {
+      const dur = c.end - c.start;
+      const line = `        <asset-clip ref="r2" offset="${f(offset)}" name="${xmlEscape(c.segLabel || ('clip ' + (i + 1)))}" start="${f(c.start)}" duration="${f(dur)}" tcFormat="NDF"/>`;
+      offset += dur;
+      return line;
+    }).join('\n');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.9">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p${fps}" frameDuration="1/${fps}s" width="1080" height="1920"/>
+    <asset id="r2" name="${xmlEscape(clipName)}" start="0s" duration="${f(assetDur)}" hasVideo="1" hasAudio="1" format="r1">
+      <media-rep kind="original-media" src="file://./${xmlEscape(clipName)}"/>
+    </asset>
+  </resources>
+  <library>
+    <event name="SRT Studio">
+      <project name="${xmlEscape(title)}">
+        <sequence format="r1" duration="${f(totalMs)}" tcStart="0s" tcFormat="NDF">
+          <spine>
+${clips}
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>
+`;
+  }
+
+  // Caption text cho CapCut / dán tay: mỗi dòng = 1 câu (timeline ghép từ 0).
+  function buildCaptionsTxt(segments, sourceCues) {
+    return segmentsToCues(segments, sourceCues)
+      .map((c) => c.text.replace(/\n/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  // Metadata SEO -> text sẵn để dán lên YouTube/TikTok
+  function buildMetadataTxt(meta) {
+    if (!meta) return '';
+    const parts = [];
+    if (meta.title) parts.push('TITLE:\n' + meta.title);
+    if (meta.description) parts.push('\nDESCRIPTION:\n' + meta.description);
+    if (meta.hashtags && meta.hashtags.length) parts.push('\nHASHTAGS:\n' + meta.hashtags.join(' '));
+    if (meta.thumbnail) parts.push('\nTHUMBNAIL PROMPT:\n' + meta.thumbnail);
+    return parts.join('\n');
+  }
+
   function download(filename, content, mime = 'text/plain') {
     const blob = new Blob([content], { type: mime + ';charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -111,5 +175,8 @@ const Exporter = (() => {
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 3000);
   }
 
-  return { segmentsToCues, buildSplicedSrt, buildCsv, buildEdl, buildMarkdown, buildProjectJson, download };
+  return {
+    segmentsToCues, buildSplicedSrt, buildCsv, buildEdl, buildMarkdown,
+    buildFcpxml, buildCaptionsTxt, buildMetadataTxt, buildProjectJson, download,
+  };
 })();

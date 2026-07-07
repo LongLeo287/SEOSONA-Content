@@ -1,11 +1,13 @@
-// SRT Studio — parse output của AI (bảng markdown theo Master Prompt)
-// -> danh sách segment, mỗi segment map về các cue trong SRT gốc + kết quả validate.
+// SRT Studio — parse output của AI
+//  • parse()        : 1 bảng markdown -> segment map về cue gốc + validate
+//  • parseAngles()  : nhiều bảng (multi-angle) -> [{title, segments}]
+//  • parseScores()  : bảng chấm điểm đánh giá -> {criteria, average, verdict}
+//  • parseMetadata(): khối SEO metadata -> {title, description, hashtags, thumbnail}
 
 const OutputParser = (() => {
-  const TIME_RE = /\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}/g; // chỉ dùng cho .match()
-  const TIME_ONE = /\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}/;  // dùng cho .test() (không giữ state)
+  const TIME_RE = /\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}/g; // dùng cho .match()
+  const TIME_ONE = /\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}/;  // dùng cho .test()
 
-  // Tách các dòng bảng markdown "| a | b | c |"
   function extractTableRows(text) {
     const rows = [];
     for (const line of (text || '').split('\n')) {
@@ -13,7 +15,6 @@ const OutputParser = (() => {
       if (!t.startsWith('|')) continue;
       if (/^\|[\s:|-]+\|$/.test(t)) continue; // dòng phân cách |---|---|
       const cells = t.split('|').map((c) => c.trim());
-      // bỏ phần tử rỗng đầu/cuối do split
       if (cells.length && cells[0] === '') cells.shift();
       if (cells.length && cells[cells.length - 1] === '') cells.pop();
       if (cells.length >= 2) rows.push(cells);
@@ -27,7 +28,6 @@ const OutputParser = (() => {
       && !TIME_ONE.test(cells.join(' '));
   }
 
-  // Tìm cue theo thời gian bắt đầu (dung sai tol ms)
   function findCueByStart(cues, startMs, tol = 200) {
     let best = null;
     let bestDiff = tol + 1;
@@ -38,7 +38,6 @@ const OutputParser = (() => {
     return best;
   }
 
-  // Các cue nằm trong khoảng [start, end]
   function findCuesInRange(cues, startMs, endMs, tol = 200) {
     return cues.filter((c) => c.start >= startMs - tol && c.end <= endMs + tol);
   }
@@ -53,62 +52,138 @@ const OutputParser = (() => {
     return null;
   }
 
-  // parse(responseText, sourceCues) -> [{label, rawText, note, cues, start, end, valid, textMatch}]
-  function parse(responseText, sourceCues) {
-    const rows = extractTableRows(responseText);
-    const segments = [];
+  function rowToSegment(cells, sourceCues) {
+    if (isHeaderRow(cells)) return null;
+    const rowText = cells.join(' | ');
+    const times = (rowText.match(TIME_RE) || []).map((t) => SrtLib.timeToMs(t));
+    const label = cells[0] || '';
+    let timeCellIdx = cells.findIndex((c) => TIME_ONE.test(c) || /\d{1,2}:\d{2}:\d{2}/.test(c));
+    if (timeCellIdx === -1) timeCellIdx = 1;
+    const rawText = cells[timeCellIdx + 1] || '';
+    const note = cells.slice(timeCellIdx + 2).join(' — ');
 
-    for (const cells of rows) {
-      if (isHeaderRow(cells)) continue;
+    if (!times.length && !rawText) return null;
 
-      const rowText = cells.join(' | ');
-      const times = (rowText.match(TIME_RE) || []).map((t) => SrtLib.timeToMs(t));
-      // Xác định cột: [label, timecode, rawText, note] — linh hoạt khi AI trả thiếu cột
-      let label = cells[0] || '';
-      let timeCellIdx = cells.findIndex((c) => TIME_ONE.test(c) || /\d{1,2}:\d{2}:\d{2}/.test(c));
-      if (timeCellIdx === -1) timeCellIdx = 1;
-      const rawText = cells[timeCellIdx + 1] || '';
-      const note = cells.slice(timeCellIdx + 2).join(' — ');
-
-      if (!times.length && !rawText) continue;
-
-      let cues = [];
-      if (times.length >= 2) {
-        cues = findCuesInRange(sourceCues, times[0], times[times.length - 1]);
-        if (!cues.length) {
-          const c = findCueByStart(sourceCues, times[0]);
-          if (c) cues = [c];
-        }
-      } else if (times.length === 1) {
-        const c = findCueByStart(sourceCues, times[0]);
-        if (c) cues = [c];
-      }
-      if (!cues.length && rawText) {
-        const c = matchByText(sourceCues, rawText);
-        if (c) cues = [c];
-      }
-      if (!cues.length && !times.length) continue; // dòng rác
-
-      const srcJoined = cues.map((c) => c.text).join(' ');
-      const textMatch = cues.length
-        ? SrtLib.normalize(srcJoined) === SrtLib.normalize(rawText)
-          || SrtLib.normalize(srcJoined).includes(SrtLib.normalize(rawText))
-        : false;
-
-      segments.push({
-        id: 'seg_' + Math.random().toString(36).slice(2, 9),
-        label,
-        rawText,
-        note,
-        cueIndexes: cues.map((c) => c.index),
-        start: cues.length ? cues[0].start : (times[0] ?? null),
-        end: cues.length ? cues[cues.length - 1].end : (times[1] ?? null),
-        valid: cues.length > 0,
-        textMatch,
-      });
+    let cues = [];
+    if (times.length >= 2) {
+      cues = findCuesInRange(sourceCues, times[0], times[times.length - 1]);
+      if (!cues.length) { const c = findCueByStart(sourceCues, times[0]); if (c) cues = [c]; }
+    } else if (times.length === 1) {
+      const c = findCueByStart(sourceCues, times[0]); if (c) cues = [c];
     }
-    return segments;
+    if (!cues.length && rawText) { const c = matchByText(sourceCues, rawText); if (c) cues = [c]; }
+    if (!cues.length && !times.length) return null;
+
+    const srcJoined = cues.map((c) => c.text).join(' ');
+    const textMatch = cues.length
+      ? SrtLib.normalize(srcJoined) === SrtLib.normalize(rawText)
+        || SrtLib.normalize(srcJoined).includes(SrtLib.normalize(rawText))
+      : false;
+
+    return {
+      id: 'seg_' + Math.random().toString(36).slice(2, 9),
+      label, rawText, note,
+      cueIndexes: cues.map((c) => c.index),
+      start: cues.length ? cues[0].start : (times[0] ?? null),
+      end: cues.length ? cues[cues.length - 1].end : (times[1] ?? null),
+      valid: cues.length > 0,
+      textMatch,
+    };
   }
 
-  return { parse, extractTableRows };
+  // 1 bảng -> segments (giữ tương thích cũ)
+  function parse(responseText, sourceCues) {
+    return extractTableRows(responseText)
+      .map((cells) => rowToSegment(cells, sourceCues))
+      .filter(Boolean);
+  }
+
+  // Tách response thành nhiều "angle" theo heading trước mỗi bảng.
+  // Nhận diện heading: dòng markdown ## / ### hoặc dòng chứa Angle/Góc/Phiên bản/Version/Script + số.
+  function splitAngleSections(text) {
+    const lines = (text || '').split('\n');
+    const HEAD = /^(#{1,4}\s+.+|.*\b(angle|góc|phiên bản|phương án|version|script|kịch bản)\b\s*#?\s*\d+.*)$/i;
+    const sections = [];
+    let cur = { title: '', body: [] };
+    for (const line of lines) {
+      const t = line.trim();
+      const isHead = HEAD.test(t) && !t.startsWith('|');
+      if (isHead) {
+        if (cur.body.join('').trim()) sections.push(cur);
+        cur = { title: t.replace(/^#{1,4}\s+/, '').replace(/\*+/g, '').trim(), body: [] };
+      } else {
+        cur.body.push(line);
+      }
+    }
+    if (cur.body.join('').trim()) sections.push(cur);
+    return sections;
+  }
+
+  // parseAngles -> [{title, segments}] (chỉ giữ angle có ≥1 segment hợp lệ)
+  function parseAngles(responseText, sourceCues) {
+    const sections = splitAngleSections(responseText);
+    const angles = [];
+    for (const sec of sections) {
+      const segs = parse(sec.body.join('\n'), sourceCues);
+      if (segs.length) angles.push({ title: sec.title || `Angle ${angles.length + 1}`, segments: segs });
+    }
+    // Không tách được angle nào -> coi toàn bộ là 1 angle
+    if (!angles.length) {
+      const segs = parse(responseText, sourceCues);
+      if (segs.length) angles.push({ title: 'Kịch bản', segments: segs });
+    }
+    return angles;
+  }
+
+  // parseScores: bảng "| Tiêu chí | Điểm /10 | Nhận xét | Đề xuất |"
+  function parseScores(text) {
+    const rows = extractTableRows(text);
+    const criteria = [];
+    for (const cells of rows) {
+      const scoreCell = cells.find((c) => /\d+(\.\d+)?\s*\/\s*\d+|\b(\d|10)\s*\/\s*10\b|^\s*\d+(\.\d+)?\s*$/.test(c));
+      const m = scoreCell && /(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+))?/.exec(scoreCell);
+      if (!m) continue;
+      const name = cells[0];
+      if (/tiêu chí|criteria|score|điểm/i.test(name) && !/\d/.test(cells.slice(1).join(''))) continue; // header
+      const score = parseFloat(m[1]);
+      const max = m[2] ? parseFloat(m[2]) : 10;
+      if (isNaN(score)) continue;
+      const rest = cells.filter((c) => c !== cells[0] && c !== scoreCell);
+      criteria.push({ name, score, max, comment: rest[0] || '', suggest: rest[1] || '' });
+    }
+    let average = null;
+    const avgM = /(?:tổng điểm|trung bình|average|overall)[^\d]*(\d+(?:\.\d+)?)/i.exec(text || '');
+    if (avgM) average = parseFloat(avgM[1]);
+    else if (criteria.length) average = +(criteria.reduce((s, c) => s + c.score / c.max * 10, 0) / criteria.length).toFixed(1);
+
+    let verdict = '';
+    const vM = /verdict[*:\s]*([^\n]+)/i.exec(text || '')
+      || /(nên đăng|cần sửa|làm lại)/i.exec(text || '');
+    if (vM) verdict = (vM[1] || vM[0]).replace(/[*:]+/g, ' ').trim();
+    return { criteria, average, verdict, raw: text };
+  }
+
+  // parseMetadata: khối có nhãn Title/Tiêu đề, Description/Mô tả, Hashtags, Thumbnail
+  function parseMetadata(text) {
+    const grab = (labels) => {
+      const re = new RegExp(`^\\s*(?:[*#>-]*\\s*)?(?:${labels})\\s*[:：]\\s*(.*)$`, 'im');
+      const m = re.exec(text || '');
+      return m ? m[1].trim().replace(/^\*+|\*+$/g, '') : '';
+    };
+    // Description có thể nhiều dòng -> lấy khối tới nhãn kế tiếp
+    const descBlock = (() => {
+      const m = /(?:description|mô tả)\s*[:：]?\s*\n?([\s\S]*?)(?:\n\s*(?:hashtag|thumbnail|tag|tiêu đề|title)\b|$)/i.exec(text || '');
+      return m ? m[1].trim() : '';
+    })();
+    const hashtags = ((text || '').match(/#[\p{L}\p{N}_]+/gu) || []);
+    return {
+      title: grab('title|tiêu đề|tựa đề'),
+      description: descBlock || grab('description|mô tả'),
+      hashtags: [...new Set(hashtags)],
+      thumbnail: grab('thumbnail|ảnh bìa|hình bìa'),
+      raw: text,
+    };
+  }
+
+  return { parse, parseAngles, parseScores, parseMetadata, extractTableRows, splitAngleSections };
 })();
