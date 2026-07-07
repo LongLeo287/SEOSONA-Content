@@ -32,16 +32,37 @@ function validSegments() {
   return currentSegments().filter((s) => s.valid);
 }
 
-// ---------------------------------------------------------------- tabs
-$$('#tabs button').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    $$('#tabs button').forEach((b) => b.classList.remove('active'));
-    $$('.tab').forEach((t) => t.classList.remove('active'));
-    btn.classList.add('active');
-    $('#tab-' + btn.dataset.tab).classList.add('active');
+// ---------------------------------------------------------------- stages (stepper 1 luồng dọc)
+const STAGES = ['srt', 'run', 'edit', 'review'];
+function stageEl(name) { return document.querySelector(`.stage[data-stage="${name}"]`); }
+
+// Khóa bước sau cho tới khi bước trước đủ điều kiện
+function isStageLocked(name) {
+  if (name === 'run') return state.cues.length === 0;
+  if (name === 'edit') return currentSegments().length === 0;
+  if (name === 'review') return validSegments().length === 0;
+  return false;
+}
+function updateLocks() {
+  STAGES.forEach((n) => { const el = stageEl(n); if (el) el.classList.toggle('locked', isStageLocked(n)); });
+}
+function openStage(name) {
+  STAGES.forEach((n) => { const el = stageEl(n); if (el) el.classList.toggle('open', n === name); });
+}
+function setStageDone(name, summary, done = true) {
+  const st = document.getElementById('st-' + name);
+  if (st) st.textContent = summary || '';
+  const el = stageEl(name);
+  if (el) el.classList.toggle('done', !!done);
+}
+$$('.stage-head').forEach((h) => {
+  h.addEventListener('click', () => {
+    const el = h.parentElement;
+    const name = el.dataset.stage;
+    if (isStageLocked(name)) return;
+    openStage(el.classList.contains('open') ? '__none__' : name);
   });
 });
-function gotoTab(name) { $(`#tabs button[data-tab="${name}"]`).click(); }
 
 // ---------------------------------------------------------------- persist
 async function saveProject() {
@@ -77,6 +98,12 @@ async function restoreProject() {
   renderAngles();
   renderSegments();
   renderMetadata();
+
+  // Khôi phục trạng thái các bước + mở đúng bước xa nhất đã đạt
+  if (state.cues.length) setStageDone('srt', `${state.cues.length} cue`, true);
+  if (currentSegments().length) setStageDone('run', `${state.segmentSource} · ${currentSegments().length} đoạn`, true);
+  updateLocks();
+  openStage(currentSegments().length ? 'edit' : (state.cues.length ? 'run' : 'srt'));
 }
 
 // ---------------------------------------------------------------- TAB 1: SRT
@@ -90,7 +117,9 @@ function parseSrt(save = true) {
     `✅ ${state.srtName} — ${cues.length} cue · thời lượng nguồn ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}` +
     ` · tổng thời gian nói ${(SrtLib.totalDuration(cues) / 1000).toFixed(0)}s`;
   setStatus(`Đã nạp ${cues.length} cue`);
-  if (save) saveProject();
+  setStageDone('srt', `${cues.length} cue · ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}`);
+  updateLocks();
+  if (save) { saveProject(); openStage('run'); }
 }
 $('#btnParse').addEventListener('click', () => parseSrt());
 $('#dropZone').addEventListener('click', () => $('#srtFile').click());
@@ -280,11 +309,14 @@ $('#btnUseResult').addEventListener('click', () => {
   state.activeAngle = 0;
   state.segmentSource = state.activeProvider;
   state.metadata = null;
+  const validCount = angles.reduce((s, a) => s + a.segments.filter((x) => x.valid).length, 0);
+  setStageDone('run', `${state.activeProvider} → ${angles.length} góc · ${validCount} đoạn`);
   renderAngles();
   renderSegments();
   renderMetadata();
+  updateLocks();
   saveProject();
-  gotoTab('edit');
+  openStage('edit');
 });
 
 // ---------------------------------------------------------------- TAB 3: angles + segments
@@ -312,7 +344,9 @@ function renderSegments() {
   list.innerHTML = '';
   const segs = currentSegments();
   if (!segs.length) {
-    $('#editSummary').textContent = 'Chưa có bảng cắt ghép. Chạy phân tích ở tab 2 rồi bấm "Dựng bảng cắt ghép".';
+    $('#editSummary').textContent = 'Chưa có bảng cắt ghép. Chạy phân tích ở bước 2 rồi bấm "Dựng bảng cắt ghép".';
+    setStageDone('edit', '', false);
+    updateLocks();
     return;
   }
   const totalMs = segs.reduce((s, seg) => s + segDuration(seg), 0);
@@ -322,6 +356,8 @@ function renderSegments() {
     `${segs.length} đoạn · tổng ${(totalMs / 1000).toFixed(1)}s · nguồn: ${state.segmentSource}` +
     (mismatch ? ` · ⚠ ${mismatch} đoạn lệch text` : '') +
     (invalid ? ` · ❌ ${invalid} đoạn không khớp timecode` : '');
+  setStageDone('edit', `${segs.length} đoạn · ${(totalMs / 1000).toFixed(0)}s`, true);
+  updateLocks();
 
   const byIndex = new Map(state.cues.map((c) => [c.index, c]));
   segs.forEach((seg, i) => {
@@ -504,9 +540,18 @@ function renderReviewScores() {
   }
   $('#reviewScores').innerHTML = html;
   $('#reviewResult').textContent = done.map(([p, r]) => `===== ${p} =====\n${r.text}`).join('\n\n');
+  setStageDone('review', `${overall.toFixed(1)}/10 · ${provList.length} AI`);
 }
+
+// ---------------------------------------------------------------- header reset
+document.getElementById('hdrReset').addEventListener('click', async () => {
+  if (!confirm('Xóa toàn bộ project hiện tại và bắt đầu lại?')) return;
+  await chrome.storage.local.remove('srtProject');
+  location.reload();
+});
 
 // ---------------------------------------------------------------- init
 initKnowledge();
 initTemplates();
+updateLocks();
 restoreProject();

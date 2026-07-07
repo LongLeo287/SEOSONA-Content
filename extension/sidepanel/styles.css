@@ -83,34 +83,67 @@ body {
   margin-left: 2px;
 }
 
-/* ---------------------------------------------------- sub-nav */
-.subnav {
-  display: flex; gap: 4px; padding: 6px 8px;
-  background: var(--bg-0);
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 49px; z-index: 15;
-}
-.subnav button {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 7px 4px; border-radius: 9px;
-  background: transparent; border: 1px solid transparent;
-  color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: .15s;
-}
-.subnav button .ico { font-size: 12px; opacity: .8; }
-.subnav button:hover { color: var(--text); background: var(--bg-1); }
-.subnav button.active {
-  color: var(--neon);
-  background: var(--neon-soft);
-  border-color: var(--neon-line);
-}
-.subnav button.active .ico { opacity: 1; }
-
-/* ---------------------------------------------------- content */
-.content { flex: 1; padding: 12px; overflow-y: auto; }
-.tab { display: none; }
-.tab.active { display: block; animation: fade .2s ease; }
+/* ---------------------------------------------------- content / pipeline */
+.content { flex: 1; padding: 10px 12px 14px; overflow-y: auto; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
+
+/* ---- stage (stepper 1 luồng dọc) ---- */
+.stage { position: relative; padding-left: 30px; }
+/* đường rail nối các bước */
+.stage::before {
+  content: ""; position: absolute; left: 10px; top: 24px; bottom: -6px;
+  width: 2px; background: var(--border);
+}
+.stage:last-child::before { display: none; }
+.stage.done::before { background: var(--neon-line); }
+
+.stage-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 2px; cursor: pointer; position: relative;
+}
+.stage-num {
+  position: absolute; left: -30px; top: 8px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--bg-2); border: 2px solid var(--border);
+  color: var(--muted); font-size: 11px; font-weight: 800; z-index: 2;
+}
+.stage-title { font-weight: 700; font-size: 13px; }
+.stage-status { color: var(--muted); font-size: 11px; margin-left: 2px; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-caret { color: var(--muted); font-size: 11px; transition: transform .2s; }
+
+/* active (đang mở) */
+.stage.open > .stage-head .stage-num { border-color: var(--neon-line); color: var(--neon); box-shadow: 0 0 8px var(--grad-glow); }
+.stage.open > .stage-head .stage-title { color: var(--neon); }
+.stage:not(.open) > .stage-head .stage-caret { transform: rotate(-90deg); }
+
+/* done (đã xong, thu gọn) */
+.stage.done > .stage-head .stage-num { background: var(--neon); border-color: var(--neon); color: #10140a; }
+.stage.done > .stage-head .stage-num::after { content: "✓"; }
+.stage.done > .stage-head .stage-num { font-size: 0; }
+.stage.done > .stage-head .stage-num::after { font-size: 12px; }
+
+/* locked (chưa tới lượt) */
+.stage.locked { opacity: .5; }
+.stage.locked > .stage-head { cursor: not-allowed; }
+.stage.locked > .stage-head .stage-num::after { content: "🔒"; font-size: 9px; }
+.stage.locked > .stage-head .stage-num { font-size: 0; background: var(--bg-2); border-color: var(--border); }
+
+/* body */
+.stage-body {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 4px 0 14px; animation: fade .2s ease;
+}
+.stage:not(.open) > .stage-body { display: none; }
+
+/* sub-panel bên trong 1 stage */
+.subcard {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 11px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.divider { height: 1px; background: var(--border-soft); margin: 2px 0; }
 
 .card {
   background: var(--bg-1);
