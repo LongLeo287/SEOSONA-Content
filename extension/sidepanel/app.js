@@ -143,7 +143,8 @@ function parseSrt(save = true) {
   if (save) { saveProject(); openStage('run'); toast(`Đã nạp ${cues.length} cue`, 'success'); }
 }
 $('#btnParse').addEventListener('click', () => parseSrt());
-$('#dropZone').addEventListener('click', () => $('#srtFile').click());
+// Lưu ý: #dropZone là <label> bọc #srtFile nên click đã tự mở hộp thoại —
+// KHÔNG thêm handler click gọi srtFile.click() nữa (sẽ mở 2 hộp thoại).
 $('#srtFile').addEventListener('change', (e) => loadFile(e.target.files[0]));
 $('#dropZone').addEventListener('dragover', (e) => { e.preventDefault(); $('#dropZone').classList.add('dragover'); });
 $('#dropZone').addEventListener('dragleave', () => $('#dropZone').classList.remove('dragover'));
