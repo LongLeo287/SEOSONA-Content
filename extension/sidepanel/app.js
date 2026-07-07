@@ -14,6 +14,7 @@ const state = {
   platformId: 'none',
   metadata: null,     // { title, description, hashtags, thumbnail, raw }
   review: {},         // provider -> { status, text, scores }
+  batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -271,6 +272,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (!jobId) return;
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
+    if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
   });
 }
@@ -567,6 +569,180 @@ function renderReviewScores() {
   $('#reviewResult').textContent = done.map(([p, r]) => `===== ${p} =====\n${r.text}`).join('\n\n');
   setStageDone('review', `${overall.toFixed(1)}/10 · ${provList.length} AI`);
 }
+
+// ---------------------------------------------------------------- prompt library + variables
+async function plibLoad() { try { const r = await chrome.storage.local.get('srtPrompts'); return r.srtPrompts || []; } catch (_) { return []; } }
+async function plibStore(list) { try { await chrome.storage.local.set({ srtPrompts: list }); } catch (_) {} }
+function plibVars(body) {
+  const set = new Set();
+  (String(body).match(/\{\{(\w+)\}\}/g) || []).forEach((m) => set.add(m.slice(2, -2)));
+  return [...set];
+}
+async function openPrompts() {
+  $('#promptFill').hidden = true; $('#promptMain').hidden = false;
+  renderPromptList(await plibLoad());
+  $('#promptOverlay').hidden = false;
+}
+function renderPromptList(list) {
+  const box = $('#promptList');
+  if (!list.length) { box.innerHTML = '<p class="hint">Chưa lưu prompt nào.</p>'; return; }
+  box.innerHTML = '';
+  list.forEach((p) => {
+    const vars = plibVars(p.body);
+    const row = document.createElement('div');
+    row.className = 'plib-row';
+    row.innerHTML = `<div class="plib-main"><b>${escapeHtml(p.title)}</b><span class="hint">${p.body.length} ký tự${vars.length ? ' · biến: ' + vars.map(escapeHtml).join(', ') : ''}</span></div>`
+      + '<div class="plib-act"><button data-a="use">Dùng</button><button data-a="del">✕</button></div>';
+    row.querySelector('[data-a="use"]').addEventListener('click', () => usePrompt(p));
+    row.querySelector('[data-a="del"]').addEventListener('click', async () => { const l = (await plibLoad()).filter((x) => x.id !== p.id); await plibStore(l); renderPromptList(l); });
+    box.appendChild(row);
+  });
+}
+function usePrompt(p) {
+  const vars = plibVars(p.body);
+  if (!vars.length) { applyPromptBody(p.body); return; }
+  $('#promptFillTitle').textContent = p.title;
+  const box = $('#promptVars'); box.innerHTML = '';
+  vars.forEach((v) => {
+    const div = document.createElement('div'); div.className = 'var-row';
+    div.innerHTML = `<label>{{${escapeHtml(v)}}}</label><input type="text" data-var="${escapeHtml(v)}" placeholder="giá trị…">`;
+    box.appendChild(div);
+  });
+  $('#promptFill').dataset.body = p.body;
+  $('#promptMain').hidden = true; $('#promptFill').hidden = false;
+}
+function applyPromptBody(body) {
+  $('#tplBody').value = body;
+  const det = $('#tplBody').closest('details'); if (det) det.open = true;
+  $('#promptOverlay').hidden = true;
+  openStage('run');
+  toast('Đã áp dụng prompt', 'success');
+}
+$('#hdrPrompts').addEventListener('click', openPrompts);
+$('#promptClose').addEventListener('click', () => { $('#promptOverlay').hidden = true; });
+$('#promptOverlay').addEventListener('click', (e) => { if (e.target.id === 'promptOverlay') $('#promptOverlay').hidden = true; });
+$('#promptFillBack').addEventListener('click', () => { $('#promptFill').hidden = true; $('#promptMain').hidden = false; });
+$('#promptApply').addEventListener('click', () => {
+  let body = $('#promptFill').dataset.body || '';
+  $$('#promptVars input').forEach((inp) => { body = body.split('{{' + inp.dataset.var + '}}').join(inp.value); });
+  applyPromptBody(body);
+});
+$('#btnSaveCurrentPrompt').addEventListener('click', async () => {
+  const body = $('#tplBody').value.trim();
+  if (!body) { toast('Prompt đang trống (mở bước Phân tích để soạn)', 'warn'); return; }
+  const title = prompt('Tên prompt:', 'Prompt SRT');
+  if (!title) return;
+  const list = await plibLoad();
+  list.unshift({ id: 'p_' + Date.now(), title, body });
+  await plibStore(list); renderPromptList(list); toast('Đã lưu prompt', 'success');
+});
+
+// ---------------------------------------------------------------- batch nhiều SRT
+const batchWaiters = {};
+function openBatch() { renderBatch(); $('#batchOverlay').hidden = false; }
+$('#hdrBatch').addEventListener('click', openBatch);
+$('#batchClose').addEventListener('click', () => { $('#batchOverlay').hidden = true; });
+$('#batchOverlay').addEventListener('click', (e) => { if (e.target.id === 'batchOverlay') $('#batchOverlay').hidden = true; });
+$('#batchFiles').addEventListener('change', (e) => addBatchFiles(e.target.files));
+
+function addBatchFiles(fileList) {
+  Array.from(fileList || []).forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = reader.result;
+      const cues = SrtLib.parse(raw);
+      state.batch.files.push({
+        id: 'bf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+        name: file.name, raw, cues,
+        status: cues.length ? 'pending' : 'error',
+        error: cues.length ? '' : 'không parse được SRT', segCount: 0, angles: null,
+      });
+      renderBatch();
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+function renderBatch() {
+  const box = $('#batchList');
+  if (!state.batch.files.length) { box.innerHTML = '<p class="hint">Chưa thêm file nào.</p>'; $('#batchZipAll').hidden = true; return; }
+  box.innerHTML = '';
+  state.batch.files.forEach((f) => {
+    const row = document.createElement('div');
+    row.className = 'batch-row ' + (['running', 'done', 'error'].includes(f.status) ? f.status : '');
+    const stat = f.status === 'done' ? `${f.segCount} đoạn`
+      : f.status === 'error' ? (f.error || 'lỗi')
+      : f.status === 'running' ? '…đang chạy'
+      : `${f.cues.length} cue`;
+    const name = document.createElement('span'); name.className = 'batch-name'; name.textContent = f.name;
+    const st = document.createElement('span'); st.className = 'batch-stat'; st.textContent = stat;
+    row.append(name, st);
+    if (f.status === 'done') { const b = document.createElement('button'); b.textContent = '⬇'; b.title = 'Tải SRT ghép'; b.addEventListener('click', () => downloadBatchFile(f)); row.appendChild(b); }
+    const del = document.createElement('button'); del.textContent = '✕';
+    del.addEventListener('click', () => { if (state.batch.running) return; state.batch.files = state.batch.files.filter((x) => x.id !== f.id); renderBatch(); });
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+  $('#batchZipAll').hidden = !state.batch.files.some((f) => f.status === 'done');
+}
+function downloadBatchFile(f) {
+  const angle = f.angles && f.angles[0];
+  const segs = angle ? angle.segments.filter((s) => s.valid) : [];
+  if (!segs.length) { toast('File này không có đoạn hợp lệ', 'warn'); return; }
+  Exporter.download(f.name.replace(/\.srt$/i, '') + '.cut.srt', Exporter.buildSplicedSrt(segs, f.cues), 'application/x-subrip');
+}
+function handleBatchUpdate(jobId, status, result) {
+  const f = state.batch.files.find((x) => x.jobId === jobId);
+  if (!f) return;
+  if (status === 'running' || status === 'preparing') { f.status = 'running'; renderBatch(); return; }
+  if (status === 'done') {
+    f.status = 'done'; f.resultText = result.text;
+    f.angles = OutputParser.parseAngles(result.text, f.cues);
+    f.segCount = f.angles.length ? f.angles[0].segments.filter((s) => s.valid).length : 0;
+  } else {
+    f.status = 'error'; f.error = (result && (result.message || result.error)) || status;
+  }
+  renderBatch();
+  const w = batchWaiters[jobId]; if (w) { delete batchWaiters[jobId]; w(); }
+}
+$('#batchRun').addEventListener('click', runBatch);
+async function runBatch() {
+  if (state.batch.running) return;
+  const pending = state.batch.files.filter((f) => f.status === 'pending' || f.status === 'error');
+  if (!pending.length) { toast('Không có file nào để chạy', 'warn'); return; }
+  state.batch.running = true; state.batch.stopFlag = false;
+  $('#batchRun').hidden = true; $('#batchStop').hidden = false;
+
+  const provider = $('#batchProvider').value;
+  const blockIds = state.blockIds, platformId = state.platformId;
+  const angleCount = Math.max(1, Math.min(5, +$('#angleCount').value || 1));
+  const base = $('#tplBody').value;
+  const timeout = (+$('#timeoutMin').value || 10) * 60000;
+
+  for (const f of pending) {
+    if (state.batch.stopFlag) break;
+    f.status = 'running'; f.error = ''; renderBatch();
+    const jobId = 'batch_' + f.id; f.jobId = jobId;
+    const text = PromptBuilder.buildAnalyze({ srtRaw: f.raw, base, blockIds, platformId, angleCount });
+    const done = new Promise((res) => { batchWaiters[jobId] = res; });
+    setStatus(`📦 Batch: ${f.name}`);
+    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat: true });
+    if (!resp || !resp.ok) { f.status = 'error'; f.error = (resp && resp.error) || 'không gửi được'; renderBatch(); delete batchWaiters[jobId]; continue; }
+    await done;
+  }
+  state.batch.running = false;
+  $('#batchRun').hidden = false; $('#batchStop').hidden = true;
+  const okCount = state.batch.files.filter((f) => f.status === 'done').length;
+  toast(`Batch xong: ${okCount}/${state.batch.files.length} file`, okCount ? 'success' : 'warn', 5000);
+}
+$('#batchStop').addEventListener('click', async () => {
+  state.batch.stopFlag = true;
+  const running = state.batch.files.find((f) => f.status === 'running');
+  if (running && running.jobId) { try { await chrome.runtime.sendMessage({ action: 'srt:abortJob', jobId: running.jobId }); } catch (_) {} }
+});
+$('#batchZipAll').addEventListener('click', () => {
+  state.batch.files.filter((f) => f.status === 'done').forEach((f, i) => setTimeout(() => downloadBatchFile(f), i * 400));
+});
+$('#batchClear').addEventListener('click', () => { if (state.batch.running) return; state.batch.files = []; renderBatch(); });
 
 // ---------------------------------------------------------------- run history
 async function logHistory({ kind, provider, text }) {

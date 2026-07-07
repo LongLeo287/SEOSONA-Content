@@ -17,6 +17,8 @@
       <span class="badge-premium">STUDIO</span>
     </div>
     <div class="header-tools">
+      <button class="icon-btn" id="hdrPrompts" title="Thư viện prompt">📚</button>
+      <button class="icon-btn" id="hdrBatch" title="Batch nhiều SRT">📦</button>
       <button class="icon-btn" id="hdrHistory" title="Lịch sử chạy">🕘</button>
       <button class="icon-btn" id="hdrReset" title="Làm mới project">↺</button>
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
@@ -189,6 +191,59 @@
     </section>
 
   </main>
+
+  <!-- ============ PROMPT LIBRARY OVERLAY ============ -->
+  <div id="promptOverlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>📚 Thư viện prompt</b>
+        <button class="icon-btn" id="promptClose">✕</button>
+      </div>
+      <p class="hint">Lưu prompt tái dùng. Dùng biến <code>{{ten_bien}}</code> trong prompt để điền nhanh khi dùng lại.</p>
+      <div id="promptMain">
+        <button id="btnSaveCurrentPrompt" class="btn-cta compact">💾 Lưu prompt đang soạn (ở bước Phân tích)</button>
+        <div id="promptList"></div>
+      </div>
+      <div id="promptFill" hidden>
+        <label>Điền biến cho: <span id="promptFillTitle" class="neon"></span></label>
+        <div id="promptVars"></div>
+        <div class="row">
+          <button id="promptApply" class="btn-cta compact">Áp dụng vào prompt</button>
+          <button id="promptFillBack">Quay lại</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BATCH OVERLAY ============ -->
+  <div id="batchOverlay" class="overlay" hidden>
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <b>📦 Batch nhiều file SRT</b>
+        <button class="icon-btn" id="batchClose">✕</button>
+      </div>
+      <p class="hint">Chạy cùng một cấu hình phân tích (prompt + kiến thức + nền tảng + số góc ở bước Phân tích) lên nhiều file SRT, tuần tự. Mỗi file xong tự dựng bảng và cho tải SRT ghép.</p>
+      <div class="row">
+        <label class="file-drop file-drop-sm" id="batchDrop">
+          <input type="file" id="batchFiles" accept=".srt,.txt" multiple hidden>
+          <span>📄 Thêm file .srt (chọn nhiều)</span>
+        </label>
+        <select id="batchProvider">
+          <option value="chatgpt">ChatGPT</option>
+          <option value="gemini">Gemini</option>
+          <option value="grok">Grok</option>
+          <option value="claude">Claude</option>
+        </select>
+      </div>
+      <div id="batchList"></div>
+      <div class="row">
+        <button id="batchRun" class="btn-cta compact">▶ Chạy batch</button>
+        <button id="batchStop" class="btn-danger" hidden>⛔ Dừng</button>
+        <button id="batchZipAll" hidden>⬇ Tải tất cả SRT ghép</button>
+        <button id="batchClear">Xóa danh sách</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ HISTORY OVERLAY ============ -->
   <div id="historyOverlay" class="overlay" hidden>

@@ -403,6 +403,29 @@ pre {
 }
 .modal-head { display: flex; align-items: center; justify-content: space-between; }
 .modal-head b { font-size: 13px; }
+.modal-wide { max-width: 380px; }
+.neon { color: var(--neon); }
+code { background: var(--bg-0); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 11px; color: var(--neon); }
+.file-drop-sm { flex: 1; padding: 10px; font-size: 11.5px; }
+.var-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.var-row label { font-size: 11px; color: var(--muted); }
+
+/* prompt list rows */
+.plib-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--bg-2); }
+.plib-main { flex: 1; font-size: 12px; overflow: hidden; }
+.plib-main b { display: block; }
+.plib-act { display: flex; gap: 4px; flex: none; }
+.plib-act button { padding: 4px 9px; font-size: 11px; }
+#promptList, #batchList { max-height: 46vh; overflow-y: auto; margin-top: 8px; }
+
+/* batch rows */
+.batch-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border); border-left: 3px solid var(--muted); border-radius: 8px; margin-bottom: 6px; background: var(--bg-2); font-size: 12px; }
+.batch-row.running { border-left-color: var(--warn); }
+.batch-row.done { border-left-color: var(--neon); }
+.batch-row.error { border-left-color: var(--err); }
+.batch-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-stat { color: var(--muted); font-size: 11px; flex: none; }
+.batch-row button { padding: 3px 8px; font-size: 11px; flex: none; }
 
 /* history rows */
 .hist-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--bg-2); }
