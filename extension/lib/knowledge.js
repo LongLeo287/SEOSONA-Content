@@ -1,7 +1,7 @@
-// SRT Studio — Knowledge Pack
-// Trích từ SEOSONA OS (2_KNOWLEDGE) — hook formulas, công thức copywriting,
-// cấu trúc script, brand voice VN, platform specs, YouTube SEO.
-// Các block bật/tắt được ở tab Phân tích để bơm vào prompt.
+// SRT Studio — Knowledge Pack (đóng gói sẵn, self-contained)
+// Nội dung: hook formulas, công thức copywriting, cấu trúc script, brand voice VN,
+// platform specs, YouTube SEO — biên tập từ phương pháp content/SEO của SEOSONA.
+// Sửa trực tiếp file này để thêm/bớt/điều chỉnh. Các block bật/tắt ở tab Phân tích.
 
 const Knowledge = (() => {
 

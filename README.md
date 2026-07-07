@@ -46,9 +46,9 @@ Extension đóng vai trò **trung gian điều khiển**: không gọi API trả
 | 3 | **Cắt ghép** | Bảng segment dựng từ output AI, **validate tự động** với SRT gốc: `khớp 100%` / `lệch text` / `không khớp timecode`. Chuyển giữa các **angle**, sắp xếp ↑↓, xóa đoạn, xuất file, **sinh SEO metadata** |
 | 4 | **Đánh giá** | Gửi kịch bản cho **nhiều AI** chấm điểm Hook / Flow / Retention / CTA → **điểm số + consensus** trực quan |
 
-### 🧠 Content Intelligence (từ SEOSONA OS)
+### 🧠 Content Intelligence
 
-Extension bơm kiến thức thật vào prompt thay vì để AI tự đoán. Các block bật/tắt trong tab Phân tích, trích từ `SEOSONA OS/2_KNOWLEDGE`:
+Extension bơm kiến thức content thật vào prompt thay vì để AI tự đoán. Toàn bộ kiến thức **đóng gói sẵn trong extension** (không phụ thuộc dịch vụ hay dự án ngoài). Các block bật/tắt trong tab Phân tích:
 
 - **Hook formulas** — 5 mẫu (Stat / Claim / Question / Story / Counter-intuitive)
 - **Cấu trúc 5 phần** — Hook → Intro → Value → Retention Hook → CTA
@@ -57,7 +57,7 @@ Extension bơm kiến thức thật vào prompt thay vì để AI tự đoán. C
 - **Platform presets** — YouTube Shorts / TikTok / Reels / YouTube dài (tự set độ dài + tỉ lệ + kiểu hook)
 - **Multi-angle** — 1 SRT → tối đa 5 góc cắt khác nhau trong một lần chạy
 
-> Kiến thức đóng gói tĩnh trong `extension/lib/knowledge.js` (extension chạy sandbox không đọc trực tiếp ổ đĩa). Muốn đồng bộ động với `~/.seosona` thì làm script build kéo snippet — xem Roadmap.
+> Kiến thức nằm gọn trong `extension/lib/knowledge.js` — muốn thêm/sửa hook, công thức, brand voice hay platform preset thì sửa trực tiếp file này. Extension là repo độc lập, cài và chạy không cần bất kỳ thành phần nào bên ngoài.
 
 ### Xuất file (tab Cắt ghép)
 
@@ -107,16 +107,15 @@ UI các trang AI đổi thường xuyên. Khi một provider hỏng, chỉ cần
 
 ## Roadmap
 
-- [x] Content Intelligence: bơm hook/formula/brand-voice từ SEOSONA OS vào prompt
+- [x] Content Intelligence: bơm hook/formula/brand-voice vào prompt (đóng gói sẵn)
 - [x] Platform presets + multi-angle (1 SRT → N shorts)
 - [x] Chấm điểm chéo nhiều AI + tổng hợp consensus (điểm số trực quan)
 - [x] Sinh SEO metadata (title/description/hashtag/thumbnail)
 - [x] Xuất FCPXML + caption CapCut (bên cạnh EDL)
-- [ ] Đồng bộ động Knowledge Pack từ `~/.seosona` (script build kéo snippet)
+- [ ] Trình quản lý Knowledge Pack ngay trong UI (thêm/sửa block không cần sửa file)
 - [ ] Đính kèm SRT dạng file upload (hiện nhúng vào prompt — SRT rất dài có thể chạm giới hạn input)
 - [ ] Chia SRT dài thành nhiều phần, chạy tuần tự
 - [ ] Queue nhiều file SRT chạy hàng loạt
-- [ ] Ghi output ngược vào SEOSONA OS theo chuẩn đặt tên
 
 ## Prompt gốc
 
