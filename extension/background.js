@@ -129,7 +129,8 @@ async function handleRunJob({ jobId, provider, text, timeout, freshChat }) {
     });
     if (!ack || !ack.accepted) throw new Error('Content script từ chối job');
 
-    await setJob(jobId, { status: 'running', tabId: tab.id });
+    // Lưu spec để auto-retry khi lỗi tạm thời
+    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000 }, attempt: 0, maxRetries: 2 });
     broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', tabId: tab.id });
     return { ok: true, tabId: tab.id };
   } catch (e) {
@@ -140,8 +141,46 @@ async function handleRunJob({ jobId, provider, text, timeout, freshChat }) {
   }
 }
 
+// Lỗi tạm thời -> đáng thử lại. Lỗi do đăng nhập/nội dung/hủy -> không.
+const RETRYABLE_ERRORS = new Set(['NO_RESPONSE_STARTED', 'NO_RESPONSE', 'TIMEOUT', 'NETWORK', 'EXCEPTION']);
+
+async function maybeRetry(jobId, provider, result) {
+  const err = result && result.error;
+  if (!RETRYABLE_ERRORS.has(err)) return false;
+  const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
+  const job = srtJobs[jobId];
+  if (!job || !job.spec) return false;
+  const attempt = (job.attempt || 0) + 1;
+  const max = job.maxRetries || 2;
+  if (attempt > max) return false;
+
+  await setJob(jobId, { attempt, status: 'running' });
+  broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', result: { retrying: true, attempt, message: `Thử lại ${attempt}/${max}…` } });
+  await sleep(3000 * attempt); // backoff: 3s, 6s
+
+  try {
+    const tab = await ensureProviderTab(provider, {});
+    await chrome.tabs.update(tab.id, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+    await sleep(400);
+    const ack = await chrome.tabs.sendMessage(tab.id, {
+      action: 'srt:submitAndWait', jobId, text: job.spec.text, timeout: job.spec.timeout,
+    });
+    if (!ack || !ack.accepted) throw new Error('reject');
+    await setJob(jobId, { tabId: tab.id });
+    return true;
+  } catch (_) {
+    return false; // không retry được -> để finalize thành lỗi
+  }
+}
+
 async function handleJobResult({ jobId, provider, result }) {
-  const status = result && result.success ? 'done' : 'error';
+  const success = result && result.success;
+  if (!success && jobId) {
+    const retried = await maybeRetry(jobId, provider, result);
+    if (retried) return; // đang thử lại, chưa chốt kết quả
+  }
+  const status = success ? 'done' : 'error';
   await setJob(jobId, { status, result, finishedAt: Date.now() });
   broadcast({ action: 'srt:jobUpdate', jobId, provider, status, result });
   notifyDone(jobId, provider, status, result);

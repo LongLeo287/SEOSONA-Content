@@ -278,7 +278,8 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 function handleAnalyzeUpdate(provider, status, result, jobId) {
   if (!provider) return;
   if (status === 'running' || status === 'preparing') {
-    updateJobRow(provider, status, status === 'running' ? 'AI đang xử lý…' : 'đang mở tab…');
+    const runningMsg = (result && result.retrying) ? `↻ ${result.message || 'thử lại…'}` : 'AI đang xử lý…';
+    updateJobRow(provider, status, status === 'running' ? runningMsg : 'đang mở tab…');
     return;
   }
   if (status === 'done') {
