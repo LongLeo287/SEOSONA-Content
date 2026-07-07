@@ -101,9 +101,18 @@ extension/
 - **Tab phải active khi chạy**: Chrome throttle timer của tab nền → background tự activate tab provider trước khi gửi.
 - **Guardrail dữ liệu**: mọi segment AI trả về đều được đối chiếu lại timecode + nguyên văn với SRT gốc; text hiển thị/xuất file luôn lấy **từ SRT gốc**, không lấy từ AI (chống AI bịa/sửa chữ).
 
+### Độ bền & trải nghiệm (đúc kết từ extension automation thực chiến)
+
+- **Chống vỡ UI — selector config**: selector 4 provider nằm ở [lib/selectors-default.js](extension/lib/selectors-default.js) dạng data, mỗi vai trò có **nhiều fallback**. Khi một AI đổi giao diện làm hỏng, mở **⚙ Settings trong side panel** → dán selector mới → tải lại tab AI. **Không cần sửa code / rebuild**. Override lưu ở `chrome.storage.local.srtSelectorOverrides`.
+- **Fail nhanh có lý do**: nhận diện text lỗi của provider (rate limit, content policy) để trả lỗi rõ thay vì chờ timeout.
+- **Auto-retry**: lỗi tạm thời (timeout / không phản hồi / lỗi mạng) tự thử lại tối đa 2 lần với backoff 3s/6s; lỗi đăng nhập / content-blocked / hủy thì không.
+- **Floating tracker**: badge tiến độ hiện ngay trên tab AI khi đang phân tích (pha + đồng hồ + nút Stop).
+- **Phản hồi**: toast trong panel ở các mốc; **thông báo hệ thống** khi job xong lúc bạn đang ở tab khác.
+- **Nhật ký chạy** (🕘): 20 lần gần nhất, mở lại để nạp SRT + kết quả.
+
 ## Bảo trì selector
 
-UI các trang AI đổi thường xuyên. Khi một provider hỏng, chỉ cần sửa mảng selector trong file `extension/content/<provider>.js` (mỗi selector có nhiều fallback, thử theo thứ tự). Mở DevTools trên trang AI để lấy selector mới.
+Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provider + thành phần, dán selector mới (mỗi dòng một cái), Lưu, rồi tải lại tab AI. Lấy selector mới bằng DevTools trên trang AI. Bản mặc định nằm ở `extension/lib/selectors-default.js`.
 
 ## Roadmap
 
@@ -112,10 +121,14 @@ UI các trang AI đổi thường xuyên. Khi một provider hỏng, chỉ cần
 - [x] Chấm điểm chéo nhiều AI + tổng hợp consensus (điểm số trực quan)
 - [x] Sinh SEO metadata (title/description/hashtag/thumbnail)
 - [x] Xuất FCPXML + caption CapCut (bên cạnh EDL)
-- [ ] Trình quản lý Knowledge Pack ngay trong UI (thêm/sửa block không cần sửa file)
-- [ ] Đính kèm SRT dạng file upload (hiện nhúng vào prompt — SRT rất dài có thể chạm giới hạn input)
-- [ ] Chia SRT dài thành nhiều phần, chạy tuần tự
-- [ ] Queue nhiều file SRT chạy hàng loạt
+- [x] Chống vỡ UI: selector config + override trong Settings
+- [x] Floating tracker trên tab AI + toast + thông báo hệ thống
+- [x] Auto-retry backoff cho lỗi tạm thời
+- [x] Nhật ký lịch sử chạy (mở lại được)
+- [ ] Thư viện prompt tái dùng + biến `{{...}}` (còn lại từ đợt học TobyFlow)
+- [ ] Batch nhiều file SRT chạy hàng loạt (dùng queue + retry đã có)
+- [ ] Trình quản lý Knowledge Pack ngay trong UI
+- [ ] Đính kèm SRT dạng file upload; chia SRT dài chạy tuần tự
 
 ## Prompt gốc
 
