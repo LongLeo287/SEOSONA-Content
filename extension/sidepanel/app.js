@@ -260,6 +260,7 @@ $('#btnAbort').addEventListener('click', async () => {
 function refreshRunButtons() {
   const running = Object.values(state.results).some((r) => r.status === 'running' || r.status === 'preparing');
   $('#btnRun').disabled = running;
+  $('#btnRun').classList.toggle('running', running);
   $('#btnAbort').hidden = !running;
   if (running) {
     const n = Object.values(state.results).filter((r) => r.status === 'running' || r.status === 'preparing').length;
@@ -910,6 +911,32 @@ document.getElementById('hdrReset').addEventListener('click', async () => {
   await chrome.storage.local.remove('srtProject');
   location.reload();
 });
+
+// ---------------------------------------------------------------- tooltip styled
+(function initTooltips() {
+  let tip;
+  const ensure = () => { if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; document.body.appendChild(tip); } return tip; };
+  function show(el) {
+    const t = el.getAttribute('title');
+    if (!t) return;
+    el.dataset.tipText = t; el.removeAttribute('title'); // chặn tooltip mặc định
+    const tp = ensure(); tp.textContent = t;
+    tp.style.left = '0px'; tp.style.top = '0px'; tp.classList.add('show');
+    const r = el.getBoundingClientRect();
+    const tr = tp.getBoundingClientRect();
+    let left = Math.max(6, Math.min(r.left + r.width / 2 - tr.width / 2, window.innerWidth - tr.width - 6));
+    let top = r.top - tr.height - 8;
+    if (top < 4) top = r.bottom + 8;
+    tp.style.left = left + 'px'; tp.style.top = top + 'px';
+  }
+  function hide(el) {
+    if (el && el.dataset.tipText) { el.setAttribute('title', el.dataset.tipText); delete el.dataset.tipText; }
+    if (tip) tip.classList.remove('show');
+  }
+  document.addEventListener('mouseover', (e) => { const el = e.target.closest('[title]'); if (el) show(el); });
+  document.addEventListener('mouseout', (e) => { const el = e.target.closest('[data-tip-text]') || (e.target.dataset && e.target.dataset.tipText ? e.target : null); if (el && !el.contains(e.relatedTarget)) hide(el); });
+  document.addEventListener('click', () => { if (tip) tip.classList.remove('show'); });
+})();
 
 // ---------------------------------------------------------------- init
 initKnowledge();
