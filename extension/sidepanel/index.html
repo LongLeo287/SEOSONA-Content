@@ -3,149 +3,187 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SRT Studio</title>
+<title>SEOSONA SRT Studio</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-  <h1>🎬 SRT Studio</h1>
-  <span class="sub">Phân tích · Đánh giá · Cắt ghép SRT bằng AI web · SEOSONA</span>
-</header>
+<div class="app">
 
-<nav id="tabs">
-  <button data-tab="srt" class="active">1. SRT</button>
-  <button data-tab="run">2. Phân tích</button>
-  <button data-tab="edit">3. Cắt ghép</button>
-  <button data-tab="review">4. Đánh giá</button>
-</nav>
+  <!-- ============ HEADER ============ -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <span class="brand-name">SEOSONA</span>
+      <span class="badge-premium">STUDIO</span>
+    </div>
+    <div class="header-tools">
+      <button class="icon-btn" id="hdrSettings" title="Cài đặt">⚙</button>
+      <button class="icon-btn" id="hdrNotify" title="Thông báo">🔔</button>
+      <span class="dot-live" title="Sẵn sàng"></span>
+    </div>
+  </header>
 
-<!-- ============ TAB 1: SRT ============ -->
-<section id="tab-srt" class="tab active">
-  <div class="card">
-    <label class="file-drop" id="dropZone">
-      <input type="file" id="srtFile" accept=".srt,.txt" hidden>
-      <strong>📄 Chọn hoặc kéo thả file .srt</strong>
-      <span class="hint">hoặc dán nội dung vào ô bên dưới</span>
-    </label>
-    <textarea id="srtText" rows="10" placeholder="1&#10;00:00:01,000 --> 00:00:03,500&#10;Nội dung phụ đề..."></textarea>
-    <button id="btnParse" class="primary">Nạp SRT</button>
-    <div id="srtInfo" class="info"></div>
-  </div>
-</section>
+  <!-- ============ SUB-NAV ============ -->
+  <nav id="tabs" class="subnav">
+    <button data-tab="srt" class="active"><span class="ico">📄</span>SRT</button>
+    <button data-tab="run"><span class="ico">✦</span>Phân tích</button>
+    <button data-tab="edit"><span class="ico">✂</span>Cắt ghép</button>
+    <button data-tab="review"><span class="ico">★</span>Đánh giá</button>
+  </nav>
 
-<!-- ============ TAB 2: RUN ============ -->
-<section id="tab-run" class="tab">
-  <div class="card">
-    <label>Mẫu prompt</label>
-    <select id="tplSelect"></select>
-    <details>
-      <summary>Xem / sửa prompt gốc</summary>
-      <textarea id="tplBody" rows="10"></textarea>
-    </details>
+  <!-- ============ CONTENT ============ -->
+  <main class="content">
 
-    <label>🧠 Kiến thức SEOSONA bơm vào prompt</label>
-    <div id="knowledgeChecks" class="checks stack"></div>
-
-    <div class="row">
-      <div class="field">
-        <label>🎯 Nền tảng</label>
-        <select id="platformSelect"></select>
+    <!-- ---- TAB 1: SRT ---- -->
+    <section id="tab-srt" class="tab active">
+      <div class="card">
+        <label class="file-drop" id="dropZone">
+          <input type="file" id="srtFile" accept=".srt,.txt" hidden>
+          <span class="fd-icon">📄</span>
+          <strong>Chọn hoặc kéo thả file .srt</strong>
+          <span class="hint">hoặc dán nội dung vào ô bên dưới</span>
+        </label>
+        <textarea id="srtText" rows="9" placeholder="1&#10;00:00:01,000 --> 00:00:03,500&#10;Nội dung phụ đề..."></textarea>
+        <button id="btnParse" class="btn-cta">⚡ Nạp SRT</button>
+        <div id="srtInfo" class="info"></div>
       </div>
-      <div class="field">
-        <label>🎭 Số góc cắt (angle)</label>
-        <input type="number" id="angleCount" value="1" min="1" max="5" style="width:64px">
+    </section>
+
+    <!-- ---- TAB 2: RUN ---- -->
+    <section id="tab-run" class="tab">
+      <div class="card">
+        <div class="field">
+          <label>Mẫu prompt</label>
+          <select id="tplSelect"></select>
+        </div>
+        <details class="acc">
+          <summary>Xem / sửa prompt gốc</summary>
+          <textarea id="tplBody" rows="9"></textarea>
+        </details>
+
+        <div class="field">
+          <label>🧠 Kiến thức SEOSONA bơm vào prompt</label>
+          <div id="knowledgeChecks" class="chips stack"></div>
+        </div>
+
+        <div class="row">
+          <div class="field grow">
+            <label>🎯 Nền tảng</label>
+            <select id="platformSelect"></select>
+          </div>
+          <div class="field">
+            <label>🎭 Số góc cắt</label>
+            <input type="number" id="angleCount" value="1" min="1" max="5">
+          </div>
+        </div>
       </div>
-    </div>
 
-    <label>Chạy trên</label>
-    <div id="providerChecks" class="checks">
-      <label><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
-      <label><input type="checkbox" value="gemini"> Gemini</label>
-      <label><input type="checkbox" value="grok"> Grok</label>
-      <label><input type="checkbox" value="claude"> Claude</label>
-    </div>
+      <div class="card">
+        <label>Chạy trên AI</label>
+        <div id="providerChecks" class="chips">
+          <label class="chip"><input type="checkbox" value="chatgpt" checked><span>ChatGPT</span></label>
+          <label class="chip"><input type="checkbox" value="gemini"><span>Gemini</span></label>
+          <label class="chip"><input type="checkbox" value="grok"><span>Grok</span></label>
+          <label class="chip"><input type="checkbox" value="claude"><span>Claude</span></label>
+        </div>
 
-    <div class="row">
-      <label class="inline"><input type="checkbox" id="freshChat" checked> Mở hội thoại mới</label>
-      <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30" style="width:60px"></label>
-    </div>
+        <div class="row opts">
+          <label class="switch"><input type="checkbox" id="freshChat" checked><span class="track"></span>Hội thoại mới</label>
+          <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30"></label>
+        </div>
 
-    <button id="btnRun" class="primary">🚀 Gửi phân tích</button>
-    <button id="btnAbort" class="danger" hidden>⛔ Hủy</button>
+        <button id="btnRun" class="btn-cta">🚀 Gửi phân tích</button>
+        <button id="btnAbort" class="btn-danger" hidden>⛔ Hủy</button>
+        <div id="jobStatus"></div>
+      </div>
 
-    <div id="jobStatus"></div>
-  </div>
+      <div class="card" id="resultsCard" hidden>
+        <label>Kết quả thô</label>
+        <div id="resultTabs" class="chips"></div>
+        <pre id="rawResponse"></pre>
+        <button id="btnUseResult" class="btn-cta">✂ Dựng bảng cắt ghép từ kết quả này</button>
+      </div>
+    </section>
 
-  <div class="card" id="resultsCard" hidden>
-    <label>Kết quả thô</label>
-    <div id="resultTabs" class="checks"></div>
-    <pre id="rawResponse"></pre>
-    <button id="btnUseResult" class="primary">✂️ Dựng bảng cắt ghép từ kết quả này</button>
-  </div>
-</section>
+    <!-- ---- TAB 3: EDIT ---- -->
+    <section id="tab-edit" class="tab">
+      <div class="card">
+        <div id="angleSwitch" class="chips" hidden></div>
+        <div id="editSummary" class="info"></div>
+        <div id="segmentList"></div>
+      </div>
 
-<!-- ============ TAB 3: EDIT ============ -->
-<section id="tab-edit" class="tab">
-  <div class="card">
-    <div id="angleSwitch" class="checks" hidden></div>
-    <div id="editSummary" class="info"></div>
-    <div id="segmentList"></div>
-  </div>
+      <details class="card acc-card" open>
+        <summary class="card-sum">💾 Xuất file dựng</summary>
+        <div class="acc-body">
+          <div class="btn-grid">
+            <button id="btnExportSrt">SRT ghép</button>
+            <button id="btnExportCsv">CSV cut-list</button>
+            <button id="btnExportEdl">EDL</button>
+            <button id="btnExportFcpxml">FCPXML</button>
+            <button id="btnExportCaptions">Caption CapCut</button>
+            <button id="btnExportMd">Markdown</button>
+            <button id="btnExportJson">Project JSON</button>
+          </div>
+          <div class="row">
+            <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60"></label>
+            <label class="inline">Clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4"></label>
+          </div>
+        </div>
+      </details>
 
-  <div class="card">
-    <label>Xuất file dựng</label>
-    <div class="row">
-      <button id="btnExportSrt">💾 SRT ghép</button>
-      <button id="btnExportCsv">📋 CSV cut-list</button>
-      <button id="btnExportEdl">🎞️ EDL</button>
-      <button id="btnExportFcpxml">🎬 FCPXML</button>
-      <button id="btnExportCaptions">💬 Caption (CapCut)</button>
-      <button id="btnExportMd">📝 Markdown</button>
-      <button id="btnExportJson">🧩 Project JSON</button>
-    </div>
-    <div class="row">
-      <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60" style="width:56px"></label>
-      <label class="inline">Tên clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4" style="width:130px"></label>
-    </div>
-  </div>
+      <details class="card acc-card">
+        <summary class="card-sum">🔎 SEO metadata</summary>
+        <div class="acc-body">
+          <div class="row">
+            <select id="metaProvider">
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="claude">Claude</option>
+            </select>
+            <button id="btnMeta" class="btn-cta compact">Sinh metadata</button>
+            <button id="btnExportMeta" hidden>⬇ .txt</button>
+          </div>
+          <div id="metaStatus"></div>
+          <div id="metaView"></div>
+        </div>
+      </details>
+    </section>
 
-  <div class="card">
-    <label>🔎 SEO metadata (title · description · hashtag · thumbnail)</label>
-    <div class="row">
-      <select id="metaProvider">
-        <option value="chatgpt">ChatGPT</option>
-        <option value="gemini">Gemini</option>
-        <option value="grok">Grok</option>
-        <option value="claude">Claude</option>
-      </select>
-      <button id="btnMeta" class="primary">Sinh metadata</button>
-      <button id="btnExportMeta" hidden>⬇️ Xuất .txt</button>
-    </div>
-    <div id="metaStatus"></div>
-    <div id="metaView"></div>
-  </div>
-</section>
+    <!-- ---- TAB 4: REVIEW ---- -->
+    <section id="tab-review" class="tab">
+      <div class="card">
+        <p class="hint">Gửi kịch bản đã cắt ghép cho một hay nhiều AI chấm điểm hook / flow / retention, rồi tổng hợp consensus.</p>
+        <label>Đánh giá bằng</label>
+        <div id="reviewChecks" class="chips">
+          <label class="chip"><input type="checkbox" value="chatgpt" checked><span>ChatGPT</span></label>
+          <label class="chip"><input type="checkbox" value="gemini"><span>Gemini</span></label>
+          <label class="chip"><input type="checkbox" value="grok"><span>Grok</span></label>
+          <label class="chip"><input type="checkbox" value="claude"><span>Claude</span></label>
+        </div>
+        <button id="btnReview" class="btn-cta">★ Gửi đánh giá</button>
+        <div id="reviewStatus"></div>
+      </div>
+      <div class="card" id="reviewScoreCard" hidden>
+        <label>Điểm số</label>
+        <div id="reviewScores"></div>
+        <details class="acc"><summary>Xem nhận xét chi tiết</summary><pre id="reviewResult"></pre></details>
+      </div>
+    </section>
 
-<!-- ============ TAB 4: REVIEW ============ -->
-<section id="tab-review" class="tab">
-  <div class="card">
-    <p class="hint">Gửi kịch bản đã cắt ghép cho một hay nhiều AI chấm điểm hook / flow / retention, rồi tổng hợp.</p>
-    <label>Đánh giá bằng</label>
-    <div id="reviewChecks" class="checks">
-      <label><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
-      <label><input type="checkbox" value="gemini"> Gemini</label>
-      <label><input type="checkbox" value="grok"> Grok</label>
-      <label><input type="checkbox" value="claude"> Claude</label>
-    </div>
-    <button id="btnReview" class="primary">⭐ Gửi đánh giá</button>
-    <div id="reviewStatus"></div>
-  </div>
-  <div class="card" id="reviewScoreCard" hidden>
-    <label>Điểm số</label>
-    <div id="reviewScores"></div>
-    <details><summary>Xem nhận xét chi tiết</summary><pre id="reviewResult"></pre></details>
-  </div>
-</section>
+  </main>
+
+  <!-- ============ STATUS BAR ============ -->
+  <footer class="statusbar">
+    <span class="status-text" id="statusText">Sẵn sàng</span>
+    <span class="status-meta">
+      <span class="tok" title="Không giới hạn (dùng tài khoản web của bạn)">✦ ∞</span>
+      <span class="chip-mini">SRT · Local</span>
+    </span>
+  </footer>
+
+</div>
 
 <script src="../lib/srt-parser.js"></script>
 <script src="../lib/knowledge.js"></script>

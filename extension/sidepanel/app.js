@@ -19,6 +19,11 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+function setStatus(msg) {
+  const el = document.getElementById('statusText');
+  if (el) el.textContent = msg;
+}
+
 function currentSegments() {
   const a = state.angles[state.activeAngle];
   return a ? a.segments : [];
@@ -84,6 +89,7 @@ function parseSrt(save = true) {
   $('#srtInfo').textContent =
     `✅ ${state.srtName} — ${cues.length} cue · thời lượng nguồn ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}` +
     ` · tổng thời gian nói ${(SrtLib.totalDuration(cues) / 1000).toFixed(0)}s`;
+  setStatus(`Đã nạp ${cues.length} cue`);
   if (save) saveProject();
 }
 $('#btnParse').addEventListener('click', () => parseSrt());
@@ -110,7 +116,8 @@ function initKnowledge() {
   for (const [id, blk] of Object.entries(Knowledge.BLOCKS)) {
     if (blk.default) state.blockIds.push(id);
     const lbl = document.createElement('label');
-    lbl.innerHTML = `<input type="checkbox" value="${id}" ${blk.default ? 'checked' : ''}> ${blk.name}`;
+    lbl.className = 'chip';
+    lbl.innerHTML = `<input type="checkbox" value="${id}" ${blk.default ? 'checked' : ''}><span>${blk.name}</span>`;
     lbl.querySelector('input').addEventListener('change', () => {
       state.blockIds = $$('#knowledgeChecks input:checked').map((i) => i.value);
       saveProject();
@@ -204,17 +211,25 @@ function refreshRunButtons() {
   const running = Object.values(state.results).some((r) => r.status === 'running' || r.status === 'preparing');
   $('#btnRun').disabled = running;
   $('#btnAbort').hidden = !running;
+  if (running) {
+    const n = Object.values(state.results).filter((r) => r.status === 'running' || r.status === 'preparing').length;
+    setStatus(`⏳ Đang chạy ${n} AI…`);
+  } else if (Object.values(state.results).some((r) => r.text)) {
+    setStatus('✅ Phân tích xong');
+  }
 }
 
 // ---------------------------------------------------------------- message hub
-chrome.runtime.onMessage.addListener((msg) => {
-  if (!msg || msg.action !== 'srt:jobUpdate') return;
-  const { jobId, provider, status, result } = msg;
-  if (!jobId) return;
-  if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
-  if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
-  if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
-});
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.action !== 'srt:jobUpdate') return;
+    const { jobId, provider, status, result } = msg;
+    if (!jobId) return;
+    if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
+    if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
+    if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
+  });
+}
 
 function handleAnalyzeUpdate(provider, status, result, jobId) {
   if (!provider) return;
