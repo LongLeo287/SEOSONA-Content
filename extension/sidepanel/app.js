@@ -484,7 +484,11 @@ $('#btnUseResult').addEventListener('click', () => {
   if (!r || !r.text) return;
   const angles = OutputParser.parseAngles(r.text, state.cues);
   if (!angles.length) {
-    alert('Không tìm thấy bảng cắt ghép hợp lệ trong kết quả. Kiểm tra output có đúng định dạng bảng markdown không.');
+    const hasTable = /\|.*\|/.test(r.text);
+    const msg = hasTable
+      ? 'Có bảng nhưng timecode không khớp SRT gốc (AI có thể đã sửa/bịa timecode, hoặc SRT quá dài nên AI phân tích thiếu). Bạn có thể tải kết quả .md để dùng ngoài.'
+      : 'AI không trả về bảng markdown (thường do SRT quá dài, prompt bị cắt cụt). Xem "Kết quả thô", hoặc tải .md để dùng ngoài.';
+    if (confirm(msg + '\n\nTải kết quả AI ra file .md?')) downloadRawResult();
     return;
   }
   state.angles = angles;
@@ -501,6 +505,16 @@ $('#btnUseResult').addEventListener('click', () => {
   openStage('edit');
   toast(`Đã dựng ${angles.length} góc · ${validCount} đoạn`, 'success');
 });
+
+// Tải nguyên văn kết quả AI ra file .md
+function downloadRawResult() {
+  const r = state.results[state.activeProvider];
+  if (!r || !r.text) { toast('Chưa có kết quả để tải', 'warn'); return; }
+  const header = `# Phân tích SRT — ${state.srtName} (${PROVIDER_LABEL[state.activeProvider] || state.activeProvider})\n\n`;
+  Exporter.download(baseName() + '.' + state.activeProvider + '.analysis.md', header + r.text, 'text/markdown');
+  toast('Đã tải kết quả .md', 'success');
+}
+$('#btnDownloadRaw').addEventListener('click', downloadRawResult);
 
 // ---------------------------------------------------------------- TAB 3: angles + segments
 function renderAngles() {
