@@ -17,14 +17,24 @@
       <span class="badge-premium">STUDIO</span>
     </div>
     <div class="header-tools">
-      <button class="icon-btn" id="hdrPrompts" title="Thư viện prompt">📚</button>
-      <button class="icon-btn" id="hdrBatch" title="Batch nhiều SRT">📦</button>
-      <button class="icon-btn" id="hdrHistory" title="Lịch sử chạy">🕘</button>
       <button class="icon-btn" id="hdrReset" title="Làm mới project">↺</button>
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
       <span class="dot-live" title="Sẵn sàng"></span>
     </div>
   </header>
+
+  <!-- ============ TOOLS BAR (tab phụ + phiên) ============ -->
+  <div class="toolsbar">
+    <div class="tools-left">
+      <button class="tab-pill" id="hdrPrompts">📚 Prompts</button>
+      <button class="tab-pill" id="hdrBatch">📦 Batch</button>
+      <button class="tab-pill" id="hdrHistory">🕘 Lịch sử</button>
+    </div>
+    <div class="tools-right">
+      <span class="session-name" id="sessionName" title="Phiên hiện tại">Chưa có phiên</span>
+      <button class="tab-pill" id="hdrNewSession" title="Phiên mới">＋</button>
+    </div>
+  </div>
 
   <!-- ============ PIPELINE (1 luồng dọc) ============ -->
   <main class="content pipeline">
@@ -59,17 +69,22 @@
         <span class="stage-caret">▾</span>
       </div>
       <div class="stage-body">
-        <div class="field">
-          <label>Mẫu prompt</label>
-          <select id="tplSelect"></select>
+        <!-- Prompt hero (kiểu Gen) -->
+        <div class="prompt-hero">
+          <div class="ph-head">
+            <select id="tplSelect" class="ph-select"></select>
+            <div class="ph-tools">
+              <button id="btnImportPrompt" class="pill-btn" title="Nạp prompt từ .txt">📥 Import</button>
+              <input type="file" id="importPromptFile" accept=".txt,.md" hidden>
+              <button id="btnSavePromptQuick" class="pill-btn" title="Lưu vào thư viện">💾 Lưu</button>
+            </div>
+          </div>
+          <textarea id="tplBody" rows="6" spellcheck="false"></textarea>
         </div>
-        <details class="acc">
-          <summary>Xem / sửa prompt gốc</summary>
-          <textarea id="tplBody" rows="8"></textarea>
-        </details>
 
-        <div class="field">
-          <label>🧠 Kiến thức SEOSONA bơm vào prompt</label>
+        <!-- Cài đặt phân tích (đậm đặc) -->
+        <div class="sec">
+          <div class="sec-head">🧠 Kiến thức SEOSONA</div>
           <div id="knowledgeChecks" class="chips stack"></div>
         </div>
 
@@ -79,23 +94,27 @@
             <select id="platformSelect"></select>
           </div>
           <div class="field">
-            <label>🎭 Số góc cắt</label>
-            <input type="number" id="angleCount" value="1" min="1" max="5">
+            <label>🎭 Góc cắt</label>
+            <div class="stepper">
+              <button type="button" id="angleMinus">−</button>
+              <input type="number" id="angleCount" value="1" min="1" max="5">
+              <button type="button" id="anglePlus">+</button>
+            </div>
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <label>Chạy trên AI</label>
-        <div id="providerChecks" class="chips">
-          <label class="chip"><input type="checkbox" value="chatgpt" checked><span>ChatGPT</span></label>
-          <label class="chip"><input type="checkbox" value="gemini"><span>Gemini</span></label>
-          <label class="chip"><input type="checkbox" value="grok"><span>Grok</span></label>
-          <label class="chip"><input type="checkbox" value="claude"><span>Claude</span></label>
-        </div>
-        <div class="row opts">
-          <label class="switch"><input type="checkbox" id="freshChat" checked><span class="track"></span>Hội thoại mới</label>
-          <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30"></label>
+        <div class="sec">
+          <div class="sec-head">🤖 Chạy trên AI</div>
+          <div id="providerChecks" class="chips">
+            <label class="chip"><input type="checkbox" value="chatgpt" checked><span>ChatGPT</span></label>
+            <label class="chip"><input type="checkbox" value="gemini"><span>Gemini</span></label>
+            <label class="chip"><input type="checkbox" value="grok"><span>Grok</span></label>
+            <label class="chip"><input type="checkbox" value="claude"><span>Claude</span></label>
+          </div>
+          <div class="row opts">
+            <label class="switch"><input type="checkbox" id="freshChat" checked><span class="track"></span>Hội thoại mới</label>
+            <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30"></label>
+          </div>
         </div>
 
         <button id="btnRun" class="btn-cta">🚀 Gửi phân tích</button>

@@ -24,6 +24,10 @@ function setStatus(msg) {
   const el = document.getElementById('statusText');
   if (el) el.textContent = msg;
 }
+function setSession(name) {
+  const el = document.getElementById('sessionName');
+  if (el) el.textContent = name || 'Chưa có phiên';
+}
 
 // Toast trong panel
 function toast(msg, type = 'info', ms = 3500) {
@@ -133,6 +137,7 @@ function parseSrt(save = true) {
     `✅ ${state.srtName} — ${cues.length} cue · thời lượng nguồn ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}` +
     ` · tổng thời gian nói ${(SrtLib.totalDuration(cues) / 1000).toFixed(0)}s`;
   setStatus(`Đã nạp ${cues.length} cue`);
+  setSession(state.srtName);
   setStageDone('srt', `${cues.length} cue · ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}`);
   updateLocks();
   if (save) { saveProject(); openStage('run'); toast(`Đã nạp ${cues.length} cue`, 'success'); }
@@ -627,15 +632,39 @@ $('#promptApply').addEventListener('click', () => {
   $$('#promptVars input').forEach((inp) => { body = body.split('{{' + inp.dataset.var + '}}').join(inp.value); });
   applyPromptBody(body);
 });
-$('#btnSaveCurrentPrompt').addEventListener('click', async () => {
+async function saveCurrentPromptFlow() {
   const body = $('#tplBody').value.trim();
-  if (!body) { toast('Prompt đang trống (mở bước Phân tích để soạn)', 'warn'); return; }
+  if (!body) { toast('Prompt đang trống', 'warn'); return; }
   const title = prompt('Tên prompt:', 'Prompt SRT');
   if (!title) return;
   const list = await plibLoad();
   list.unshift({ id: 'p_' + Date.now(), title, body });
   await plibStore(list); renderPromptList(list); toast('Đã lưu prompt', 'success');
+}
+$('#btnSaveCurrentPrompt').addEventListener('click', saveCurrentPromptFlow);
+$('#btnSavePromptQuick').addEventListener('click', saveCurrentPromptFlow);
+
+// Import prompt từ .txt
+$('#btnImportPrompt').addEventListener('click', () => $('#importPromptFile').click());
+$('#importPromptFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { $('#tplBody').value = reader.result; toast('Đã nạp prompt từ file', 'success'); };
+  reader.readAsText(file, 'utf-8');
+  e.target.value = '';
 });
+
+// Stepper số góc
+function bumpAngle(delta) {
+  const el = $('#angleCount');
+  el.value = Math.max(1, Math.min(5, (+el.value || 1) + delta));
+}
+$('#angleMinus').addEventListener('click', () => bumpAngle(-1));
+$('#anglePlus').addEventListener('click', () => bumpAngle(1));
+
+// Phiên mới
+$('#hdrNewSession').addEventListener('click', () => $('#hdrReset').click());
 
 // ---------------------------------------------------------------- batch nhiều SRT
 const batchWaiters = {};

@@ -149,6 +149,50 @@ body {
 }
 .divider { height: 1px; background: var(--border-soft); margin: 2px 0; }
 
+/* ---------------------------------------------------- tools bar (tab phụ + phiên) */
+.toolsbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; background: var(--bg-0);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 49px; z-index: 15;
+}
+.tools-left, .tools-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tab-pill {
+  padding: 5px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
+}
+.tab-pill:hover { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
+.session-name {
+  font-size: 11px; color: var(--muted); max-width: 130px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 3px 8px; border-radius: 8px; background: var(--bg-1); border: 1px solid var(--border-soft);
+}
+
+/* ---------------------------------------------------- prompt hero (kiểu Gen) */
+.prompt-hero {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; gap: 8px;
+}
+.ph-head { display: flex; align-items: center; gap: 8px; }
+.ph-select { flex: 1; font-size: 11.5px; padding: 6px 8px; }
+.ph-tools { display: flex; gap: 5px; flex: none; }
+.pill-btn {
+  padding: 5px 9px; border-radius: 18px; font-size: 11px; font-weight: 600;
+  background: var(--bg-3); border: 1px solid var(--border); color: var(--text);
+}
+.pill-btn:hover { color: var(--neon); border-color: var(--neon-line); }
+.prompt-hero textarea { background: var(--bg-0); }
+
+/* section header đậm đặc */
+.sec { display: flex; flex-direction: column; gap: 8px; }
+.sec-head { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+/* stepper số góc */
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-2); }
+.stepper button { border: none; background: none; color: var(--neon); font-size: 15px; width: 26px; height: 30px; padding: 0; border-radius: 0; }
+.stepper button:hover { background: var(--neon-soft); }
+.stepper input { width: 34px; text-align: center; border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-radius: 0; background: transparent; }
+
 .card {
   background: var(--bg-1);
   border: 1px solid var(--border-soft);
