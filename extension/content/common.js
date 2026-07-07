@@ -95,6 +95,61 @@
     return true;
   }
 
+  // Floating tracker: badge tiến độ hiển thị NGAY trên tab AI khi đang phân tích.
+  const Tracker = (() => {
+    let host, timerEl, phaseEl, dotEl, interval, t0, onStop;
+    function ensure() {
+      if (host && document.body.contains(host)) return;
+      host = document.createElement('div');
+      host.id = '__srt_tracker__';
+      host.style.cssText = [
+        'position:fixed', 'right:16px', 'bottom:16px', 'z-index:2147483647',
+        'display:flex', 'align-items:center', 'gap:8px',
+        'padding:8px 12px', 'border-radius:10px',
+        'background:#151815', 'border:1px solid rgba(173,255,47,.45)',
+        'box-shadow:0 6px 24px -6px rgba(0,0,0,.6)',
+        'font:600 12px/1.2 "Segoe UI",system-ui,sans-serif', 'color:#ededed',
+        'cursor:default', 'user-select:none',
+      ].join(';');
+      dotEl = document.createElement('span');
+      dotEl.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#adff2f;box-shadow:0 0 6px #adff2f';
+      const label = document.createElement('span');
+      label.textContent = 'SRT';
+      label.style.cssText = 'color:#adff2f;font-weight:800;letter-spacing:.5px';
+      phaseEl = document.createElement('span');
+      timerEl = document.createElement('span');
+      timerEl.style.cssText = 'font-family:Consolas,monospace;color:#9aa1b5';
+      const stop = document.createElement('button');
+      stop.textContent = '⛔';
+      stop.title = 'Dừng';
+      stop.style.cssText = 'background:none;border:none;color:#f0545c;cursor:pointer;font-size:13px;padding:0 2px';
+      stop.addEventListener('click', () => { try { onStop && onStop(); } catch (_) {} });
+      host.append(dotEl, label, phaseEl, timerEl, stop);
+      (document.body || document.documentElement).appendChild(host);
+    }
+    function tick() {
+      if (!timerEl) return;
+      const s = Math.floor((Date.now() - t0) / 1000);
+      timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    }
+    return {
+      show(stopFn) {
+        onStop = stopFn; ensure();
+        t0 = Date.now();
+        dotEl.style.background = '#f0a933'; dotEl.style.boxShadow = '0 0 6px #f0a933';
+        clearInterval(interval); interval = setInterval(tick, 1000); tick();
+      },
+      phase(txt) { ensure(); if (phaseEl) phaseEl.textContent = txt; },
+      done(ok, ms) {
+        ensure();
+        clearInterval(interval);
+        if (dotEl) { dotEl.style.background = ok ? '#adff2f' : '#f0545c'; dotEl.style.boxShadow = `0 0 6px ${ok ? '#adff2f' : '#f0545c'}`; }
+        if (phaseEl) phaseEl.textContent = ok ? `xong (${Math.round((ms || 0) / 1000)}s)` : 'lỗi';
+        setTimeout(() => { try { host && host.remove(); host = null; } catch (_) {} }, 4000);
+      },
+    };
+  })();
+
   // Nhận diện lỗi provider (rate limit / content blocked) để fail nhanh với thông báo rõ.
   function detectProviderError(cfg, txt) {
     if (!txt || txt.length > 400) return null; // thông báo lỗi thường ngắn -> tránh false positive
@@ -139,19 +194,24 @@
 
     async function submitAndWait({ text, timeout = 600000 }) {
       aborted = false;
+      Tracker.show(() => { aborted = true; });
+      Tracker.phase('đang chuẩn bị…');
 
       // Chặn sớm: trang yêu cầu đăng nhập / captcha
       if (cfg.isBlocked && cfg.isBlocked()) {
+        Tracker.done(false);
         return { success: false, error: 'PAGE_BLOCKED', message: 'Trang đang yêu cầu đăng nhập hoặc xác minh. Hãy xử lý thủ công rồi chạy lại.' };
       }
 
       const editor = await waitFor(() => findFirst(cfg.editor), { timeout: 20000 });
       if (!editor) {
+        Tracker.done(false);
         return { success: false, error: 'EDITOR_NOT_FOUND', message: 'Không tìm thấy ô nhập chat. Kiểm tra đã đăng nhập và đang ở trang chat chưa.' };
       }
 
       const baseline = getTurns().length;
 
+      Tracker.phase('đang gửi prompt…');
       await insertText(editor, text);
       await sleep(500);
       await clickSend(editor);
@@ -164,8 +224,10 @@
         interval: 500,
       });
       if (!appeared) {
+        Tracker.done(false);
         return { success: false, error: 'NO_RESPONSE_STARTED', message: 'AI không bắt đầu trả lời (có thể chưa gửi được prompt hoặc bị rate limit).' };
       }
+      Tracker.phase('AI đang trả lời…');
 
       // Poll ổn định: text không đổi STABLE_CYCLES chu kỳ và không còn "đang sinh"
       const STABLE_CYCLES = cfg.stableCycles || 8;
@@ -177,6 +239,7 @@
       while (Date.now() - t0 < timeout) {
         if (aborted) {
           try { if (cfg.clickStop) cfg.clickStop(); } catch (_) {}
+          Tracker.done(false);
           return { success: false, error: 'ABORTED', message: 'Đã hủy theo yêu cầu.' };
         }
 
@@ -193,13 +256,15 @@
 
         if (!generating) {
           const errHit = detectProviderError(cfg, txt);
-          if (errHit) return { success: false, ...errHit, text: txt };
+          if (errHit) { Tracker.done(false); return { success: false, ...errHit, text: txt }; }
         }
 
         if (txt.length > 0 && txt === last && !generating) {
           stable += 1;
           if (stable >= STABLE_CYCLES) {
-            return { success: true, text: txt, elapsedMs: Date.now() - t0 };
+            const elapsedMs = Date.now() - t0;
+            Tracker.done(true, elapsedMs);
+            return { success: true, text: txt, elapsedMs };
           }
         } else {
           stable = 0;
@@ -208,6 +273,7 @@
         await sleep(POLL_MS);
       }
 
+      Tracker.done(false);
       return { success: false, error: 'TIMEOUT', message: 'Hết thời gian chờ.', text: last };
     }
 
