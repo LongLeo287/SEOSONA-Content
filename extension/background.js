@@ -144,6 +144,27 @@ async function handleJobResult({ jobId, provider, result }) {
   const status = result && result.success ? 'done' : 'error';
   await setJob(jobId, { status, result, finishedAt: Date.now() });
   broadcast({ action: 'srt:jobUpdate', jobId, provider, status, result });
+  notifyDone(jobId, provider, status, result);
+}
+
+// Thông báo hệ thống khi job xong — hữu ích khi user đang ở tab khác.
+function notifyDone(jobId, provider, status, result) {
+  try {
+    const label = (PROVIDERS[provider] && PROVIDERS[provider].label) || provider || '';
+    let kind = jobId && jobId.startsWith('review_') ? 'Đánh giá'
+      : jobId && jobId.startsWith('meta_') ? 'Metadata' : 'Phân tích';
+    const title = status === 'done' ? `✅ ${kind} xong — ${label}` : `⚠ ${kind} lỗi — ${label}`;
+    const message = status === 'done'
+      ? (result && result.text ? result.text.slice(0, 120) : 'Hoàn tất.')
+      : (result && (result.message || result.error)) || 'Có lỗi xảy ra.';
+    chrome.notifications.create(`srt_${jobId}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
+      title,
+      message,
+      priority: 0,
+    }, () => void chrome.runtime.lastError);
+  } catch (_) {}
 }
 
 async function handleAbort({ jobId }) {

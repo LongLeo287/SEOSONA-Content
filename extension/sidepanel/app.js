@@ -24,6 +24,21 @@ function setStatus(msg) {
   if (el) el.textContent = msg;
 }
 
+// Toast trong panel
+function toast(msg, type = 'info', ms = 3500) {
+  const wrap = document.getElementById('toastWrap');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 250);
+  }, ms);
+  while (wrap.children.length > 4) wrap.firstChild.remove();
+}
+
 function currentSegments() {
   const a = state.angles[state.activeAngle];
   return a ? a.segments : [];
@@ -119,7 +134,7 @@ function parseSrt(save = true) {
   setStatus(`Đã nạp ${cues.length} cue`);
   setStageDone('srt', `${cues.length} cue · ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}`);
   updateLocks();
-  if (save) { saveProject(); openStage('run'); }
+  if (save) { saveProject(); openStage('run'); toast(`Đã nạp ${cues.length} cue`, 'success'); }
 }
 $('#btnParse').addEventListener('click', () => parseSrt());
 $('#dropZone').addEventListener('click', () => $('#srtFile').click());
@@ -269,9 +284,12 @@ function handleAnalyzeUpdate(provider, status, result, jobId) {
   if (status === 'done') {
     state.results[provider] = { status: 'done', text: result.text, jobId };
     updateJobRow(provider, 'done', `xong (${Math.round((result.elapsedMs || 0) / 1000)}s, ${result.text.length} ký tự)`);
+    toast(`${provider} phân tích xong`, 'success');
+    logHistory({ kind: 'analyze', provider, text: result.text });
   } else {
     state.results[provider] = { status, error: (result && (result.message || result.error)) || status, text: result && result.text };
     updateJobRow(provider, 'error', state.results[provider].error);
+    toast(`${provider}: ${state.results[provider].error}`, 'error', 5000);
   }
   refreshRunButtons();
   renderResults();
@@ -317,6 +335,7 @@ $('#btnUseResult').addEventListener('click', () => {
   updateLocks();
   saveProject();
   openStage('edit');
+  toast(`Đã dựng ${angles.length} góc · ${validCount} đoạn`, 'success');
 });
 
 // ---------------------------------------------------------------- TAB 3: angles + segments
@@ -448,7 +467,8 @@ function handleMetaUpdate(status, result) {
   }
   if (status === 'done' || status === 'error') {
     $('#btnMeta').disabled = false;
-    if (result && result.text) { state.metadata = OutputParser.parseMetadata(result.text); renderMetadata(); saveProject(); }
+    if (result && result.text) { state.metadata = OutputParser.parseMetadata(result.text); renderMetadata(); saveProject(); toast('Đã sinh SEO metadata', 'success'); }
+    else if (status === 'error') toast('Sinh metadata lỗi', 'error');
   }
 }
 
@@ -502,6 +522,10 @@ function handleReviewUpdate(provider, status, result) {
   const pending = Object.values(state.review).some((r) => r.status === 'running' || r.status === 'preparing');
   $('#btnReview').disabled = pending;
   renderReviewScores();
+  if (!pending) {
+    const any = Object.values(state.review).some((r) => r.scores && r.scores.criteria.length);
+    toast(any ? 'Đánh giá xong' : 'Đánh giá không đọc được điểm', any ? 'success' : 'warn');
+  }
 }
 
 function renderReviewScores() {
@@ -542,6 +566,69 @@ function renderReviewScores() {
   $('#reviewResult').textContent = done.map(([p, r]) => `===== ${p} =====\n${r.text}`).join('\n\n');
   setStageDone('review', `${overall.toFixed(1)}/10 · ${provList.length} AI`);
 }
+
+// ---------------------------------------------------------------- run history
+async function logHistory({ kind, provider, text }) {
+  try {
+    const entry = {
+      id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      ts: Date.now(), kind, provider,
+      srtName: state.srtName, cueCount: state.cues.length,
+      chars: (text || '').length, srtRaw: state.srtRaw, text,
+    };
+    const { srtHistory = [] } = await chrome.storage.local.get('srtHistory');
+    srtHistory.unshift(entry);
+    while (srtHistory.length > 20) srtHistory.pop();
+    await chrome.storage.local.set({ srtHistory });
+  } catch (_) {}
+}
+async function openHistory() {
+  let list = [];
+  try { const r = await chrome.storage.local.get('srtHistory'); list = r.srtHistory || []; } catch (_) {}
+  renderHistory(list);
+  $('#historyOverlay').hidden = false;
+}
+function renderHistory(list) {
+  const box = $('#historyList');
+  if (!list.length) { box.innerHTML = '<p class="hint">Chưa có lần chạy nào.</p>'; return; }
+  box.innerHTML = '';
+  list.forEach((e) => {
+    const d = new Date(e.ts);
+    const p = (n) => String(n).padStart(2, '0');
+    const when = `${p(d.getHours())}:${p(d.getMinutes())} ${d.getDate()}/${d.getMonth() + 1}`;
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    row.innerHTML = `<div class="hist-main"><b>${escapeHtml(e.provider || '')}</b> · ${escapeHtml(e.srtName || '')} `
+      + `<span class="hint">${e.cueCount || 0} cue · ${e.chars || 0} ký tự · ${when}</span></div>`
+      + `<div class="hist-act"><button data-a="open">Mở lại</button><button data-a="del">✕</button></div>`;
+    row.querySelector('[data-a="open"]').addEventListener('click', () => reopenHistory(e));
+    row.querySelector('[data-a="del"]').addEventListener('click', () => delHistory(e.id));
+    box.appendChild(row);
+  });
+}
+function reopenHistory(e) {
+  if (e.srtRaw) { $('#srtText').value = e.srtRaw; state.srtName = e.srtName || state.srtName; parseSrt(); }
+  if (e.text) { state.results[e.provider] = { status: 'done', text: e.text }; state.activeProvider = e.provider; renderResults(); }
+  $('#historyOverlay').hidden = true;
+  openStage('run');
+  toast('Đã mở lại lần chạy', 'success');
+}
+async function delHistory(id) {
+  try {
+    const { srtHistory = [] } = await chrome.storage.local.get('srtHistory');
+    const next = srtHistory.filter((x) => x.id !== id);
+    await chrome.storage.local.set({ srtHistory: next });
+    renderHistory(next);
+  } catch (_) {}
+}
+$('#hdrHistory').addEventListener('click', openHistory);
+$('#historyClose').addEventListener('click', () => { $('#historyOverlay').hidden = true; });
+$('#historyOverlay').addEventListener('click', (ev) => { if (ev.target.id === 'historyOverlay') $('#historyOverlay').hidden = true; });
+$('#historyClear').addEventListener('click', async () => {
+  if (!confirm('Xóa toàn bộ lịch sử?')) return;
+  try { await chrome.storage.local.set({ srtHistory: [] }); } catch (_) {}
+  renderHistory([]);
+});
 
 // ---------------------------------------------------------------- Settings: selector override
 const ovState = { overrides: {} };

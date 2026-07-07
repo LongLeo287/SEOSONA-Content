@@ -17,6 +17,7 @@
       <span class="badge-premium">STUDIO</span>
     </div>
     <div class="header-tools">
+      <button class="icon-btn" id="hdrHistory" title="Lịch sử chạy">🕘</button>
       <button class="icon-btn" id="hdrReset" title="Làm mới project">↺</button>
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
       <span class="dot-live" title="Sẵn sàng"></span>
@@ -188,6 +189,22 @@
     </section>
 
   </main>
+
+  <!-- ============ HISTORY OVERLAY ============ -->
+  <div id="historyOverlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>🕘 Lịch sử chạy</b>
+        <button class="icon-btn" id="historyClose">✕</button>
+      </div>
+      <p class="hint">Các lần phân tích gần đây. Mở lại để nạp SRT + kết quả AI vào project hiện tại.</p>
+      <div id="historyList"></div>
+      <button id="historyClear" class="btn-danger">Xóa toàn bộ lịch sử</button>
+    </div>
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <div id="toastWrap" class="toast-wrap"></div>
 
   <!-- ============ SETTINGS OVERLAY: selector override ============ -->
   <div id="settingsOverlay" class="overlay" hidden>

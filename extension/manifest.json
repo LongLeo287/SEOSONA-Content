@@ -14,7 +14,8 @@
     "storage",
     "sidePanel",
     "scripting",
-    "downloads"
+    "downloads",
+    "notifications"
   ],
   "host_permissions": [
     "*://chatgpt.com/*",
