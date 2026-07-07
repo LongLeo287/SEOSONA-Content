@@ -49,16 +49,107 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  const normWs = (s) => String(s || '').replace(/\s+/g, '');
+  function moveCaretEnd(editor) {
+    try {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (_) {}
+  }
+  function verifyInserted(editor, text) {
+    const got = normWs(editor.textContent);
+    const exp = normWs(text);
+    if (!exp.length) return true;
+    if (got.length < Math.floor(exp.length * 0.9)) return false;
+    return got.includes(exp.substring(0, Math.min(20, exp.length)));
+  }
+  function clearEditor(editor) {
+    try { editor.focus(); document.execCommand('selectAll', false, null); document.execCommand('delete', false, null); } catch (_) {}
+  }
+  function simulateClick(el) {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    try {
+      el.dispatchEvent(new PointerEvent('pointerdown', o));
+      el.dispatchEvent(new MouseEvent('mousedown', o));
+      el.dispatchEvent(new PointerEvent('pointerup', o));
+      el.dispatchEvent(new MouseEvent('mouseup', o));
+      el.dispatchEvent(new MouseEvent('click', o));
+    } catch (_) { try { el.click(); } catch (__) {} }
+  }
+  function findSendBySvg(scope) {
+    const btns = (scope || document).querySelectorAll('button:not([disabled])');
+    for (const btn of btns) {
+      const svg = btn.querySelector('svg'); if (!svg) continue;
+      for (const path of svg.querySelectorAll('path')) {
+        const d = path.getAttribute('d') || '';
+        if (d.includes('M2.01 21L23 12') || d.includes('M2 21l21-9') || d.includes('m4 4 16 8-16 8') || /M\d+.*L.*12/.test(d)) return btn;
+      }
+    }
+    return null;
+  }
+  // Gui: uu tien Enter (editor rong = da gui), roi nut gui, roi form.requestSubmit
+  async function submitPrompt(editor, cfg) {
+    const emptied = () => normWs(editor.textContent).length === 0;
+    const enter = () => {
+      const o = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
+      editor.dispatchEvent(new KeyboardEvent('keydown', o));
+      editor.dispatchEvent(new KeyboardEvent('keypress', o));
+      editor.dispatchEvent(new KeyboardEvent('keyup', o));
+    };
+    editor.focus(); await sleep(80);
+    enter();
+    await sleep(1300);
+    if (emptied()) return true;
+    let btn = findFirst(cfg.sendButton) || findSendBySvg();
+    if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
+      simulateClick(btn);
+      await sleep(1000);
+      if (emptied()) return true;
+      const k = Object.keys(btn).find((x) => x.startsWith('__reactProps$'));
+      if (k && btn[k] && typeof btn[k].onClick === 'function') {
+        try { btn[k].onClick({ preventDefault() {}, stopPropagation() {} }); } catch (_) {}
+        await sleep(800);
+        if (emptied()) return true;
+      }
+    }
+    const form = (btn && btn.closest('form')) || editor.closest('form');
+    if (form && typeof form.requestSubmit === 'function') {
+      try { form.requestSubmit(btn || undefined); } catch (_) { try { form.submit(); } catch (__) {} }
+      await sleep(800);
+    }
+    return emptied();
+  }
+
   // Chèn text 3 tầng — ưu tiên paste event vì giữ nguyên state của editor
   // (ProseMirror/Quill), với văn bản dài + tiếng Việt có dấu vẫn an toàn.
-  async function insertText(editor, text) {
+  async function insertText(editor, text, mode) {
     editor.focus();
-    await sleep(80);
+    await sleep(150);
 
     if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
       setNativeValue(editor, text);
       return true;
     }
+
+    // Gemini UI moi: dung execCommand + KHONG dispatch 'input' (tranh auto-submit loi)
+    if (mode === 'gemini') {
+      moveCaretEnd(editor);
+      try { document.execCommand('insertText', false, text); } catch (_) {}
+      await sleep(220);
+      if (!verifyInserted(editor, text)) {
+        try { editor.appendChild(document.createTextNode(text)); } catch (_) {}
+        await sleep(150);
+      }
+      return verifyInserted(editor, text);
+    }
+
+    clearEditor(editor); await sleep(50); moveCaretEnd(editor);
 
     // Tầng 1: ClipboardEvent('paste')
     try {
@@ -212,9 +303,13 @@
       const baseline = getTurns().length;
 
       Tracker.phase('đang gửi prompt…');
-      await insertText(editor, text);
-      await sleep(500);
-      await clickSend(editor);
+      const inserted = await insertText(editor, text, cfg.insertMode);
+      if (!inserted) {
+        Tracker.done(false);
+        return { success: false, error: 'INSERT_FAILED', message: 'Không chèn được prompt vào ô chat (UI có thể đã đổi). Vào ⚙ Settings cập nhật selector "editor".' };
+      }
+      await sleep(400);
+      await submitPrompt(editor, cfg);
 
       // Chờ message mới xuất hiện. Với provider đếm cả bubble user
       // (countsUserMessages) cần vượt baseline + 1.
@@ -326,12 +421,14 @@
       : (window.srtBuildProviderConfig);
     const s = builder ? builder(name, overrides) : {};
 
+    const stripSpeaker = (t) => String(t || '').replace(/^\s*(gemini|chatgpt|claude|grok)\s*(đã nói|said|ha detto|답변|พูดว่า)\s*[\n:]*/i, '').trim();
     const cfg = {
       name,
       editor: s.editor || [],
       sendButton: s.sendButton || [],
       countsUserMessages: !!s.countsUserMessages,
       errorPatterns: s.errorPatterns || {},
+      insertMode: s.insertMode || null,
       stableCycles: 8,
       pollMs: 700,
       getAssistantNodes: () => {
@@ -344,7 +441,7 @@
         if (!el) return '';
         let inner = null;
         if (s.responseInner) { try { inner = el.querySelector(s.responseInner); } catch (_) {} }
-        return (inner || el).innerText || '';
+        return stripSpeaker((inner || el).innerText || '');
       },
       isGenerating: () => {
         if (!s.generating) return false;
