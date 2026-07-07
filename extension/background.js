@@ -196,7 +196,6 @@ async function handleJobResult({ jobId, provider, result }) {
 
 // Thông báo hệ thống khi job xong — hữu ích khi user đang ở tab khác.
 function notifyDone(jobId, provider, status, result) {
-  if (jobId && jobId.startsWith('auto_')) return; // pipeline tự động: không spam thông báo từng phần
   try {
     const label = (PROVIDERS[provider] && PROVIDERS[provider].label) || provider || '';
     let kind = jobId && jobId.startsWith('review_') ? 'Đánh giá'

@@ -247,11 +247,92 @@ Viết bằng tiếng Việt. Bám sát nội dung kịch bản, không bịa s�
 {{SCRIPT}}
 `;
 
+// ===== Prompt: VIDEO DÀI (biên tập long-form) =====
+const LONGFORM_PROMPT = `# SYSTEM INSTRUCTION: BIÊN TẬP VIDEO DÀI (LONG-FORM) TỪ SRT
+
+## VAI TRÒ & MỤC TIÊU
+Bạn là biên tập viên video dài (YouTube 8-20 phút) mảng SEO, Digital Marketing, AI, Automation.
+Nhiệm vụ: từ file SRT gốc, CẮT BỎ phần thừa và SẮP XẾP lại thành một video dài mạch lạc,
+giữ được CHIỀU SÂU và đầy đủ nội dung dạy học (khác với shorts: KHÔNG nén xuống 30-90s).
+
+## GUARDRAIL DỮ LIỆU (BẮT BUỘC)
+- Giữ NGUYÊN VĂN 100% phụ đề được chọn (không sửa chính tả/ngữ pháp/thuật ngữ).
+- Giữ NGUYÊN timecode gốc, không bịa/gộp/sửa.
+- Chỉ được CẮT (bỏ) và ĐẢO (sắp lại) — không viết thêm lời thoại.
+- Chỉ lấy lời của chuyên gia chính; bỏ MC/host/khán giả/nhiễu.
+
+## ĐƯỢC PHÉP CẮT
+- Lời chào/tạm biệt, câu đệm, lặp ý, lạc đề, quảng cáo xen giữa, đoạn im lặng/ậm ừ.
+
+## CẤU TRÚC VIDEO DÀI (sắp các cue theo khung này)
+1. HOOK ngắn (mở đầu gây tò mò)
+2. INTRO / bối cảnh — vì sao đáng xem
+3. THÂN BÀI theo chương (3-7 chương), mỗi chương: luận điểm → giải thích → ví dụ
+4. TỔNG KẾT
+5. CTA
+Đặt tên chương rõ ràng ở cột Segment (vd "Chương 1: ...").
+
+## MỤC TIÊU THỜI LƯỢNG
+Ưu tiên giữ đủ nội dung giá trị (thường 8-20 phút), không ép ngắn. Bỏ phần thừa để mạch chặt.
+
+## OUTPUT FORMAT (BẮT BUỘC — bảng markdown 4 cột)
+| Segment | Source Timecode | Raw Subtitle Transcript | Vai trò trong video |
+|---|---|---|---|
+| Chương 1: ... | 00:00:00,000 --> 00:00:00,000 | (copy nguyên văn phụ đề) | (giải thích vai trò) |
+
+- Cột Source Timecode PHẢI ghi HH:MM:SS,mmm --> HH:MM:SS,mmm đúng nguyên văn SRT.
+- Cột Raw Subtitle PHẢI copy 100% nguyên văn.
+- Trả bằng tiếng Việt, chỉ một bảng (trừ khi được yêu cầu nhiều kịch bản).
+
+===== SRT FILE CONTENT =====
+
+{{SRT}}
+`;
+
+// ===== Prompt: HIGHLIGHTS (trích các đoạn hay nhất) =====
+const HIGHLIGHTS_PROMPT = `# SYSTEM INSTRUCTION: TRÍCH HIGHLIGHT TỪ SRT
+
+## VAI TRÒ
+Bạn là editor chuyên trích "best moments" từ video dài để làm reels/teaser/trailer.
+
+## NHIỆM VỤ
+Từ SRT gốc, chọn ra các ĐOẠN HAY NHẤT / ĐÁNG NHỚ NHẤT (câu chốt, số liệu sốc, quan điểm mạnh,
+khoảnh khắc cảm xúc). Mỗi highlight là một cụm cue liền/ngắn, độc lập, dễ hiểu khi đứng riêng.
+
+## GUARDRAIL
+- Giữ NGUYÊN VĂN phụ đề + NGUYÊN timecode. Chỉ cắt, không viết thêm.
+- Chỉ lấy lời chuyên gia chính.
+
+## OUTPUT FORMAT (bảng markdown 4 cột)
+| Segment | Source Timecode | Raw Subtitle Transcript | Vì sao đáng highlight |
+|---|---|---|---|
+| Highlight 1 | 00:00:00,000 --> 00:00:00,000 | (nguyên văn) | (lý do) |
+
+Timecode & phụ đề copy 100% nguyên văn. Trả bằng tiếng Việt.
+
+===== SRT FILE CONTENT =====
+
+{{SRT}}
+`;
+
 const PROMPT_TEMPLATES = {
   analyze_v2: {
-    name: 'Phân tích & cắt ghép — Master Prompt v2',
+    name: '📱 Shorts — cắt/đảo/ghép (Master Prompt v2)',
     kind: 'analyze',
+    platform: 'short',
     body: MASTER_PROMPT_V2,
+  },
+  longform: {
+    name: '🎬 Video dài — biên tập long-form',
+    kind: 'analyze',
+    platform: 'long',
+    body: LONGFORM_PROMPT,
+  },
+  highlights: {
+    name: '✨ Highlights — trích đoạn hay nhất',
+    kind: 'analyze',
+    platform: 'short',
+    body: HIGHLIGHTS_PROMPT,
   },
   evaluate: {
     name: 'Đánh giá kịch bản (chấm điểm retention)',
@@ -272,12 +353,12 @@ const PromptBuilder = (() => {
 
   function angleOutputFormat(angleCount) {
     if (angleCount <= 1) return '';
-    return `\n## YÊU CẦU MULTI-ANGLE
-Tạo ${angleCount} PHIÊN BẢN CẮT GHÉP KHÁC NHAU (khác góc tiếp cận: ví dụ góc pain-point, góc case-study, góc counter-intuitive...). Mỗi phiên bản là một bảng riêng, đứng trước bằng tiêu đề markdown dạng:
+    return `\n## YÊU CẦU: TẠO ${angleCount} KỊCH BẢN
+Tạo ${angleCount} KỊCH BẢN KHÁC NHAU (khác góc tiếp cận: ví dụ pain-point, case-study, counter-intuitive...). Mỗi kịch bản là một bảng riêng, đứng trước bằng tiêu đề markdown dạng:
 
-### Angle 1: <tên góc tiếp cận ngắn gọn>
+### Kịch bản 1: <tên góc tiếp cận ngắn gọn>
 
-rồi tới bảng 4 cột của phiên bản đó. Mỗi phiên bản vẫn tuân thủ toàn bộ guardrail (giữ nguyên phụ đề & timecode).\n`;
+rồi tới bảng 4 cột của kịch bản đó. Mỗi kịch bản vẫn tuân thủ toàn bộ guardrail (giữ nguyên phụ đề & timecode).\n`;
   }
 
   // opts: { srtRaw, base(body template), blockIds[], platformId, angleCount }

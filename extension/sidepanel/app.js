@@ -234,21 +234,8 @@ function parseSrt(save = true) {
   setStatus(`Đã nạp ${cues.length} cue`);
   setSession(state.srtName);
   setStageDone('srt', `${cues.length} cue · ${SrtLib.msToTime(cues[cues.length - 1].end).slice(0, 8)}`);
-  updateAutoUI();
   updateLocks();
   if (save) { saveProject(); openStage('run'); toast(`Đã nạp ${cues.length} cue`, 'success'); }
-}
-// Đổi nhãn nút + báo trước khi SRT dài sẽ chạy tự động chia phần
-function updateAutoUI() {
-  const btn = $('#btnRun');
-  if (!btn) return;
-  if (isLargeSrt()) {
-    const n = autoChunkCount();
-    btn.textContent = `🤖 Chạy tự động (chia ${n} phần)`;
-    $('#srtInfo').textContent += ` · SRT dài → sẽ tự chia ~${n} phần`;
-  } else {
-    btn.textContent = '🚀 Gửi phân tích';
-  }
 }
 $('#btnParse').addEventListener('click', () => parseSrt());
 // Lưu ý: #dropZone là <label> bọc #srtFile nên click đã tự mở hộp thoại —
@@ -373,7 +360,6 @@ function updateJobRow(provider, status, msg, scope = document) {
 
 $('#btnRun').addEventListener('click', async () => {
   if (!state.cues.length) { alert('Chưa nạp SRT.'); return; }
-  if (isLargeSrt()) return runAutoPipeline(); // SRT dài -> tự động chia nhỏ, chạy tuần tự
   const providers = [state.provider];
 
   const angleCount = Math.max(1, Math.min(5, +$('#angleCount').value || 1));
@@ -406,12 +392,6 @@ $('#btnRun').addEventListener('click', async () => {
 });
 
 $('#btnAbort').addEventListener('click', async () => {
-  if (state.autoActive) {
-    state.autoStop = true;
-    if (state.autoJobId) { try { await chrome.runtime.sendMessage({ action: 'srt:abortJob', jobId: state.autoJobId }); } catch (_) {} }
-    toast('Đang dừng pipeline tự động…', 'warn');
-    return;
-  }
   for (const [provider, r] of Object.entries(state.results)) {
     if (r.status === 'running' && r.jobId) {
       await chrome.runtime.sendMessage({ action: 'srt:abortJob', jobId: r.jobId });
@@ -443,7 +423,6 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
-    if (jobId.startsWith('auto_')) return handleAutoUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
   });
 }
@@ -517,14 +496,14 @@ $('#btnUseResult').addEventListener('click', () => {
   state.segmentSource = state.activeProvider;
   state.metadata = null;
   const validCount = angles.reduce((s, a) => s + a.segments.filter((x) => x.valid).length, 0);
-  setStageDone('run', `${state.activeProvider} → ${angles.length} góc · ${validCount} đoạn`);
+  setStageDone('run', `${state.activeProvider} → ${angles.length} kịch bản · ${validCount} đoạn`);
   renderAngles();
   renderSegments();
   renderMetadata();
   updateLocks();
   saveProject();
   openStage('edit');
-  toast(`Đã dựng ${angles.length} góc · ${validCount} đoạn`, 'success');
+  toast(`Đã dựng ${angles.length} kịch bản · ${validCount} đoạn`, 'success');
 });
 
 // Tải nguyên văn kết quả AI ra file .md
@@ -536,91 +515,6 @@ function downloadRawResult() {
   toast('Đã tải kết quả .md', 'success');
 }
 $('#btnDownloadRaw').addEventListener('click', downloadRawResult);
-
-// ---------------------------------------------------------------- PIPELINE TỰ ĐỘNG (chia SRT dài)
-const AUTO_CHUNK_CHARS = 15000;     // ngưỡng ký tự SRT mỗi phần
-const autoWaiters = {};
-function autoChunkCount() { return Math.max(1, Math.ceil((state.srtRaw || '').length / AUTO_CHUNK_CHARS)); }
-function isLargeSrt() { return (state.srtRaw || '').length > AUTO_CHUNK_CHARS; }
-
-// Chia danh sách cue theo ngân sách ký tự (giữ nguyên timecode gốc)
-function chunkCuesByChars(cues, maxChars) {
-  const chunks = []; let cur = []; let len = 0;
-  for (const c of cues) {
-    const cl = (c.text || '').length + 34; // ước lượng kích thước dòng SRT
-    if (cur.length && len + cl > maxChars) { chunks.push(cur); cur = []; len = 0; }
-    cur.push(c); len += cl;
-  }
-  if (cur.length) chunks.push(cur);
-  return chunks;
-}
-function handleAutoUpdate(jobId, status, result) {
-  if (status === 'running' || status === 'preparing') {
-    if (state.autoActive) setStatus(`🤖 ${state.autoLabel || ''} — ${status === 'running' ? (result && result.retrying ? 'thử lại…' : 'AI đang xử lý…') : 'đang mở tab…'}`);
-    return;
-  }
-  const w = autoWaiters[jobId]; if (w) { delete autoWaiters[jobId]; w({ status, result }); }
-}
-
-async function runAutoPipeline() {
-  const provider = state.provider;
-  const chunks = chunkCuesByChars(state.cues, AUTO_CHUNK_CHARS);
-  state.autoActive = true; state.autoStop = false;
-  state.results = {};
-  const base = $('#tplBody').value;
-  const timeout = (+$('#timeoutMin').value || 10) * 60000;
-
-  $('#btnRun').disabled = true; $('#btnRun').classList.add('running');
-  $('#btnAbort').hidden = false;
-  const merged = [];
-  let okChunks = 0;
-
-  for (let i = 0; i < chunks.length; i++) {
-    if (state.autoStop) break;
-    state.autoLabel = `phần ${i + 1}/${chunks.length}`;
-    $('#jobStatus').innerHTML = `<div class="job running"><span class="dot"></span><strong>Tự động</strong>`
-      + `<span class="hint">phần ${i + 1}/${chunks.length} · đã chọn ${merged.length} đoạn</span></div>`;
-    setStatus(`🤖 Tự động: phần ${i + 1}/${chunks.length}`);
-
-    const chunkSrt = SrtLib.serialize(chunks[i]);
-    const note = `> Đây là PHẦN ${i + 1}/${chunks.length} của một video dài. Chỉ chọn 2-6 clip MẠNH NHẤT trong phần này, giữ nguyên phụ đề & timecode.\n\n`;
-    const text = PromptBuilder.buildAnalyze({ srtRaw: note + chunkSrt, base, blockIds: state.blockIds, platformId: state.platformId, angleCount: 1 });
-    const jobId = `auto_${provider}_${i}_${Date.now()}`;
-    state.autoJobId = jobId;
-    const done = new Promise((res) => { autoWaiters[jobId] = res; });
-    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat: true });
-    if (!resp || !resp.ok) { delete autoWaiters[jobId]; continue; }
-    const out = await done;
-    if (out && out.status === 'done' && out.result && out.result.text) {
-      const segs = OutputParser.parse(out.result.text, state.cues).filter((s) => s.valid);
-      merged.push(...segs);
-      okChunks++;
-    }
-  }
-
-  state.autoActive = false; state.autoJobId = null;
-  $('#btnRun').disabled = false; $('#btnRun').classList.remove('running');
-  $('#btnAbort').hidden = true;
-
-  if (!merged.length) {
-    $('#jobStatus').innerHTML = '';
-    toast('Tự động: không dựng được đoạn nào. Thử tăng Timeout hoặc đổi AI.', 'error', 6000);
-    return;
-  }
-  // gộp + sắp theo thời gian
-  const seen = new Set();
-  const uniq = merged.filter((s) => { const k = s.cueIndexes.join(','); if (seen.has(k)) return false; seen.add(k); return true; });
-  uniq.sort((a, b) => (a.start || 0) - (b.start || 0));
-
-  state.angles = [{ title: `Tổng hợp tự động (${okChunks}/${chunks.length} phần)`, segments: uniq }];
-  state.activeAngle = 0; state.segmentSource = provider; state.metadata = null;
-  setStageDone('run', `${provider} → tự động ${uniq.length} đoạn (${okChunks}/${chunks.length} phần)`);
-  $('#jobStatus').innerHTML = '';
-  renderAngles(); renderSegments(); renderMetadata(); updateLocks(); saveProject();
-  openStage('edit');
-  showView('studio');
-  toast(`Tự động xong: ${uniq.length} đoạn từ ${okChunks}/${chunks.length} phần`, 'success', 6000);
-}
 
 // ---------------------------------------------------------------- TAB 3: angles + segments
 function renderAngles() {
