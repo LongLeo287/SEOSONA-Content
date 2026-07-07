@@ -297,8 +297,6 @@ function initTemplates() {
 }
 
 // ---------------------------------------------------------------- TAB 2: RUN
-function checkedProviders(sel) { return $$(sel + ' input:checked').map((i) => i.value); }
-
 // ---------------------------------------------------------------- chọn provider (single-select)
 const PROVIDER_LABEL = { chatgpt: 'ChatGPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude' };
 function setProvider(p, { load = true } = {}) {
@@ -626,11 +624,10 @@ function renderMetadata() {
 }
 $('#btnExportMeta').addEventListener('click', () => { if (state.metadata) Exporter.download(baseName() + '.metadata.txt', Exporter.buildMetadataTxt(state.metadata), 'text/plain'); });
 
-// ---------------------------------------------------------------- TAB 4: REVIEW (multi-AI + consensus)
+// ---------------------------------------------------------------- BƯỚC 4: ĐÁNH GIÁ (single provider)
 $('#btnReview').addEventListener('click', async () => {
-  if (!validSegments().length) { alert('Chưa có bảng cắt ghép (tab 3).'); return; }
-  const providers = checkedProviders('#reviewChecks');
-  if (!providers.length) { alert('Chọn ít nhất 1 AI.'); return; }
+  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return; }
+  const providers = [state.provider];
   const script = Exporter.buildMarkdown(validSegments(), state.cues, { provider: state.segmentSource });
   const text = PROMPT_TEMPLATES.evaluate.body.replace('{{SCRIPT}}', script);
 
@@ -674,38 +671,23 @@ function renderReviewScores() {
   $('#reviewScoreCard').hidden = done.length === 0;
   if (!done.length) return;
 
-  // gộp theo tiêu chí (consensus trung bình nhiều AI)
-  const agg = {};
-  for (const [provider, r] of done) {
-    for (const c of r.scores.criteria) {
-      const key = c.name.toLowerCase().replace(/\s+/g, ' ').trim();
-      (agg[key] = agg[key] || { name: c.name, byProv: {} }).byProv[provider] = c.score / c.max * 10;
-    }
-  }
-  const rows = Object.values(agg).map((a) => {
-    const vals = Object.values(a.byProv);
-    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
-    return { name: a.name, avg, byProv: a.byProv };
-  });
-  const overall = rows.length ? (rows.reduce((s, r) => s + r.avg, 0) / rows.length) : 0;
-
-  const provList = done.map(([p]) => p);
+  const [provider, r] = done[0];
+  const rows = r.scores.criteria.map((c) => ({ name: c.name, avg: c.score / c.max * 10, comment: c.comment || '', suggest: c.suggest || '' }));
+  const overall = r.scores.average != null ? r.scores.average : (rows.length ? rows.reduce((s, x) => s + x.avg, 0) / rows.length : 0);
   const barColor = (v) => v >= 8 ? 'var(--ok)' : v >= 6 ? 'var(--warn)' : 'var(--err)';
-  const verdicts = done.map(([p, r]) => r.scores.verdict).filter(Boolean);
 
-  let html = `<div class="overall">Tổng consensus: <b>${overall.toFixed(1)}/10</b> · ${provList.join(', ')}`;
-  if (verdicts.length) html += ` · ${escapeHtml(verdicts[0])}`;
+  let html = `<div class="overall">Điểm tổng: <b>${overall.toFixed(1)}/10</b> · ${PROVIDER_LABEL[provider] || provider}`;
+  if (r.scores.verdict) html += ` · ${escapeHtml(r.scores.verdict)}`;
   html += '</div>';
-  for (const r of rows) {
-    const detail = provList.map((p) => r.byProv[p] != null ? `${p}:${r.byProv[p].toFixed(0)}` : '').filter(Boolean).join(' · ');
+  for (const row of rows) {
     html += `<div class="score">
-      <div class="score-head"><span>${escapeHtml(r.name)}</span><b>${r.avg.toFixed(1)}</b></div>
-      <div class="bar"><i style="width:${r.avg * 10}%;background:${barColor(r.avg)}"></i></div>
-      <div class="hint">${escapeHtml(detail)}</div></div>`;
+      <div class="score-head"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}</b></div>
+      <div class="bar"><i style="width:${row.avg * 10}%;background:${barColor(row.avg)}"></i></div>
+      ${row.suggest ? `<div class="hint">${escapeHtml(row.suggest)}</div>` : ''}</div>`;
   }
   $('#reviewScores').innerHTML = html;
-  $('#reviewResult').textContent = done.map(([p, r]) => `===== ${p} =====\n${r.text}`).join('\n\n');
-  setStageDone('review', `${overall.toFixed(1)}/10 · ${provList.length} AI`);
+  $('#reviewResult').textContent = r.text;
+  setStageDone('review', `${overall.toFixed(1)}/10 · ${PROVIDER_LABEL[provider] || provider}`);
 }
 
 // ---------------------------------------------------------------- prompt library + variables
