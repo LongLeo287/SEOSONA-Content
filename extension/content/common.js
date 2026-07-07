@@ -95,7 +95,18 @@
     return true;
   }
 
-  function registerProvider(cfg) {
+  // Nhận diện lỗi provider (rate limit / content blocked) để fail nhanh với thông báo rõ.
+  function detectProviderError(cfg, txt) {
+    if (!txt || txt.length > 400) return null; // thông báo lỗi thường ngắn -> tránh false positive
+    const low = txt.toLowerCase();
+    const pats = cfg.errorPatterns || {};
+    for (const p of (pats.rate_limit || [])) if (low.includes(p)) return { error: 'RATE_LIMIT', message: 'AI báo giới hạn/hết lượt: "' + txt.slice(0, 120) + '"' };
+    for (const p of (pats.content_blocked || [])) if (low.includes(p)) return { error: 'CONTENT_BLOCKED', message: 'AI từ chối nội dung: "' + txt.slice(0, 120) + '"' };
+    for (const p of (pats.network || [])) if (low.includes(p)) return { error: 'NETWORK', message: 'Lỗi mạng phía AI: "' + txt.slice(0, 120) + '"' };
+    return null;
+  }
+
+  function _install(cfg) {
     let aborted = false;
 
     const getTurns = () => {
@@ -180,6 +191,11 @@
         let generating = false;
         try { generating = cfg.isGenerating ? !!cfg.isGenerating() : false; } catch (_) {}
 
+        if (!generating) {
+          const errHit = detectProviderError(cfg, txt);
+          if (errHit) return { success: false, ...errHit, text: txt };
+        }
+
         if (txt.length > 0 && txt === last && !generating) {
           stable += 1;
           if (stable >= STABLE_CYCLES) {
@@ -226,6 +242,60 @@
     });
 
     console.log('[SRT Studio] provider registered:', cfg.name);
+  }
+
+  function loadOverrides() {
+    return new Promise((res) => {
+      try {
+        chrome.storage.local.get('srtSelectorOverrides', (r) => res((r && r.srtSelectorOverrides) || {}));
+      } catch (_) { res({}); }
+    });
+  }
+
+  // Đăng ký provider theo TÊN: dựng cfg từ selectors-default.js + override của user.
+  async function registerProvider(name) {
+    const overrides = await loadOverrides();
+    const builder = (typeof srtBuildProviderConfig === 'function')
+      ? srtBuildProviderConfig
+      : (window.srtBuildProviderConfig);
+    const s = builder ? builder(name, overrides) : {};
+
+    const cfg = {
+      name,
+      editor: s.editor || [],
+      sendButton: s.sendButton || [],
+      countsUserMessages: !!s.countsUserMessages,
+      errorPatterns: s.errorPatterns || {},
+      stableCycles: 8,
+      pollMs: 700,
+      getAssistantNodes: () => {
+        for (const sel of (s.assistantNode || [])) {
+          try { const n = document.querySelectorAll(sel); if (n && n.length) return n; } catch (_) {}
+        }
+        return [];
+      },
+      extractText: (el) => {
+        if (!el) return '';
+        let inner = null;
+        if (s.responseInner) { try { inner = el.querySelector(s.responseInner); } catch (_) {} }
+        return (inner || el).innerText || '';
+      },
+      isGenerating: () => {
+        if (!s.generating) return false;
+        try { return !!document.querySelector(s.generating); } catch (_) { return false; }
+      },
+      clickStop: () => {
+        if (!s.stop) return;
+        try { const b = document.querySelector(s.stop); if (b) b.click(); } catch (_) {}
+      },
+      isBlocked: () => {
+        const t = (document.title || '').toLowerCase();
+        if ((s.blockedTitle || []).some((x) => t.includes(x))) return true;
+        if (s.blockedSelector) { try { if (document.querySelector(s.blockedSelector)) return true; } catch (_) {} }
+        return false;
+      },
+    };
+    _install(cfg);
   }
 
   window.__SRT_STUDIO__ = { sleep, isVisible, findFirst, waitFor, insertText, registerProvider };

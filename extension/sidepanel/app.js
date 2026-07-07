@@ -543,6 +543,74 @@ function renderReviewScores() {
   setStageDone('review', `${overall.toFixed(1)}/10 · ${provList.length} AI`);
 }
 
+// ---------------------------------------------------------------- Settings: selector override
+const ovState = { overrides: {} };
+
+async function ovLoad() {
+  try {
+    const { srtSelectorOverrides } = await chrome.storage.local.get('srtSelectorOverrides');
+    ovState.overrides = srtSelectorOverrides || {};
+  } catch (_) { ovState.overrides = ovState.overrides || {}; }
+}
+async function ovSaveStore() {
+  try { await chrome.storage.local.set({ srtSelectorOverrides: ovState.overrides }); } catch (_) {}
+}
+function ovEffective(provider, key) {
+  const ov = (ovState.overrides[provider] || {})[key];
+  if (ov != null) return ov;
+  return (SRT_SELECTORS_DEFAULT[provider] || {})[key];
+}
+function ovToLines(val) {
+  if (Array.isArray(val)) return val.join('\n');
+  return val == null ? '' : String(val);
+}
+function ovRender() {
+  const p = $('#ovProvider').value;
+  const k = $('#ovKey').value;
+  $('#ovText').value = ovToLines(ovEffective(p, k));
+  const def = (SRT_SELECTORS_DEFAULT[p] || {})[k];
+  const overridden = (ovState.overrides[p] || {})[k] != null;
+  $('#ovDefaultHint').textContent = (overridden ? '● Đang override. ' : '○ Đang dùng mặc định. ')
+    + 'Mặc định: ' + (Array.isArray(def) ? def.join('  |  ') : (def || '(trống)'));
+}
+async function openSettings() {
+  await ovLoad();
+  const ps = $('#ovProvider');
+  if (!ps.options.length) {
+    Object.keys(SRT_SELECTORS_DEFAULT).forEach((p) => { const o = document.createElement('option'); o.value = p; o.textContent = p; ps.appendChild(o); });
+    SRT_SELECTOR_KEYS.forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = k; $('#ovKey').appendChild(o); });
+  }
+  ovRender();
+  $('#settingsOverlay').hidden = false;
+}
+$('#hdrSettings').addEventListener('click', openSettings);
+$('#settingsClose').addEventListener('click', () => { $('#settingsOverlay').hidden = true; });
+$('#settingsOverlay').addEventListener('click', (e) => { if (e.target.id === 'settingsOverlay') $('#settingsOverlay').hidden = true; });
+$('#ovProvider').addEventListener('change', ovRender);
+$('#ovKey').addEventListener('change', ovRender);
+
+$('#ovSave').addEventListener('click', async () => {
+  const p = $('#ovProvider').value, k = $('#ovKey').value;
+  const lines = $('#ovText').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  ovState.overrides[p] = ovState.overrides[p] || {};
+  ovState.overrides[p][k] = SRT_ARRAY_KEYS.indexOf(k) >= 0 ? lines : lines.join(', ');
+  await ovSaveStore();
+  ovRender();
+  setStatus(`Đã lưu override ${p}.${k} — tải lại tab ${p} để áp dụng`);
+});
+$('#ovReset').addEventListener('click', async () => {
+  const p = $('#ovProvider').value, k = $('#ovKey').value;
+  if (ovState.overrides[p]) { delete ovState.overrides[p][k]; if (!Object.keys(ovState.overrides[p]).length) delete ovState.overrides[p]; }
+  await ovSaveStore();
+  ovRender();
+});
+$('#ovClear').addEventListener('click', async () => {
+  if (!confirm('Xóa toàn bộ selector override?')) return;
+  ovState.overrides = {};
+  await ovSaveStore();
+  ovRender();
+});
+
 // ---------------------------------------------------------------- header reset
 document.getElementById('hdrReset').addEventListener('click', async () => {
   if (!confirm('Xóa toàn bộ project hiện tại và bắt đầu lại?')) return;

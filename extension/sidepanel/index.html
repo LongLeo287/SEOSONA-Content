@@ -18,7 +18,7 @@
     </div>
     <div class="header-tools">
       <button class="icon-btn" id="hdrReset" title="Làm mới project">↺</button>
-      <button class="icon-btn" id="hdrNotify" title="Thông báo">🔔</button>
+      <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
       <span class="dot-live" title="Sẵn sàng"></span>
     </div>
   </header>
@@ -189,6 +189,29 @@
 
   </main>
 
+  <!-- ============ SETTINGS OVERLAY: selector override ============ -->
+  <div id="settingsOverlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>⚙ Selector override — chống vỡ UI</b>
+        <button class="icon-btn" id="settingsClose">✕</button>
+      </div>
+      <p class="hint">Khi ChatGPT/Gemini/Grok/Claude đổi giao diện làm tự động hóa hỏng, dán selector mới vào đây rồi <b>tải lại tab AI</b> — không cần cập nhật extension. Mỗi dòng một selector, hệ thống thử lần lượt tới khi trúng.</p>
+      <div class="row">
+        <div class="field grow"><label>Provider</label><select id="ovProvider"></select></div>
+        <div class="field grow"><label>Thành phần</label><select id="ovKey"></select></div>
+      </div>
+      <label>Selector đang dùng (mỗi dòng một cái)</label>
+      <textarea id="ovText" rows="5" spellcheck="false"></textarea>
+      <div class="hint" id="ovDefaultHint"></div>
+      <div class="row">
+        <button id="ovSave" class="btn-cta compact">Lưu override</button>
+        <button id="ovReset">Về mặc định</button>
+        <button id="ovClear" class="btn-danger">Xóa hết</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ STATUS BAR ============ -->
   <footer class="statusbar">
     <span class="status-text" id="statusText">Sẵn sàng</span>
@@ -201,6 +224,7 @@
 </div>
 
 <script src="../lib/srt-parser.js"></script>
+<script src="../lib/selectors-default.js"></script>
 <script src="../lib/knowledge.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>

@@ -41,22 +41,22 @@
   "content_scripts": [
     {
       "matches": ["*://chatgpt.com/*"],
-      "js": ["content/common.js", "content/chatgpt.js"],
+      "js": ["lib/selectors-default.js", "content/common.js", "content/chatgpt.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://gemini.google.com/*"],
-      "js": ["content/common.js", "content/gemini.js"],
+      "js": ["lib/selectors-default.js", "content/common.js", "content/gemini.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://grok.com/*", "https://*.grok.com/*"],
-      "js": ["content/common.js", "content/grok.js"],
+      "js": ["lib/selectors-default.js", "content/common.js", "content/grok.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://claude.ai/*"],
-      "js": ["content/common.js", "content/claude.js"],
+      "js": ["lib/selectors-default.js", "content/common.js", "content/claude.js"],
       "run_at": "document_idle"
     }
   ]
