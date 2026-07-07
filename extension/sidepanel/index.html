@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRT Studio</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>🎬 SRT Studio</h1>
+  <span class="sub">Phân tích · Đánh giá · Cắt ghép SRT bằng AI web</span>
+</header>
+
+<nav id="tabs">
+  <button data-tab="srt" class="active">1. SRT</button>
+  <button data-tab="run">2. Phân tích</button>
+  <button data-tab="edit">3. Cắt ghép</button>
+  <button data-tab="review">4. Đánh giá</button>
+</nav>
+
+<!-- ============ TAB 1: SRT ============ -->
+<section id="tab-srt" class="tab active">
+  <div class="card">
+    <label class="file-drop" id="dropZone">
+      <input type="file" id="srtFile" accept=".srt,.txt" hidden>
+      <strong>📄 Chọn hoặc kéo thả file .srt</strong>
+      <span class="hint">hoặc dán nội dung vào ô bên dưới</span>
+    </label>
+    <textarea id="srtText" rows="10" placeholder="1&#10;00:00:01,000 --> 00:00:03,500&#10;Nội dung phụ đề..."></textarea>
+    <button id="btnParse" class="primary">Nạp SRT</button>
+    <div id="srtInfo" class="info"></div>
+  </div>
+</section>
+
+<!-- ============ TAB 2: RUN ============ -->
+<section id="tab-run" class="tab">
+  <div class="card">
+    <label>Mẫu prompt</label>
+    <select id="tplSelect"></select>
+    <details>
+      <summary>Xem / sửa prompt</summary>
+      <textarea id="tplBody" rows="12"></textarea>
+    </details>
+
+    <label>Chạy trên</label>
+    <div id="providerChecks" class="checks">
+      <label><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
+      <label><input type="checkbox" value="gemini"> Gemini</label>
+      <label><input type="checkbox" value="grok"> Grok</label>
+      <label><input type="checkbox" value="claude"> Claude</label>
+    </div>
+
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="freshChat" checked> Mở hội thoại mới</label>
+      <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30" style="width:60px"></label>
+    </div>
+
+    <button id="btnRun" class="primary">🚀 Gửi phân tích</button>
+    <button id="btnAbort" class="danger" hidden>⛔ Hủy</button>
+
+    <div id="jobStatus"></div>
+  </div>
+
+  <div class="card" id="resultsCard" hidden>
+    <label>Kết quả thô</label>
+    <div id="resultTabs" class="checks"></div>
+    <pre id="rawResponse"></pre>
+    <button id="btnUseResult" class="primary">✂️ Dựng bảng cắt ghép từ kết quả này</button>
+  </div>
+</section>
+
+<!-- ============ TAB 3: EDIT ============ -->
+<section id="tab-edit" class="tab">
+  <div class="card">
+    <div id="editSummary" class="info"></div>
+    <div id="segmentList"></div>
+  </div>
+  <div class="card">
+    <label>Xuất file</label>
+    <div class="row">
+      <button id="btnExportSrt">💾 SRT ghép</button>
+      <button id="btnExportCsv">📋 CSV cut-list</button>
+      <button id="btnExportEdl">🎞️ EDL (Premiere/Resolve)</button>
+      <button id="btnExportMd">📝 Markdown</button>
+      <button id="btnExportJson">🧩 Project JSON</button>
+    </div>
+    <div class="row">
+      <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60" style="width:56px"></label>
+      <label class="inline">Tên clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4" style="width:140px"></label>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 4: REVIEW ============ -->
+<section id="tab-review" class="tab">
+  <div class="card">
+    <p class="hint">Gửi kịch bản đã cắt ghép cho một AI khác chấm điểm hook / flow / retention.</p>
+    <label>Đánh giá bằng</label>
+    <select id="reviewProvider">
+      <option value="chatgpt">ChatGPT</option>
+      <option value="gemini">Gemini</option>
+      <option value="grok">Grok</option>
+      <option value="claude">Claude</option>
+    </select>
+    <button id="btnReview" class="primary">⭐ Gửi đánh giá</button>
+    <div id="reviewStatus"></div>
+    <pre id="reviewResult"></pre>
+  </div>
+</section>
+
+<script src="../lib/srt-parser.js"></script>
+<script src="../lib/templates.js"></script>
+<script src="../lib/output-parser.js"></script>
+<script src="../lib/exporter.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
