@@ -125,10 +125,14 @@ Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provid
 - [x] Floating tracker trên tab AI + toast + thông báo hệ thống
 - [x] Auto-retry backoff cho lỗi tạm thời
 - [x] Nhật ký lịch sử chạy (mở lại được)
-- [ ] Thư viện prompt tái dùng + biến `{{...}}` (còn lại từ đợt học TobyFlow)
-- [ ] Batch nhiều file SRT chạy hàng loạt (dùng queue + retry đã có)
+- [x] Thư viện prompt tái dùng + biến `{{...}}` (📚)
+- [x] Batch nhiều file SRT chạy hàng loạt (📦, dùng queue + retry)
 - [ ] Trình quản lý Knowledge Pack ngay trong UI
 - [ ] Đính kèm SRT dạng file upload; chia SRT dài chạy tuần tự
+
+## Tài liệu
+
+- [docs/SOP.md](docs/SOP.md) — quy trình chuẩn dùng extension từ đầu đến cuối (nạp SRT → phân tích → cắt ghép → đánh giá, batch, thư viện prompt, override selector, xử lý sự cố).
 
 ## Prompt gốc
 
