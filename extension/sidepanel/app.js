@@ -2,6 +2,8 @@
 /* global SrtLib, OutputParser, Exporter, PROMPT_TEMPLATES, PromptBuilder, Knowledge */
 
 const state = {
+  sessionId: null,    // id phiên hiện tại
+  sessionName: '',    // tên phiên
   srtRaw: '',
   srtName: 'source.srt',
   cues: [],
@@ -24,9 +26,11 @@ function setStatus(msg) {
   const el = document.getElementById('statusText');
   if (el) el.textContent = msg;
 }
+// Đặt tên phiên nếu chưa có (dùng tên file SRT); cập nhật nhãn trong dropdown
 function setSession(name) {
-  const el = document.getElementById('sessionName');
-  if (el) el.textContent = name || 'Chưa có phiên';
+  if (!state.sessionName && name) state.sessionName = name;
+  const sel = document.getElementById('sessionSelect');
+  if (sel) { const opt = sel.querySelector(`option[value="${state.sessionId}"]`); if (opt) opt.textContent = state.sessionName || name || 'Phiên'; }
 }
 
 // Toast trong panel
@@ -84,46 +88,130 @@ $$('.stage-head').forEach((h) => {
   });
 });
 
-// ---------------------------------------------------------------- persist
+// ---------------------------------------------------------------- persist (nhiều phiên)
+// Mỗi phiên = 1 project SRT + kết quả AI (kèm link cuộc chat của từng provider).
+async function loadSessions() {
+  try { const r = await chrome.storage.local.get(['srtSessions', 'srtCurrentId']); return { sessions: r.srtSessions || {}, currentId: r.srtCurrentId || null }; }
+  catch (_) { return { sessions: {}, currentId: null }; }
+}
+function stateToSession() {
+  return {
+    id: state.sessionId, name: state.sessionName || state.srtName || 'Phiên mới', updatedAt: Date.now(),
+    srtRaw: state.srtRaw, srtName: state.srtName,
+    results: state.results, angles: state.angles, activeAngle: state.activeAngle,
+    segmentSource: state.segmentSource, blockIds: state.blockIds,
+    platformId: state.platformId, metadata: state.metadata,
+  };
+}
 async function saveProject() {
-  await chrome.storage.local.set({
-    srtProject: {
-      srtRaw: state.srtRaw, srtName: state.srtName,
-      results: state.results, angles: state.angles, activeAngle: state.activeAngle,
-      segmentSource: state.segmentSource, blockIds: state.blockIds,
-      platformId: state.platformId, metadata: state.metadata,
-      savedAt: Date.now(),
-    },
+  if (!state.sessionId) state.sessionId = 's_' + Date.now();
+  try {
+    const { srtSessions = {} } = await chrome.storage.local.get('srtSessions');
+    srtSessions[state.sessionId] = stateToSession();
+    await chrome.storage.local.set({ srtSessions, srtCurrentId: state.sessionId });
+    renderSessionSelect(srtSessions, state.sessionId);
+  } catch (_) {}
+}
+
+function loadSessionIntoState(sess) {
+  Object.assign(state, {
+    sessionId: sess.id, sessionName: sess.name || '',
+    srtRaw: sess.srtRaw || '', srtName: sess.srtName || 'source.srt',
+    results: sess.results || {}, angles: sess.angles || [], activeAngle: sess.activeAngle || 0,
+    segmentSource: sess.segmentSource || '', blockIds: sess.blockIds || state.blockIds,
+    platformId: sess.platformId || 'none', metadata: sess.metadata || null,
   });
+  if (state.srtRaw) { $('#srtText').value = state.srtRaw; parseSrt(false); }
+  else { $('#srtText').value = ''; $('#srtInfo').textContent = ''; state.cues = []; }
+  syncKnowledgeUI();
+  $('#platformSelect').value = state.platformId;
+  renderResults(); renderAngles(); renderSegments(); renderMetadata();
+  setStageDone('srt', state.cues.length ? `${state.cues.length} cue` : '', state.cues.length > 0);
+  setStageDone('run', currentSegments().length ? `${state.segmentSource} · ${currentSegments().length} đoạn` : '', currentSegments().length > 0);
+  setStageDone('edit', '', false); setStageDone('review', '', false);
+  updateLocks();
+  openStage(currentSegments().length ? 'edit' : (state.cues.length ? 'run' : 'srt'));
 }
 
 async function restoreProject() {
-  const { srtProject } = await chrome.storage.local.get('srtProject');
-  if (!srtProject) return;
-  Object.assign(state, {
-    srtRaw: srtProject.srtRaw || '',
-    srtName: srtProject.srtName || 'source.srt',
-    results: srtProject.results || {},
-    angles: srtProject.angles || [],
-    activeAngle: srtProject.activeAngle || 0,
-    segmentSource: srtProject.segmentSource || '',
-    blockIds: srtProject.blockIds || state.blockIds,
-    platformId: srtProject.platformId || 'none',
-    metadata: srtProject.metadata || null,
-  });
-  if (state.srtRaw) { $('#srtText').value = state.srtRaw; parseSrt(false); }
-  syncKnowledgeUI();
-  $('#platformSelect').value = state.platformId;
-  renderResults();
-  renderAngles();
-  renderSegments();
-  renderMetadata();
+  let { sessions, currentId } = await loadSessions();
+  // migrate project cũ (một project) -> một phiên
+  if (!Object.keys(sessions).length) {
+    try {
+      const { srtProject } = await chrome.storage.local.get('srtProject');
+      if (srtProject && srtProject.srtRaw) {
+        const id = 's_' + Date.now();
+        sessions[id] = Object.assign({ id, name: srtProject.srtName || 'Phiên', updatedAt: Date.now() }, srtProject);
+        currentId = id;
+        await chrome.storage.local.set({ srtSessions: sessions, srtCurrentId: id });
+        await chrome.storage.local.remove('srtProject');
+      }
+    } catch (_) {}
+  }
+  if (currentId && sessions[currentId]) {
+    loadSessionIntoState(sessions[currentId]);
+  } else {
+    state.sessionId = 's_' + Date.now(); state.sessionName = '';
+  }
+  renderSessionSelect(sessions, state.sessionId);
+}
 
-  // Khôi phục trạng thái các bước + mở đúng bước xa nhất đã đạt
-  if (state.cues.length) setStageDone('srt', `${state.cues.length} cue`, true);
-  if (currentSegments().length) setStageDone('run', `${state.segmentSource} · ${currentSegments().length} đoạn`, true);
-  updateLocks();
-  openStage(currentSegments().length ? 'edit' : (state.cues.length ? 'run' : 'srt'));
+function renderSessionSelect(sessions, currentId) {
+  const sel = document.getElementById('sessionSelect');
+  if (!sel) return;
+  const list = Object.values(sessions || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  sel.innerHTML = '';
+  if (!list.length) {
+    const o = document.createElement('option'); o.value = state.sessionId || ''; o.textContent = 'Phiên mới'; sel.appendChild(o);
+    return;
+  }
+  list.forEach((s) => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name || s.srtName || 'Phiên'; sel.appendChild(o); });
+  if (currentId) sel.value = currentId;
+}
+
+async function switchSession(id) {
+  const { sessions } = await loadSessions();
+  const sess = sessions[id];
+  if (!sess) return;
+  try { await chrome.storage.local.set({ srtCurrentId: id }); } catch (_) {}
+  state.results = {}; state.angles = []; state.activeAngle = 0; state.metadata = null; state.review = {};
+  loadSessionIntoState(sess);
+  renderSessionSelect(sessions, id);
+  showView('studio');
+  toast('Đã chuyển phiên: ' + (sess.name || sess.srtName || ''), 'info');
+}
+
+async function newSession() {
+  state.sessionId = 's_' + Date.now(); state.sessionName = '';
+  Object.assign(state, { srtRaw: '', srtName: 'source.srt', cues: [], results: {}, angles: [], activeAngle: 0, segmentSource: '', metadata: null, review: {} });
+  $('#srtText').value = ''; $('#srtInfo').textContent = '';
+  renderResults(); renderAngles(); renderSegments(); renderMetadata();
+  STAGES.forEach((n) => setStageDone(n, '', false));
+  updateLocks(); openStage('srt');
+  await saveProject();
+  showView('studio');
+  toast('Đã tạo phiên mới', 'success');
+}
+
+async function renameSession() {
+  if (!state.sessionId) return;
+  const name = prompt('Tên phiên:', state.sessionName || state.srtName || '');
+  if (name == null) return;
+  state.sessionName = name.trim();
+  await saveProject();
+}
+
+async function deleteSession() {
+  if (!state.sessionId) return;
+  if (!confirm('Xóa phiên hiện tại?')) return;
+  try {
+    const { srtSessions = {} } = await chrome.storage.local.get('srtSessions');
+    delete srtSessions[state.sessionId];
+    await chrome.storage.local.set({ srtSessions });
+    const rest = Object.values(srtSessions).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    if (rest.length) { await switchSession(rest[0].id); }
+    else { await newSession(); }
+  } catch (_) {}
 }
 
 // ---------------------------------------------------------------- TAB 1: SRT
@@ -292,10 +380,10 @@ function handleAnalyzeUpdate(provider, status, result, jobId) {
     return;
   }
   if (status === 'done') {
-    state.results[provider] = { status: 'done', text: result.text, jobId };
+    state.results[provider] = { status: 'done', text: result.text, jobId, chatUrl: result.chatUrl || null };
     updateJobRow(provider, 'done', `xong (${Math.round((result.elapsedMs || 0) / 1000)}s, ${result.text.length} ký tự)`);
     toast(`${provider} phân tích xong`, 'success');
-    logHistory({ kind: 'analyze', provider, text: result.text });
+    logHistory({ kind: 'analyze', provider, text: result.text, chatUrl: result.chatUrl });
   } else {
     state.results[provider] = { status, error: (result && (result.message || result.error)) || status, text: result && result.text };
     updateJobRow(provider, 'error', state.results[provider].error);
@@ -322,7 +410,18 @@ function renderResults() {
     b.addEventListener('click', () => { state.activeProvider = provider; renderResults(); });
     tabs.appendChild(b);
   }
-  $('#rawResponse').textContent = state.results[state.activeProvider].text || '';
+  // Nút mở lại đúng cuộc chat AI đã dùng (nếu có link)
+  const cur = state.results[state.activeProvider] || {};
+  if (cur.chatUrl) {
+    const link = document.createElement('button');
+    link.textContent = '↗ Mở lại chat trên ' + state.activeProvider;
+    link.className = 'chat-link';
+    link.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'srt:openChat', provider: state.activeProvider, url: cur.chatUrl }).catch(() => {});
+    });
+    tabs.appendChild(link);
+  }
+  $('#rawResponse').textContent = cur.text || '';
 }
 
 $('#btnUseResult').addEventListener('click', () => {
@@ -768,13 +867,13 @@ $('#batchZipAll').addEventListener('click', () => {
 $('#batchClear').addEventListener('click', () => { if (state.batch.running) return; state.batch.files = []; renderBatch(); });
 
 // ---------------------------------------------------------------- run history
-async function logHistory({ kind, provider, text }) {
+async function logHistory({ kind, provider, text, chatUrl }) {
   try {
     const entry = {
       id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       ts: Date.now(), kind, provider,
       srtName: state.srtName, cueCount: state.cues.length,
-      chars: (text || '').length, srtRaw: state.srtRaw, text,
+      chars: (text || '').length, srtRaw: state.srtRaw, text, chatUrl: chatUrl || null,
     };
     const { srtHistory = [] } = await chrome.storage.local.get('srtHistory');
     srtHistory.unshift(entry);
@@ -807,7 +906,7 @@ function renderHistory(list) {
 }
 function reopenHistory(e) {
   if (e.srtRaw) { $('#srtText').value = e.srtRaw; state.srtName = e.srtName || state.srtName; parseSrt(); }
-  if (e.text) { state.results[e.provider] = { status: 'done', text: e.text }; state.activeProvider = e.provider; renderResults(); }
+  if (e.text) { state.results[e.provider] = { status: 'done', text: e.text, chatUrl: e.chatUrl || null }; state.activeProvider = e.provider; renderResults(); }
   showView('studio');
   openStage('run');
   toast('Đã mở lại lần chạy', 'success');
@@ -905,12 +1004,11 @@ function showView(name) {
 }
 $$('#sectionNav button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
-// ---------------------------------------------------------------- phiên mới / reset
-document.getElementById('hdrNewSession').addEventListener('click', async () => {
-  if (!confirm('Bắt đầu phiên mới? Project hiện tại sẽ bị xóa.')) return;
-  await chrome.storage.local.remove('srtProject');
-  location.reload();
-});
+// ---------------------------------------------------------------- điều khiển phiên
+document.getElementById('hdrNewSession').addEventListener('click', newSession);
+document.getElementById('sessionRename').addEventListener('click', renameSession);
+document.getElementById('sessionDelete').addEventListener('click', deleteSession);
+document.getElementById('sessionSelect').addEventListener('change', (e) => switchSession(e.target.value));
 
 // ---------------------------------------------------------------- tooltip styled
 (function initTooltips() {

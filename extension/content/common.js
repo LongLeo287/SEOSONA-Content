@@ -264,7 +264,7 @@
           if (stable >= STABLE_CYCLES) {
             const elapsedMs = Date.now() - t0;
             Tracker.done(true, elapsedMs);
-            return { success: true, text: txt, elapsedMs };
+            return { success: true, text: txt, elapsedMs, chatUrl: location.href };
           }
         } else {
           stable = 0;

@@ -206,6 +206,23 @@ function notifyDone(jobId, provider, status, result) {
   } catch (_) {}
 }
 
+// Mở lại đúng cuộc chat AI đã dùng (nhảy tab provider tới URL đã lưu)
+async function handleOpenChat({ provider, url }) {
+  if (!url) return { ok: false, error: 'Không có link chat' };
+  try {
+    let tab = provider ? await findProviderTab(provider) : null;
+    if (tab) {
+      await chrome.tabs.update(tab.id, { url, active: true });
+      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+    } else {
+      await chrome.tabs.create({ url, active: true });
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
 async function handleAbort({ jobId }) {
   const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
   const job = srtJobs[jobId];
@@ -230,6 +247,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.action === 'srt:abortJob') {
     handleAbort(msg).then(sendResponse);
+    return true;
+  }
+  if (msg.action === 'srt:openChat') {
+    handleOpenChat(msg).then(sendResponse);
     return true;
   }
   if (msg.action === 'srt:listProviders') {
