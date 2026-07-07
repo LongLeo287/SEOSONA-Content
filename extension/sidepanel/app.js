@@ -299,15 +299,28 @@ function initTemplates() {
 // ---------------------------------------------------------------- TAB 2: RUN
 // ---------------------------------------------------------------- chọn provider (single-select)
 const PROVIDER_LABEL = { chatgpt: 'ChatGPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude' };
-function setProvider(p, { load = true } = {}) {
+function bgSend(msg) { try { const p = chrome.runtime.sendMessage(msg); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
+function openChatFor(provider, url) { if (url) bgSend({ action: 'srt:openChat', provider, url }); }
+function setProvider(p, { load = true, userAction = false } = {}) {
   state.provider = p;
   $$('#providerPills .ppill').forEach((b) => b.classList.toggle('active', b.dataset.provider === p));
   markSessionPills();
   const r = state.results[p];
   const hint = $('#providerSessionHint');
+  const fresh = $('#freshChat') && $('#freshChat').checked;
   if (r && r.text) {
     if (load) { state.activeProvider = p; renderResults(); }
-    if (hint) hint.textContent = r.chatUrl ? '● Đã có kết quả + link chat cho ' + PROVIDER_LABEL[p] : '● Đã có kết quả cho ' + PROVIDER_LABEL[p];
+    if (hint) {
+      hint.textContent = r.chatUrl
+        ? (fresh ? '● Đã có kết quả cho ' + PROVIDER_LABEL[p] + ' (bật "Hội thoại mới" nên sẽ chạy chat mới)'
+                 : '● Nối tiếp cuộc chat cũ của ' + PROVIDER_LABEL[p])
+        : '● Đã có kết quả cho ' + PROVIDER_LABEL[p];
+    }
+    // Tắt "Hội thoại mới" + có link chat + do người dùng bấm pill -> tự mở lại chat cũ
+    if (userAction && !fresh && r.chatUrl) {
+      openChatFor(p, r.chatUrl);
+      toast('Đang mở lại chat cũ trên ' + PROVIDER_LABEL[p] + '…', 'info');
+    }
   } else if (hint) {
     hint.textContent = 'Chưa chạy ' + PROVIDER_LABEL[p] + ' trong phiên này.';
   }
@@ -319,7 +332,19 @@ function markSessionPills() {
     b.classList.toggle('has-session', !!(r && r.text));
   });
 }
-$$('#providerPills .ppill').forEach((b) => b.addEventListener('click', () => setProvider(b.dataset.provider)));
+$$('#providerPills .ppill').forEach((b) => b.addEventListener('click', () => setProvider(b.dataset.provider, { load: true, userAction: true })));
+// Tắt "Hội thoại mới" khi provider hiện tại có chat cũ -> mở lại để nối tiếp
+$('#freshChat').addEventListener('change', () => {
+  const r = state.results[state.provider];
+  const hint = $('#providerSessionHint');
+  if (!$('#freshChat').checked && r && r.chatUrl) {
+    openChatFor(state.provider, r.chatUrl);
+    if (hint) hint.textContent = '● Nối tiếp cuộc chat cũ của ' + PROVIDER_LABEL[state.provider];
+    toast('Sẽ nối tiếp cuộc chat cũ trên ' + PROVIDER_LABEL[state.provider], 'info');
+  } else {
+    setProvider(state.provider, { load: false });
+  }
+});
 
 function jobRow(provider, status, msg = '') {
   return `<div class="job ${status}" data-provider="${provider}">
@@ -353,9 +378,11 @@ $('#btnRun').addEventListener('click', async () => {
   $('#jobStatus').innerHTML = providers.map((p) => jobRow(p, 'preparing', 'đang chuẩn bị…')).join('');
 
   for (const provider of providers) {
+    // Nối tiếp cuộc chat cũ nếu tắt "Hội thoại mới" và provider đã có chatUrl
+    const prevChatUrl = (state.results[provider] && state.results[provider].chatUrl) || null;
     const jobId = `analyze_${provider}_${Date.now()}`;
-    state.results[provider] = { status: 'running', jobId };
-    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat });
+    state.results[provider] = { status: 'running', jobId, chatUrl: prevChatUrl };
+    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat, chatUrl: freshChat ? null : prevChatUrl });
     if (!resp || !resp.ok) {
       state.results[provider] = { status: 'error', error: (resp && resp.error) || 'Không gửi được job' };
       updateJobRow(provider, 'error', state.results[provider].error);
@@ -446,9 +473,7 @@ function renderResults() {
     const link = document.createElement('button');
     link.textContent = '↗ Mở lại chat trên ' + state.activeProvider;
     link.className = 'chat-link';
-    link.addEventListener('click', () => {
-      chrome.runtime.sendMessage({ action: 'srt:openChat', provider: state.activeProvider, url: cur.chatUrl }).catch(() => {});
-    });
+    link.addEventListener('click', () => openChatFor(state.activeProvider, cur.chatUrl));
     tabs.appendChild(link);
   }
   $('#rawResponse').textContent = cur.text || '';

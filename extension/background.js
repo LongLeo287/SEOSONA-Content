@@ -93,13 +93,21 @@ async function pingContent(tabId, provider, { tries = 30, gap = 500 } = {}) {
   throw new Error('Content script chưa sẵn sàng — hãy tải lại tab ' + PROVIDERS[provider].label);
 }
 
-async function ensureProviderTab(provider, { freshChat = false } = {}) {
+// freshChat=true -> mở hội thoại mới (baseUrl). freshChat=false + chatUrl ->
+// nối tiếp đúng cuộc chat cũ (điều hướng tab tới chatUrl nếu chưa ở đó).
+async function ensureProviderTab(provider, { freshChat = false, chatUrl = null } = {}) {
   let tab = await findProviderTab(provider);
+  const continueUrl = (!freshChat && chatUrl) ? chatUrl : null;
   if (!tab) {
-    tab = await chrome.tabs.create({ url: PROVIDERS[provider].baseUrl, active: true });
+    tab = await chrome.tabs.create({ url: continueUrl || PROVIDERS[provider].baseUrl, active: true });
     await waitTabComplete(tab.id);
+    await sleep(600);
   } else if (freshChat) {
     await chrome.tabs.update(tab.id, { url: PROVIDERS[provider].baseUrl });
+    await waitTabComplete(tab.id);
+    await sleep(800);
+  } else if (continueUrl && !String(tab.url || '').startsWith(continueUrl.split('?')[0])) {
+    await chrome.tabs.update(tab.id, { url: continueUrl });
     await waitTabComplete(tab.id);
     await sleep(800);
   }
@@ -108,13 +116,13 @@ async function ensureProviderTab(provider, { freshChat = false } = {}) {
 }
 
 // ---------------------------------------------------------------- handlers
-async function handleRunJob({ jobId, provider, text, timeout, freshChat }) {
+async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl }) {
   if (!PROVIDERS[provider]) return { ok: false, error: 'Provider không hợp lệ: ' + provider };
   try {
     await setJob(jobId, { provider, status: 'preparing', startedAt: Date.now() });
     broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'preparing' });
 
-    const tab = await ensureProviderTab(provider, { freshChat });
+    const tab = await ensureProviderTab(provider, { freshChat, chatUrl });
 
     // Tab phải active để tránh Chrome throttle timer/rAF của trang nền
     await chrome.tabs.update(tab.id, { active: true });
