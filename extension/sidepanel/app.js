@@ -7,7 +7,8 @@ const state = {
   srtRaw: '',
   srtName: 'source.srt',
   cues: [],
-  results: {},        // provider -> { status, text, error, jobId }  (kết quả phân tích)
+  results: {},        // provider -> { status, text, error, jobId, chatUrl }
+  provider: 'chatgpt', // provider đang chọn (single-select kiểu TobyFlow)
   activeProvider: null,
   angles: [],         // [{ title, segments }] — nhiều góc cắt
   activeAngle: 0,
@@ -131,9 +132,13 @@ function loadSessionIntoState(sess) {
   setStageDone('edit', '', false); setStageDone('review', '', false);
   updateLocks();
   openStage(currentSegments().length ? 'edit' : (state.cues.length ? 'run' : 'srt'));
+  // chọn provider phù hợp phiên: ưu tiên provider có kết quả
+  const withResult = Object.keys(state.results).filter((k) => state.results[k] && state.results[k].text);
+  setProvider(withResult.length && !withResult.includes(state.provider) ? withResult[0] : state.provider, { load: true });
 }
 
 async function restoreProject() {
+  try { const { srtLastProvider } = await chrome.storage.local.get('srtLastProvider'); if (srtLastProvider) state.provider = srtLastProvider; } catch (_) {}
   let { sessions, currentId } = await loadSessions();
   // migrate project cũ (một project) -> một phiên
   if (!Object.keys(sessions).length) {
@@ -154,6 +159,7 @@ async function restoreProject() {
     state.sessionId = 's_' + Date.now(); state.sessionName = '';
   }
   renderSessionSelect(sessions, state.sessionId);
+  setProvider(state.provider, { load: false });
 }
 
 function renderSessionSelect(sessions, currentId) {
@@ -188,6 +194,7 @@ async function newSession() {
   renderResults(); renderAngles(); renderSegments(); renderMetadata();
   STAGES.forEach((n) => setStageDone(n, '', false));
   updateLocks(); openStage('srt');
+  setProvider(state.provider, { load: false });
   await saveProject();
   showView('studio');
   toast('Đã tạo phiên mới', 'success');
@@ -292,6 +299,30 @@ function initTemplates() {
 // ---------------------------------------------------------------- TAB 2: RUN
 function checkedProviders(sel) { return $$(sel + ' input:checked').map((i) => i.value); }
 
+// ---------------------------------------------------------------- chọn provider (single-select)
+const PROVIDER_LABEL = { chatgpt: 'ChatGPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude' };
+function setProvider(p, { load = true } = {}) {
+  state.provider = p;
+  $$('#providerPills .ppill').forEach((b) => b.classList.toggle('active', b.dataset.provider === p));
+  markSessionPills();
+  const r = state.results[p];
+  const hint = $('#providerSessionHint');
+  if (r && r.text) {
+    if (load) { state.activeProvider = p; renderResults(); }
+    if (hint) hint.textContent = r.chatUrl ? '● Đã có kết quả + link chat cho ' + PROVIDER_LABEL[p] : '● Đã có kết quả cho ' + PROVIDER_LABEL[p];
+  } else if (hint) {
+    hint.textContent = 'Chưa chạy ' + PROVIDER_LABEL[p] + ' trong phiên này.';
+  }
+  try { chrome.storage.local.set({ srtLastProvider: p }); } catch (_) {}
+}
+function markSessionPills() {
+  $$('#providerPills .ppill').forEach((b) => {
+    const r = state.results[b.dataset.provider];
+    b.classList.toggle('has-session', !!(r && r.text));
+  });
+}
+$$('#providerPills .ppill').forEach((b) => b.addEventListener('click', () => setProvider(b.dataset.provider)));
+
 function jobRow(provider, status, msg = '') {
   return `<div class="job ${status}" data-provider="${provider}">
     <span class="dot"></span><strong>${provider}</strong>
@@ -305,9 +336,8 @@ function updateJobRow(provider, status, msg, scope = document) {
 }
 
 $('#btnRun').addEventListener('click', async () => {
-  if (!state.cues.length) { alert('Chưa nạp SRT (tab 1).'); return; }
-  const providers = checkedProviders('#providerChecks');
-  if (!providers.length) { alert('Chọn ít nhất 1 AI.'); return; }
+  if (!state.cues.length) { alert('Chưa nạp SRT.'); return; }
+  const providers = [state.provider];
 
   const angleCount = Math.max(1, Math.min(5, +$('#angleCount').value || 1));
   const text = PromptBuilder.buildAnalyze({
@@ -381,6 +411,8 @@ function handleAnalyzeUpdate(provider, status, result, jobId) {
   }
   if (status === 'done') {
     state.results[provider] = { status: 'done', text: result.text, jobId, chatUrl: result.chatUrl || null };
+    state.activeProvider = provider;
+    markSessionPills();
     updateJobRow(provider, 'done', `xong (${Math.round((result.elapsedMs || 0) / 1000)}s, ${result.text.length} ký tự)`);
     toast(`${provider} phân tích xong`, 'success');
     logHistory({ kind: 'analyze', provider, text: result.text, chatUrl: result.chatUrl });
@@ -407,7 +439,7 @@ function renderResults() {
     const b = document.createElement('button');
     b.textContent = provider;
     b.className = provider === state.activeProvider ? 'sel' : '';
-    b.addEventListener('click', () => { state.activeProvider = provider; renderResults(); });
+    b.addEventListener('click', () => setProvider(provider));
     tabs.appendChild(b);
   }
   // Nút mở lại đúng cuộc chat AI đã dùng (nếu có link)

@@ -209,6 +209,17 @@ body {
 .sec { display: flex; flex-direction: column; gap: 8px; }
 .sec-head { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 
+/* provider pills — single-select (kiểu TobyFlow) */
+.provider-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.ppill {
+  padding: 7px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+  transition: .15s;
+}
+.ppill:hover { color: var(--text); border-color: #444; }
+.ppill.active { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
+.ppill.has-session::after { content: " ●"; color: var(--neon); font-size: 9px; }
+
 /* stepper số góc */
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-2); }
 .stepper button { border: none; background: none; color: var(--neon); font-size: 15px; width: 26px; height: 30px; padding: 0; border-radius: 0; }

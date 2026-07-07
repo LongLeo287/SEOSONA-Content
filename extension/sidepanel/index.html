@@ -108,12 +108,13 @@
 
           <div class="sec">
             <div class="sec-head">🤖 Chạy trên AI</div>
-            <div id="providerChecks" class="chips">
-              <label class="chip"><input type="checkbox" value="chatgpt" checked><span>ChatGPT</span></label>
-              <label class="chip"><input type="checkbox" value="gemini"><span>Gemini</span></label>
-              <label class="chip"><input type="checkbox" value="grok"><span>Grok</span></label>
-              <label class="chip"><input type="checkbox" value="claude"><span>Claude</span></label>
+            <div id="providerPills" class="provider-pills">
+              <button type="button" class="ppill active" data-provider="chatgpt">💬 ChatGPT</button>
+              <button type="button" class="ppill" data-provider="gemini">✦ Gemini</button>
+              <button type="button" class="ppill" data-provider="grok">✕ Grok</button>
+              <button type="button" class="ppill" data-provider="claude">🅐 Claude</button>
             </div>
+            <div id="providerSessionHint" class="hint"></div>
             <div class="row opts">
               <label class="switch"><input type="checkbox" id="freshChat" checked><span class="track"></span>Hội thoại mới</label>
               <label class="inline">Timeout (phút) <input type="number" id="timeoutMin" value="10" min="1" max="30"></label>
