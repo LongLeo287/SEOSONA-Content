@@ -149,24 +149,45 @@ body {
 }
 .divider { height: 1px; background: var(--border-soft); margin: 2px 0; }
 
-/* ---------------------------------------------------- tools bar (tab phụ + phiên) */
-.toolsbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 6px 10px; background: var(--bg-0);
+/* ---------------------------------------------------- session bar */
+.sessionbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: var(--bg-1);
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 49px; z-index: 15;
+  position: sticky; top: 49px; z-index: 16;
 }
-.tools-left, .tools-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.session-ico { font-size: 12px; opacity: .8; flex: none; }
+.session-name {
+  flex: 1; font-size: 11.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .tab-pill {
   padding: 5px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
-  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); flex: none;
 }
 .tab-pill:hover { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
-.session-name {
-  font-size: 11px; color: var(--muted); max-width: 130px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 3px 8px; border-radius: 8px; background: var(--bg-1); border: 1px solid var(--border-soft);
+
+/* ---------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử) */
+.sectionnav {
+  display: flex; gap: 4px; padding: 6px 8px;
+  background: var(--bg-0); border-bottom: 1px solid var(--border);
+  position: sticky; top: 84px; z-index: 15;
 }
+.sectionnav button {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 4px; border-radius: 9px;
+  background: transparent; border: 1px solid transparent;
+  color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: .15s;
+}
+.sectionnav button .ico { font-size: 12px; opacity: .8; }
+.sectionnav button:hover { color: var(--text); background: var(--bg-1); }
+.sectionnav button.active { color: var(--neon); background: var(--neon-soft); border-color: var(--neon-line); }
+.sectionnav button.active .ico { opacity: 1; }
+
+/* ---------------------------------------------------- views (section top-level) */
+.view { display: none; }
+.view.active { display: block; animation: fade var(--t-normal, 200ms) ease; }
+.view-head { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
 
 /* ---------------------------------------------------- prompt hero (kiểu Gen) */
 .prompt-hero {

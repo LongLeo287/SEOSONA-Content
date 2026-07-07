@@ -587,7 +587,6 @@ function plibVars(body) {
 async function openPrompts() {
   $('#promptFill').hidden = true; $('#promptMain').hidden = false;
   renderPromptList(await plibLoad());
-  $('#promptOverlay').hidden = false;
 }
 function renderPromptList(list) {
   const box = $('#promptList');
@@ -620,13 +619,10 @@ function usePrompt(p) {
 function applyPromptBody(body) {
   $('#tplBody').value = body;
   const det = $('#tplBody').closest('details'); if (det) det.open = true;
-  $('#promptOverlay').hidden = true;
+  showView('studio');
   openStage('run');
   toast('Đã áp dụng prompt', 'success');
 }
-$('#hdrPrompts').addEventListener('click', openPrompts);
-$('#promptClose').addEventListener('click', () => { $('#promptOverlay').hidden = true; });
-$('#promptOverlay').addEventListener('click', (e) => { if (e.target.id === 'promptOverlay') $('#promptOverlay').hidden = true; });
 $('#promptFillBack').addEventListener('click', () => { $('#promptFill').hidden = true; $('#promptMain').hidden = false; });
 $('#promptApply').addEventListener('click', () => {
   let body = $('#promptFill').dataset.body || '';
@@ -665,14 +661,10 @@ $('#angleMinus').addEventListener('click', () => bumpAngle(-1));
 $('#anglePlus').addEventListener('click', () => bumpAngle(1));
 
 // Phiên mới
-$('#hdrNewSession').addEventListener('click', () => $('#hdrReset').click());
 
 // ---------------------------------------------------------------- batch nhiều SRT
 const batchWaiters = {};
-function openBatch() { renderBatch(); $('#batchOverlay').hidden = false; }
-$('#hdrBatch').addEventListener('click', openBatch);
-$('#batchClose').addEventListener('click', () => { $('#batchOverlay').hidden = true; });
-$('#batchOverlay').addEventListener('click', (e) => { if (e.target.id === 'batchOverlay') $('#batchOverlay').hidden = true; });
+function openBatch() { renderBatch(); }
 $('#batchFiles').addEventListener('change', (e) => addBatchFiles(e.target.files));
 
 function addBatchFiles(fileList) {
@@ -793,7 +785,6 @@ async function openHistory() {
   let list = [];
   try { const r = await chrome.storage.local.get('srtHistory'); list = r.srtHistory || []; } catch (_) {}
   renderHistory(list);
-  $('#historyOverlay').hidden = false;
 }
 function renderHistory(list) {
   const box = $('#historyList');
@@ -816,7 +807,7 @@ function renderHistory(list) {
 function reopenHistory(e) {
   if (e.srtRaw) { $('#srtText').value = e.srtRaw; state.srtName = e.srtName || state.srtName; parseSrt(); }
   if (e.text) { state.results[e.provider] = { status: 'done', text: e.text }; state.activeProvider = e.provider; renderResults(); }
-  $('#historyOverlay').hidden = true;
+  showView('studio');
   openStage('run');
   toast('Đã mở lại lần chạy', 'success');
 }
@@ -828,9 +819,6 @@ async function delHistory(id) {
     renderHistory(next);
   } catch (_) {}
 }
-$('#hdrHistory').addEventListener('click', openHistory);
-$('#historyClose').addEventListener('click', () => { $('#historyOverlay').hidden = true; });
-$('#historyOverlay').addEventListener('click', (ev) => { if (ev.target.id === 'historyOverlay') $('#historyOverlay').hidden = true; });
 $('#historyClear').addEventListener('click', async () => {
   if (!confirm('Xóa toàn bộ lịch sử?')) return;
   try { await chrome.storage.local.set({ srtHistory: [] }); } catch (_) {}
@@ -905,9 +893,20 @@ $('#ovClear').addEventListener('click', async () => {
   ovRender();
 });
 
-// ---------------------------------------------------------------- header reset
-document.getElementById('hdrReset').addEventListener('click', async () => {
-  if (!confirm('Xóa toàn bộ project hiện tại và bắt đầu lại?')) return;
+// ---------------------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử)
+function showView(name) {
+  $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
+  $$('#sectionNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'prompts') openPrompts();
+  else if (name === 'batch') openBatch();
+  else if (name === 'history') openHistory();
+  const c = $('.content'); if (c) c.scrollTop = 0;
+}
+$$('#sectionNav button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+
+// ---------------------------------------------------------------- phiên mới / reset
+document.getElementById('hdrNewSession').addEventListener('click', async () => {
+  if (!confirm('Bắt đầu phiên mới? Project hiện tại sẽ bị xóa.')) return;
   await chrome.storage.local.remove('srtProject');
   location.reload();
 });
