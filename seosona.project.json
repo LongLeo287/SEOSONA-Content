@@ -1,0 +1,34 @@
+{
+  "$schema": "~/.seosona/1_CONFIG/schemas/seosona.project.schema.json",
+  "schema": "seosona.project.v1",
+  "name": "seosona-content",
+  "displayName": "SEOSONA Content",
+  "domain": "software-project",
+  "stack": [
+    "unknown"
+  ],
+  "osRoot": "~/.seosona",
+  "memoryNamespace": "seosona-content",
+  "autonomy": {
+    "defaultLevel": "project_edit",
+    "requiresExplicitApproval": [
+      "os_core_patch",
+      "git_publish",
+      "deploy"
+    ]
+  },
+  "commands": {
+    "typecheck": "npm run typecheck",
+    "build": "npm run build"
+  },
+  "workflows": [
+    "project-doctor",
+    "portable-rule-sync",
+    "project-memory-logging"
+  ],
+  "ruleFiles": [
+    "AGENTS.md",
+    ".clauderules",
+    ".cursorrules"
+  ]
+}
