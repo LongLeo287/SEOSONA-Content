@@ -16,6 +16,7 @@ const state = {
   blockIds: [],       // knowledge blocks đang bật
   platformId: 'none',
   metadata: null,     // { title, description, hashtags, thumbnail, raw }
+  repurpose: null,    // { format, name, text } — kết quả tái sử dụng gần nhất
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -102,7 +103,7 @@ function stateToSession() {
     srtRaw: state.srtRaw, srtName: state.srtName,
     results: state.results, angles: state.angles, activeAngle: state.activeAngle,
     segmentSource: state.segmentSource, blockIds: state.blockIds,
-    platformId: state.platformId, metadata: state.metadata,
+    platformId: state.platformId, metadata: state.metadata, repurpose: state.repurpose,
   };
 }
 async function saveProject() {
@@ -122,12 +123,13 @@ function loadSessionIntoState(sess) {
     results: sess.results || {}, angles: sess.angles || [], activeAngle: sess.activeAngle || 0,
     segmentSource: sess.segmentSource || '', blockIds: sess.blockIds || state.blockIds,
     platformId: sess.platformId || 'none', metadata: sess.metadata || null,
+    repurpose: sess.repurpose || null,
   });
   if (state.srtRaw) { $('#srtText').value = state.srtRaw; parseSrt(false); }
   else { $('#srtText').value = ''; $('#srtInfo').textContent = ''; state.cues = []; }
   syncKnowledgeUI();
   $('#platformSelect').value = state.platformId;
-  renderResults(); renderAngles(); renderSegments(); renderMetadata();
+  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose();
   setStageDone('srt', state.cues.length ? `${state.cues.length} cue` : '', state.cues.length > 0);
   setStageDone('run', currentSegments().length ? `${state.segmentSource} · ${currentSegments().length} đoạn` : '', currentSegments().length > 0);
   setStageDone('edit', '', false); setStageDone('review', '', false);
@@ -190,9 +192,9 @@ async function switchSession(id) {
 
 async function newSession() {
   state.sessionId = 's_' + Date.now(); state.sessionName = '';
-  Object.assign(state, { srtRaw: '', srtName: 'source.srt', cues: [], results: {}, angles: [], activeAngle: 0, segmentSource: '', metadata: null, review: {} });
+  Object.assign(state, { srtRaw: '', srtName: 'source.srt', cues: [], results: {}, angles: [], activeAngle: 0, segmentSource: '', metadata: null, review: {}, repurpose: null });
   $('#srtText').value = ''; $('#srtInfo').textContent = '';
-  renderResults(); renderAngles(); renderSegments(); renderMetadata();
+  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose();
   STAGES.forEach((n) => setStageDone(n, '', false));
   updateLocks(); openStage('srt');
   setProvider(state.provider, { load: false });
@@ -499,6 +501,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     const { jobId, provider, status, result } = msg;
     if (!jobId) return;
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
+    if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
@@ -757,6 +760,87 @@ function renderMetadata() {
     <div class="meta-row"><b>Thumbnail</b><div>${escapeHtml(m.thumbnail || '—')}</div></div>`;
 }
 $('#btnExportMeta').addEventListener('click', () => { if (state.metadata) Exporter.download(baseName() + '.metadata.txt', Exporter.buildMetadataTxt(state.metadata), 'text/plain'); });
+
+// ---------------------------------------------------------------- REPURPOSE (tái sử dụng nội dung)
+function initRepurpose() {
+  const sel = $('#repurposeFormat');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const [key, tpl] of Object.entries(PROMPT_TEMPLATES)) {
+    if (tpl.kind !== 'repurpose') continue;
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = tpl.name;
+    sel.appendChild(opt);
+  }
+}
+// Transcript thuần (không timecode) từ các cue — nguồn tốt cho repurpose
+function plainTranscript() {
+  return (state.cues || []).map((c) => (c.text || '').replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+function repurposeSourceText() {
+  const mode = $('#repurposeSource').value;
+  if (mode === 'script' && validSegments().length) {
+    return Exporter.buildMarkdown(validSegments(), state.cues, { provider: state.segmentSource });
+  }
+  return plainTranscript();
+}
+
+$('#btnRepurpose').addEventListener('click', async () => {
+  const source = repurposeSourceText();
+  if (!source.trim()) { alert('Chưa có nội dung nguồn (nạp SRT hoặc dựng bảng cắt trước).'); return; }
+  const key = $('#repurposeFormat').value;
+  const tpl = PROMPT_TEMPLATES[key];
+  if (!tpl) return;
+  const provider = state.provider;
+  const text = tpl.body.replace('{{SOURCE}}', source);
+  const jobId = `repurpose_${provider}_${Date.now()}`;
+  state.repurpose = { format: key, name: tpl.name, text: '' };
+  $('#btnRepurpose').disabled = true;
+  $('#btnRepurposeDownload').hidden = true;
+  $('#repurposeView').hidden = true;
+  $('#repurposeStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
+  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  if (!resp || !resp.ok) { $('#repurposeStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnRepurpose').disabled = false; }
+});
+
+function handleRepurposeUpdate(status, result) {
+  const row = $('#repurposeStatus .job');
+  if (row) {
+    row.className = 'job ' + (status === 'done' ? 'done' : status);
+    row.querySelector('.hint').textContent = status === 'done' ? 'xong'
+      : status === 'running' ? 'AI đang viết…' : (result && (result.message || result.error)) || status;
+  }
+  if (status === 'done' || status === 'error') {
+    $('#btnRepurpose').disabled = false;
+    if (status === 'done' && result && result.text) {
+      state.repurpose = { ...(state.repurpose || {}), text: result.text };
+      const view = $('#repurposeView');
+      view.hidden = false; view.textContent = result.text;
+      $('#btnRepurposeDownload').hidden = false;
+      saveProject();
+      toast('Đã tạo nội dung tái sử dụng', 'success');
+    } else if (status === 'error') toast('Tạo nội dung lỗi', 'error');
+  }
+}
+
+function renderRepurpose() {
+  const view = $('#repurposeView'), btn = $('#btnRepurposeDownload');
+  if (!view || !btn) return;
+  const r = state.repurpose;
+  if (r && r.text) {
+    view.hidden = false; view.textContent = r.text; btn.hidden = false;
+    if (r.format && $('#repurposeFormat')) $('#repurposeFormat').value = r.format;
+  } else { view.hidden = true; view.textContent = ''; btn.hidden = true; }
+}
+
+$('#btnRepurposeDownload').addEventListener('click', () => {
+  const r = state.repurpose;
+  if (!r || !r.text) { toast('Chưa có nội dung để tải', 'warn'); return; }
+  const slug = (r.format || 'repurpose').replace('repurpose_', '');
+  const header = `# ${r.name || 'Repurpose'} — ${state.srtName}\n\n`;
+  Exporter.download(baseName() + '.' + slug + '.md', header + r.text, 'text/markdown');
+  toast('Đã tải .md', 'success');
+});
 
 // ---------------------------------------------------------------- BƯỚC 4: ĐÁNH GIÁ (single provider)
 $('#btnReview').addEventListener('click', () => runReview());
@@ -1191,5 +1275,6 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
 // ---------------------------------------------------------------- init
 initKnowledge();
 initTemplates();
+initRepurpose();
 updateLocks();
 restoreProject();

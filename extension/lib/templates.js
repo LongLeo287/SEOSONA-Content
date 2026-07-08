@@ -417,6 +417,13 @@ const PROMPT_TEMPLATES = {
   },
 };
 
+// Nạp các mẫu REPURPOSE (tái sử dụng nội dung) — kind 'repurpose', đầu ra văn xuôi tải .md
+if (typeof REPURPOSE_PROMPTS !== 'undefined') {
+  for (const [key, tpl] of Object.entries(REPURPOSE_PROMPTS)) {
+    PROMPT_TEMPLATES['repurpose_' + key] = { name: tpl.name, kind: 'repurpose', body: tpl.body };
+  }
+}
+
 // ---------------------------------------------------------------- prompt builder
 // Ghép: rule gốc + kiến thức SEOSONA + platform preset + định dạng output (đơn/đa angle) + SRT.
 const PromptBuilder = (() => {

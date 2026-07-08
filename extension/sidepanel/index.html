@@ -186,6 +186,32 @@
               <div id="metaView"></div>
             </div>
           </details>
+
+          <details class="subcard acc-card">
+            <summary class="card-sum">♻ Tái sử dụng nội dung (Repurpose)</summary>
+            <div class="acc-body">
+              <div class="hint">Biến nội dung này thành blog / thread / LinkedIn / carousel / newsletter. Kết quả là văn xuôi — tải về .md.</div>
+              <div class="row">
+                <div class="field grow">
+                  <label>Định dạng</label>
+                  <select id="repurposeFormat"></select>
+                </div>
+                <div class="field">
+                  <label>Nguồn</label>
+                  <select id="repurposeSource">
+                    <option value="script">Kịch bản đã cắt</option>
+                    <option value="transcript">Toàn bộ transcript SRT</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <button id="btnRepurpose" class="btn-cta compact">♻ Tạo nội dung</button>
+                <button id="btnRepurposeDownload" hidden>⬇ .md</button>
+              </div>
+              <div id="repurposeStatus"></div>
+              <pre id="repurposeView" class="meta-pre" hidden></pre>
+            </div>
+          </details>
         </div>
       </section>
 
@@ -311,6 +337,7 @@
 <script src="../lib/selectors-default.js"></script>
 <script src="../lib/knowledge.js"></script>
 <script src="../lib/prompts-longform.js"></script>
+<script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>
 <script src="../lib/exporter.js"></script>
