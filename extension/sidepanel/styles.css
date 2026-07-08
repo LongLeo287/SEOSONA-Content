@@ -1,32 +1,39 @@
 /* ============================================================
-   SEOSONA SRT Studio — UI theme (Cyberpunk / AI-Tech, Dark)
-   Design tokens theo brief: #121212 / #1E1E1E, neon #ADFF2F,
-   gradient CTA (xanh lá → cam → hồng). Sidebar 380–400px, compact.
+   SEOSONA Content — UI theme (Dark, brand-aligned)
+   Brand spec (SEOSONA OS): xanh dương #003566 = nút chính (pill),
+   neon green = accent/glow/hover (KHÔNG dùng cho nút solid chính).
+   Sidebar 340–400px, compact, mobile-first.
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
 
 :root {
-  --bg-0: #121212;   /* nền trang */
-  --bg-1: #1e1e1e;   /* card */
-  --bg-2: #262626;   /* input / raised */
-  --bg-3: #2f2f2f;   /* hover */
-  --border: #303030;
-  --border-soft: #282828;
-  --text: #ededed;
-  --muted: #8a8a8a;
-  --neon: #adff2f;              /* accent active */
-  --neon-soft: rgba(173,255,47,.14);
-  --neon-line: rgba(173,255,47,.45);
-  --grad: linear-gradient(90deg, #adff2f 0%, #f2c53d 42%, #ff6ea9 100%);
-  --grad-glow: rgba(173,255,47,.30);
+  --bg-0: #101418;   /* nền trang (hơi ngả xanh dương) */
+  --bg-1: #191d22;   /* card */
+  --bg-2: #232830;   /* input / raised */
+  --bg-3: #2c323b;   /* hover */
+  --border: #313842;
+  --border-soft: #272d35;
+  --text: #eef1f4;
+  --muted: #97a0ab;            /* nâng nhẹ để đạt tương phản AA */
+  /* brand */
+  --brand: #003566;            /* xanh dương SEOSONA — nút chính */
+  --brand-2: #0a5595;          /* hover nút chính */
+  --brand-line: rgba(70,255,0,.5);
+  --brand-text: #eaf4ff;
+  /* accent neon (chỉ dùng cho outline/glow/hover/active) */
+  --neon: #58e000;
+  --neon-soft: rgba(70,255,0,.13);
+  --neon-line: rgba(70,255,0,.42);
+  --grad: linear-gradient(90deg, #46ff00 0%, #46c8ff 55%, #a06bff 100%);
+  --grad-glow: rgba(70,255,0,.28);
   --ok: #35c47c;
   --warn: #f0a933;
   --err: #f0545c;
   --purple: #8b5cf6;
   --radius: 12px;
   --radius-sm: 8px;
-  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
   --mono: "JetBrains Mono", Consolas, monospace;
 }
 
@@ -35,7 +42,9 @@ body {
   background: var(--bg-0);
   color: var(--text);
   font-size: 13px;
+  line-height: 1.55;
   min-width: 340px;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* subtle tech backdrop */
@@ -44,8 +53,8 @@ body {
   flex-direction: column;
   min-height: 100vh;
   background:
-    radial-gradient(900px 300px at 100% -5%, rgba(173,255,47,.05), transparent 60%),
-    radial-gradient(700px 300px at -10% 20%, rgba(255,110,169,.045), transparent 55%),
+    radial-gradient(900px 320px at 100% -5%, rgba(70,255,0,.045), transparent 60%),
+    radial-gradient(760px 320px at -10% 12%, rgba(0,53,102,.28), transparent 55%),
     var(--bg-0);
 }
 
@@ -69,17 +78,18 @@ body {
 .brand-name { font-weight: 800; letter-spacing: 1.5px; font-size: 14px; }
 .badge-premium {
   font-size: 9px; font-weight: 800; letter-spacing: 1px;
-  padding: 2px 7px; border-radius: 20px;
-  background: linear-gradient(90deg, var(--purple), #d94fd0);
-  color: #fff; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 20px;
+  background: var(--brand); border: 1px solid var(--neon-line);
+  color: var(--neon); text-transform: uppercase;
 }
 .header-tools { display: flex; align-items: center; gap: 6px; }
 .icon-btn {
-  width: 28px; height: 28px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: 8px;
   background: var(--bg-2); border: 1px solid var(--border);
   color: var(--muted); font-size: 13px; cursor: pointer;
-  display: grid; place-items: center;
+  display: grid; place-items: center; transition: .15s;
 }
+.icon-btn:active { transform: scale(.94); }
 .icon-btn:hover { color: var(--neon); border-color: var(--neon-line); }
 .dot-live {
   width: 8px; height: 8px; border-radius: 50%;
@@ -351,14 +361,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 button:disabled:hover { color: var(--text); border-color: var(--border); }
 
 /* CTA gradient — nút hành động chính */
+/* Nút chính: brand xanh dương, dạng pill, neon chỉ dùng làm viền/glow (theo brand spec) */
 .btn-cta {
-  background: var(--grad);
-  color: #10140a; font-weight: 800; letter-spacing: .3px;
-  border: none; padding: 11px 14px; border-radius: 10px;
-  box-shadow: 0 4px 18px -6px var(--grad-glow);
+  background: var(--brand);
+  color: var(--brand-text); font-weight: 700; letter-spacing: .2px;
+  border: 1px solid rgba(70,255,0,.28); padding: 11px 16px; border-radius: 999px;
+  box-shadow: 0 4px 16px -8px rgba(0,0,0,.6);
 }
-.btn-cta:hover { color: #10140a; filter: brightness(1.08); box-shadow: 0 6px 22px -6px var(--grad-glow); }
-.btn-cta.compact { padding: 8px 12px; font-size: 12px; }
+.btn-cta:hover { background: var(--brand-2); border-color: var(--neon-line); box-shadow: 0 0 0 1px var(--neon-line), 0 6px 20px -8px var(--grad-glow); }
+.btn-cta.compact { padding: 8px 13px; font-size: 12px; }
 .btn-danger { background: #3a1c20; border-color: #6a2b32; color: #ff8b90; font-weight: 600; }
 .btn-danger:hover { color: #ffb3b6; border-color: #8a3a42; }
 
@@ -479,7 +490,7 @@ pre {
   background: var(--bg-0); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 10px;
   font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
-  max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: #cfd6c2;
+  max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: #d7dee6;
 }
 
 /* ---------------------------------------------------- job rows */
@@ -626,7 +637,7 @@ code { background: var(--bg-0); border: 1px solid var(--border); border-radius: 
    POLISH PASS — micro-interaction & perceived quality
    (đúc kết từ CSS thật của TobyFlow)
    ============================================================ */
-:root { --ring: rgba(173, 255, 47, .5); --t-fast: 150ms; --t-normal: 200ms; }
+:root { --ring: rgba(70, 255, 0, .55); --t-fast: 150ms; --t-normal: 200ms; }
 
 /* focus ring bàn phím (a11y) — không phá focus chuột của input */
 button:focus-visible, .chip:focus-within, .tab-pill:focus-visible,
@@ -643,8 +654,8 @@ textarea:focus-visible, .icon-btn:focus-visible {
   animation: cta-pulse 1.6s ease-in-out infinite;
 }
 @keyframes cta-pulse {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(173,255,47,.5), 0 0 18px 2px rgba(173,255,47,.35); filter: brightness(1); }
-  50%      { box-shadow: 0 0 0 2px rgba(173,255,47,.75), 0 0 30px 8px rgba(173,255,47,.55); filter: brightness(1.06); }
+  0%, 100% { box-shadow: 0 0 0 1px rgba(70,255,0,.5), 0 0 18px 2px rgba(70,255,0,.32); filter: brightness(1); }
+  50%      { box-shadow: 0 0 0 2px rgba(70,255,0,.75), 0 0 28px 7px rgba(70,255,0,.5); filter: brightness(1.05); }
 }
 
 /* card/hàng: hover mượt hơn */
