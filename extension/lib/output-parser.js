@@ -119,13 +119,17 @@ const OutputParser = (() => {
     return sections;
   }
 
+  // Bảng meta không phải kịch bản cắt: "nên loại bỏ", "cần giữ" (long-form) -> bỏ qua
+  const SKIP_SECTION = /(nên loại|loại bỏ|đoạn.*loại|cần giữ|giữ nguyên vì|remove|to keep|to remove)/i;
+
   // parseAngles -> [{title, segments}] (chỉ giữ angle có ≥1 segment hợp lệ)
   function parseAngles(responseText, sourceCues) {
     const sections = splitAngleSections(responseText);
     const angles = [];
     for (const sec of sections) {
+      if (SKIP_SECTION.test(sec.title || '')) continue; // bỏ bảng loại-bỏ / giữ-lại
       const segs = parse(sec.body.join('\n'), sourceCues);
-      if (segs.length) angles.push({ title: sec.title || `Angle ${angles.length + 1}`, segments: segs });
+      if (segs.length) angles.push({ title: sec.title || `Kịch bản ${angles.length + 1}`, segments: segs });
     }
     // Không tách được angle nào -> coi toàn bộ là 1 angle
     if (!angles.length) {

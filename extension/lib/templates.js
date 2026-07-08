@@ -363,10 +363,10 @@ const PROMPT_TEMPLATES = {
     body: SHORTS_FORM_PROMPT,
   },
   longform: {
-    name: '🎬 Video dài — Master Prompt (10 bước)',
+    name: '🎬 Video dài — Long-form YouTube (8 chương)',
     kind: 'analyze',
     platform: 'long',
-    body: MASTER_PROMPT_V2,
+    body: (typeof LONGFORM_YT_PROMPT !== 'undefined' ? LONGFORM_YT_PROMPT : MASTER_PROMPT_V2),
   },
   highlights: {
     name: '✨ Highlights — trích đoạn hay nhất',
