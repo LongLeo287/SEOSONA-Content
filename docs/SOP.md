@@ -27,11 +27,11 @@ Giao diện là **một luồng dọc 4 bước** (stepper), mỗi bước xong 
 - Kiểm tra dòng thông tin: số cue, thời lượng nguồn, tổng thời gian nói.
 
 ### Bước 2 — Phân tích
-1. **Mẫu prompt**: mặc định là *Master Prompt v2* (cắt–đảo–ghép). Có thể mở "Xem/sửa prompt gốc" để chỉnh.
+1. **Mẫu prompt**: mặc định là *Shorts — 5 phần* (short-form); có thêm Long-form và các mẫu khác trong danh sách. Có thể mở "Xem/sửa prompt gốc" để chỉnh.
 2. **🧠 Kiến thức SEOSONA**: bật các block muốn bơm vào prompt — Hook formulas, Cấu trúc 5 phần, Copywriting (PAS/QUEST/SCAR/AIDA), Brand voice VN, Ưu tiên từ khóa SEO.
 3. **🎯 Nền tảng**: chọn YouTube Shorts / TikTok / Reels / YouTube dài → tự set độ dài mục tiêu + tỉ lệ.
 4. **🎭 Số góc cắt**: 1 = một kịch bản; 2–5 = sinh nhiều góc tiếp cận khác nhau từ cùng một file.
-5. **Chạy trên AI**: tick một hay nhiều AI (chạy song song để so sánh).
+5. **Chạy trên AI**: chọn AI để chạy.
 6. **🚀 Gửi phân tích**. Extension tự mở tab AI, gõ prompt, chờ trả lời. Trên tab AI có **badge tiến độ** (pha + đồng hồ + nút Stop). Khi xong sẽ có **toast** và **thông báo hệ thống** (kể cả khi bạn đang ở tab khác).
 7. Xem "Kết quả thô", chọn AI ưng ý → **✂ Dựng bảng cắt ghép**.
 
@@ -43,7 +43,7 @@ Giao diện là **một luồng dọc 4 bước** (stepper), mỗi bước xong 
 - **🔎 SEO metadata**: chọn AI → **Sinh metadata** → title/description/hashtag/thumbnail → xuất `.txt`.
 
 ### Bước 4 — Đánh giá
-- Tick một hay nhiều AI → **★ Gửi đánh giá** → điểm Hook/Flow/Retention/CTA dạng thanh + **consensus** trung bình nhiều AI + verdict.
+- Chọn AI → **★ Gửi đánh giá** → điểm Hook/Flow/Retention/CTA dạng thanh + verdict.
 
 ---
 

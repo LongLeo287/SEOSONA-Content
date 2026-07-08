@@ -42,9 +42,9 @@ Extension đóng vai trò **trung gian điều khiển**: không gọi API trả
 | Bước | Tab | Việc làm |
 |---|---|---|
 | 1 | **SRT** | Kéo thả file `.srt` hoặc dán nội dung → **Nạp SRT** |
-| 2 | **Phân tích** | Bật **Knowledge Pack**, chọn **nền tảng** + **số góc cắt**, tick AI muốn chạy (song song nhiều AI để so sánh) → **Gửi phân tích** |
+| 2 | **Phân tích** | Bật **Knowledge Pack**, chọn **nền tảng** + **số góc cắt**, chọn **AI** muốn chạy → **Gửi phân tích** |
 | 3 | **Cắt ghép** | Bảng segment dựng từ output AI, **validate tự động** với SRT gốc: `khớp 100%` / `lệch text` / `không khớp timecode`. Chuyển giữa các **angle**, sắp xếp ↑↓, xóa đoạn, xuất file, **sinh SEO metadata** |
-| 4 | **Đánh giá** | Gửi kịch bản cho **nhiều AI** chấm điểm Hook / Flow / Retention / CTA → **điểm số + consensus** trực quan |
+| 4 | **Đánh giá** | Gửi kịch bản cho **AI** chấm điểm Hook / Flow / Retention / CTA → **điểm số** trực quan |
 
 ### 🧠 Content Intelligence
 
@@ -118,7 +118,7 @@ Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provid
 
 - [x] Content Intelligence: bơm hook/formula/brand-voice vào prompt (đóng gói sẵn)
 - [x] Platform presets + multi-angle (1 SRT → N shorts)
-- [x] Chấm điểm chéo nhiều AI + tổng hợp consensus (điểm số trực quan)
+- [x] Chấm điểm AI: Hook/Flow/Retention/CTA (điểm số trực quan)
 - [x] Sinh SEO metadata (title/description/hashtag/thumbnail)
 - [x] Xuất FCPXML + caption CapCut (bên cạnh EDL)
 - [x] Chống vỡ UI: selector config + override trong Settings
@@ -129,6 +129,7 @@ Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provid
 - [x] Batch nhiều file SRT chạy hàng loạt (📦, dùng queue + retry)
 - [ ] Trình quản lý Knowledge Pack ngay trong UI
 - [ ] Đính kèm SRT dạng file upload; chia SRT dài chạy tuần tự
+- [ ] Chạy song song nhiều AI + tổng hợp consensus (hiện tại: chạy 1 AI mỗi lần)
 
 ## Tài liệu
 
