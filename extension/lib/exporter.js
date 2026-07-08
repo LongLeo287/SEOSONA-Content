@@ -153,6 +153,40 @@ ${clips}
       .join('\n');
   }
 
+  // Đồng hồ MM:SS (hoặc H:MM:SS) cho chapter YouTube (timeline ghép từ 0)
+  function clockYt(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    const mm = h ? String(m).padStart(2, '0') : String(m);
+    return (h ? h + ':' : '') + mm + ':' + String(ss).padStart(2, '0');
+  }
+
+  // Gom cue (theo timeline ghép từ 0) thành các chapter >= minMs giây.
+  // Chapter đầu luôn ở 00:00. Trả [{ startMs, clock, text }] — timecode tính CỤC BỘ (đúng 100%),
+  // chỉ cần AI đặt TÊN chapter + viết mô tả.
+  function buildChapters(segments, sourceCues, minMs = 12000) {
+    const cues = segmentsToCues(segments, sourceCues);
+    const chapters = []; let t = 0; let cur = null;
+    for (const c of cues) {
+      if (!cur) cur = { startMs: t, texts: [], dur: 0 };
+      const txt = (c.text || '').replace(/\s+/g, ' ').trim();
+      if (txt) cur.texts.push(txt);
+      const dur = Math.max(0, c.end - c.start);
+      cur.dur += dur; t += dur;
+      if (cur.dur >= minMs) { chapters.push(cur); cur = null; }
+    }
+    if (cur) {
+      if (chapters.length) { const last = chapters[chapters.length - 1]; last.texts.push(...cur.texts); last.dur += cur.dur; }
+      else chapters.push(cur);
+    }
+    return chapters.map((ch) => ({ startMs: ch.startMs, clock: clockYt(ch.startMs), text: ch.texts.join(' ') }));
+  }
+
+  // Ghép chapter (timecode cục bộ) + tiêu đề (AI) -> text dán vào mô tả YouTube
+  function buildChaptersTxt(chapters, titles) {
+    return chapters.map((ch, i) => `${ch.clock} ${(titles && titles[i]) || ('Phần ' + (i + 1))}`).join('\n');
+  }
+
   // Metadata SEO -> text sẵn để dán lên YouTube/TikTok
   function buildMetadataTxt(meta) {
     if (!meta) return '';
@@ -178,5 +212,6 @@ ${clips}
   return {
     segmentsToCues, buildSplicedSrt, buildCsv, buildEdl, buildMarkdown,
     buildFcpxml, buildCaptionsTxt, buildMetadataTxt, buildProjectJson, download,
+    buildChapters, buildChaptersTxt, clockYt,
   };
 })();

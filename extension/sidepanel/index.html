@@ -212,6 +212,22 @@
               <pre id="repurposeView" class="meta-pre" hidden></pre>
             </div>
           </details>
+
+          <details class="subcard acc-card">
+            <summary class="card-sum">🔖 Chapter YouTube + Mô tả (tách riêng)</summary>
+            <div class="acc-body">
+              <div class="hint">Timecode chapter tính theo timeline video ĐÃ GHÉP (đúng 100%). AI chỉ đặt tên chapter + viết mô tả.</div>
+              <div class="row">
+                <label class="inline">Tối thiểu/chapter (giây) <input type="number" id="chapMinSec" value="12" min="10" max="180"></label>
+                <button id="btnChapters" class="btn-cta compact">🔖 Sinh chapter + mô tả</button>
+              </div>
+              <div id="chaptersStatus"></div>
+              <div id="chaptersView" hidden>
+                <div class="meta-row"><b>Chapters</b><pre id="chaptersList" class="meta-pre"></pre><button id="btnChaptersDl">⬇ chapters.txt</button></div>
+                <div class="meta-row"><b>Mô tả</b><pre id="chaptersDesc" class="meta-pre"></pre><button id="btnDescDl">⬇ description.txt</button></div>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
 

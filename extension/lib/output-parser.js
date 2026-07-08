@@ -189,5 +189,28 @@ const OutputParser = (() => {
     };
   }
 
-  return { parse, parseAngles, parseScores, parseMetadata, extractTableRows, splitAngleSections };
+  // parseChapters: output CHAPTERS_PROMPT -> { titles: [...], description }
+  // Định dạng: ===TITLES===\n1. a\n2. b\n===DESCRIPTION===\n<desc>
+  function parseChapters(text) {
+    const t = text || '';
+    const titlesBlock = (/===\s*TITLES\s*===([\s\S]*?)(?:===\s*DESCRIPTION\s*===|$)/i.exec(t) || [])[1] || '';
+    const descBlock = (/===\s*DESCRIPTION\s*===([\s\S]*)$/i.exec(t) || [])[1] || '';
+    const titles = titlesBlock.split('\n')
+      .map((l) => l.trim())
+      .map((l) => {
+        const m = /^(?:\d+[.)\]]|[-*])\s*(.+)$/.exec(l);
+        return m ? m[1].trim().replace(/^\*+|\*+$/g, '') : '';
+      })
+      .filter(Boolean);
+    // fallback: nếu không có marker, lấy các dòng đánh số bất kỳ làm title
+    if (!titles.length) {
+      for (const l of t.split('\n')) {
+        const m = /^\s*\d+[.)\]]\s*(.+)$/.exec(l);
+        if (m) titles.push(m[1].trim());
+      }
+    }
+    return { titles, description: descBlock.trim(), raw: t };
+  }
+
+  return { parse, parseAngles, parseScores, parseMetadata, parseChapters, extractTableRows, splitAngleSections };
 })();

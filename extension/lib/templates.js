@@ -272,6 +272,29 @@ Viết bằng tiếng Việt. Bám sát nội dung kịch bản, không bịa s�
 {{SCRIPT}}
 `;
 
+// ===== Prompt: CHAPTERS + MÔ TẢ (tách riêng khỏi metadata) =====
+// {{CHAPTERS}} = danh sách phần đã đánh số, mỗi phần kèm mốc thời gian CỐ ĐỊNH (hệ thống tự tính).
+// AI chỉ đặt TÊN từng phần + viết MÔ TẢ; timecode do hệ thống ghép lại (đúng 100%).
+const CHAPTERS_PROMPT = `Bạn là chuyên gia YouTube SEO của SEOSONA. Dưới đây là các PHẦN của video đã cắt, mỗi phần kèm MỐC THỜI GIAN (đã cố định — KHÔNG thay đổi) và nội dung.
+
+NHIỆM VỤ:
+1) Đặt TIÊU ĐỀ chapter cho TỪNG phần theo đúng thứ tự: 3–6 từ, có từ khóa, gợi tò mò, KHÔNG kèm số thứ tự, KHÔNG kèm timecode.
+2) Viết MÔ TẢ video (description) chuẩn SEO: 2–3 câu đầu chứa từ khóa chính + tóm tắt; một đoạn giá trị; mục "🔗 Tài nguyên"; 1 CTA "🔔 Đăng ký"; 3–5 hashtag ở cuối. KHÔNG tự chèn phần TIMESTAMPS (hệ thống tự chèn từ tiêu đề của bạn).
+
+CHỈ dựa trên nội dung được cung cấp, KHÔNG bịa số liệu. Viết tiếng Việt, giọng tự nhiên.
+
+XUẤT RA ĐÚNG ĐỊNH DẠNG (giữ nguyên 2 nhãn phân cách):
+===TITLES===
+1. <tiêu đề phần 1>
+2. <tiêu đề phần 2>
+... (đủ số phần)
+===DESCRIPTION===
+<toàn bộ mô tả video>
+
+===== CÁC PHẦN =====
+{{CHAPTERS}}
+`;
+
 // ===== Prompt: SHORTS (cắt–đảo–ghép, bản tinh gọn) =====
 const SHORTS_FORM_PROMPT = `# HỆ THỐNG: BIÊN TẬP SHORTS TỪ SRT (CẮT – ĐẢO – GHÉP)
 
@@ -414,6 +437,11 @@ const PROMPT_TEMPLATES = {
     name: 'Sinh metadata SEO (title/desc/hashtag)',
     kind: 'metadata',
     body: METADATA_PROMPT,
+  },
+  chapters: {
+    name: 'Chapter YouTube + mô tả (tách riêng)',
+    kind: 'chapters',
+    body: CHAPTERS_PROMPT,
   },
 };
 

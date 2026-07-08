@@ -17,6 +17,7 @@ const state = {
   platformId: 'none',
   metadata: null,     // { title, description, hashtags, thumbnail, raw }
   repurpose: null,    // { format, name, text } — kết quả tái sử dụng gần nhất
+  chapters: null,     // { local:[{startMs,clock,text}], titles:[], description } — chapter + mô tả
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -103,7 +104,7 @@ function stateToSession() {
     srtRaw: state.srtRaw, srtName: state.srtName,
     results: state.results, angles: state.angles, activeAngle: state.activeAngle,
     segmentSource: state.segmentSource, blockIds: state.blockIds,
-    platformId: state.platformId, metadata: state.metadata, repurpose: state.repurpose,
+    platformId: state.platformId, metadata: state.metadata, repurpose: state.repurpose, chapters: state.chapters,
   };
 }
 async function saveProject() {
@@ -123,13 +124,13 @@ function loadSessionIntoState(sess) {
     results: sess.results || {}, angles: sess.angles || [], activeAngle: sess.activeAngle || 0,
     segmentSource: sess.segmentSource || '', blockIds: sess.blockIds || state.blockIds,
     platformId: sess.platformId || 'none', metadata: sess.metadata || null,
-    repurpose: sess.repurpose || null,
+    repurpose: sess.repurpose || null, chapters: sess.chapters || null,
   });
   if (state.srtRaw) { $('#srtText').value = state.srtRaw; parseSrt(false); }
   else { $('#srtText').value = ''; $('#srtInfo').textContent = ''; state.cues = []; }
   syncKnowledgeUI();
   $('#platformSelect').value = state.platformId;
-  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose();
+  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose(); renderChapters();
   setStageDone('srt', state.cues.length ? `${state.cues.length} cue` : '', state.cues.length > 0);
   setStageDone('run', currentSegments().length ? `${state.segmentSource} · ${currentSegments().length} đoạn` : '', currentSegments().length > 0);
   setStageDone('edit', '', false); setStageDone('review', '', false);
@@ -192,9 +193,9 @@ async function switchSession(id) {
 
 async function newSession() {
   state.sessionId = 's_' + Date.now(); state.sessionName = '';
-  Object.assign(state, { srtRaw: '', srtName: 'source.srt', cues: [], results: {}, angles: [], activeAngle: 0, segmentSource: '', metadata: null, review: {}, repurpose: null });
+  Object.assign(state, { srtRaw: '', srtName: 'source.srt', cues: [], results: {}, angles: [], activeAngle: 0, segmentSource: '', metadata: null, review: {}, repurpose: null, chapters: null });
   $('#srtText').value = ''; $('#srtInfo').textContent = '';
-  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose();
+  renderResults(); renderAngles(); renderSegments(); renderMetadata(); renderRepurpose(); renderChapters();
   STAGES.forEach((n) => setStageDone(n, '', false));
   updateLocks(); openStage('srt');
   setProvider(state.provider, { load: false });
@@ -502,6 +503,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (!jobId) return;
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
+    if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
@@ -822,6 +824,69 @@ function handleRepurposeUpdate(status, result) {
     } else if (status === 'error') toast('Tạo nội dung lỗi', 'error');
   }
 }
+
+// ---------------------------------------------------------------- CHAPTERS + MÔ TẢ (tách riêng)
+$('#btnChapters').addEventListener('click', async () => {
+  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return; }
+  const minSec = Math.max(10, Math.min(180, +$('#chapMinSec').value || 12));
+  const local = Exporter.buildChapters(validSegments(), state.cues, minSec * 1000);
+  if (!local.length) { alert('Không dựng được chapter (kịch bản quá ngắn).'); return; }
+  const chaptersText = local.map((ch, i) => `Phần ${i + 1} (${ch.clock}): ${ch.text}`).join('\n\n');
+  const provider = state.provider;
+  const text = PROMPT_TEMPLATES.chapters.body.replace('{{CHAPTERS}}', chaptersText);
+  const jobId = `chapters_${provider}_${Date.now()}`;
+  state.chapters = { local, titles: [], description: '' };
+  $('#btnChapters').disabled = true;
+  $('#chaptersView').hidden = true;
+  $('#chaptersStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
+  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  if (!resp || !resp.ok) { $('#chaptersStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnChapters').disabled = false; }
+});
+
+function handleChaptersUpdate(status, result) {
+  const row = $('#chaptersStatus .job');
+  if (row) {
+    row.className = 'job ' + (status === 'done' ? 'done' : status);
+    row.querySelector('.hint').textContent = status === 'done' ? 'xong'
+      : status === 'running' ? 'AI đang đặt tên…' : (result && (result.message || result.error)) || status;
+  }
+  if (status === 'done' || status === 'error') {
+    $('#btnChapters').disabled = false;
+    if (status === 'done' && result && result.text) {
+      const parsed = OutputParser.parseChapters(result.text);
+      state.chapters = { ...(state.chapters || { local: [] }), titles: parsed.titles, description: parsed.description };
+      renderChapters();
+      saveProject();
+      toast('Đã sinh chapter + mô tả', 'success');
+    } else if (status === 'error') toast('Sinh chapter lỗi', 'error');
+  }
+}
+
+function renderChapters() {
+  const c = state.chapters;
+  const view = $('#chaptersView');
+  if (!view) return;
+  if (!c || !c.local || !c.local.length) { view.hidden = true; return; }
+  view.hidden = false;
+  $('#chaptersList').textContent = Exporter.buildChaptersTxt(c.local, c.titles);
+  $('#chaptersDesc').textContent = c.description
+    ? (c.description + '\n\n' + Exporter.buildChaptersTxt(c.local, c.titles))
+    : Exporter.buildChaptersTxt(c.local, c.titles);
+}
+
+$('#btnChaptersDl').addEventListener('click', () => {
+  const c = state.chapters;
+  if (!c || !c.local) return;
+  Exporter.download(baseName() + '.chapters.txt', Exporter.buildChaptersTxt(c.local, c.titles), 'text/plain');
+  toast('Đã tải chapters.txt', 'success');
+});
+$('#btnDescDl').addEventListener('click', () => {
+  const c = state.chapters;
+  if (!c || !c.local) return;
+  const body = (c.description ? c.description + '\n\n📌 TIMESTAMPS\n' : '') + Exporter.buildChaptersTxt(c.local, c.titles);
+  Exporter.download(baseName() + '.description.txt', body, 'text/plain');
+  toast('Đã tải description.txt', 'success');
+});
 
 function renderRepurpose() {
   const view = $('#repurposeView'), btn = $('#btnRepurposeDownload');
