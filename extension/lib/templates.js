@@ -200,7 +200,7 @@ Output the result in Vietnamese using the specified markdown table format.
 {{SRT}}
 `;
 
-const EVALUATE_PROMPT = `Bạn là biên tập viên nội dung video của SEOSONA. Chấm bảng kịch bản (short-form hoặc long-form) dưới đây một cách KHẮT KHE, theo 6 tiêu chí. Chỉ đánh giá dựa trên phụ đề nguyên văn được cung cấp, không bịa nội dung.
+const EVALUATE_PROMPT = `Bạn là biên tập viên nội dung video chuyên nghiệp, đa ngành. Chấm bảng kịch bản (short-form hoặc long-form) dưới đây một cách KHẮT KHE, theo 6 tiêu chí. Chỉ đánh giá dựa trên phụ đề nguyên văn được cung cấp, không bịa nội dung.
 
 THANG ĐIỂM mỗi tiêu chí /10 (0–3 Kém: viết lại · 4–6 Tạm: cần sửa · 7–8 Tốt · 9–10 Xuất sắc).
 
@@ -234,7 +234,7 @@ Sau bảng, thêm:
 `;
 
 // Prompt sinh metadata SEO (title/description/hashtags+tags/thumbnail) — nâng cấp từ SEOSONA OS YouTube SEO
-const METADATA_PROMPT = `Bạn là chuyên gia YouTube SEO của SEOSONA. Dưới đây là KỊCH BẢN VIDEO ĐÃ CẮT (phụ đề + timecode). Tạo bộ metadata tối ưu tìm kiếm + CTR.
+const METADATA_PROMPT = `Bạn là chuyên gia YouTube SEO đa ngành. Dưới đây là KỊCH BẢN VIDEO ĐÃ CẮT (phụ đề + timecode). Tạo bộ metadata tối ưu tìm kiếm + CTR.
 
 NGUYÊN TẮC:
 - Từ khóa chính nằm trong 50 ký tự đầu của tiêu đề; tiêu đề 50–60 ký tự; có số/ngoặc để tăng CTR; KHÔNG clickbait rỗng (lời hứa phải khớp nội dung).
@@ -275,7 +275,7 @@ Viết bằng tiếng Việt. Bám sát nội dung kịch bản, không bịa s�
 // ===== Prompt: CHAPTERS + MÔ TẢ (tách riêng khỏi metadata) =====
 // {{CHAPTERS}} = danh sách phần đã đánh số, mỗi phần kèm mốc thời gian CỐ ĐỊNH (hệ thống tự tính).
 // AI chỉ đặt TÊN từng phần + viết MÔ TẢ; timecode do hệ thống ghép lại (đúng 100%).
-const CHAPTERS_PROMPT = `Bạn là chuyên gia YouTube SEO của SEOSONA. Dưới đây là các PHẦN của video đã cắt, mỗi phần kèm MỐC THỜI GIAN (đã cố định — KHÔNG thay đổi) và nội dung.
+const CHAPTERS_PROMPT = `Bạn là chuyên gia YouTube SEO đa ngành. Dưới đây là các PHẦN của video đã cắt, mỗi phần kèm MỐC THỜI GIAN (đã cố định — KHÔNG thay đổi) và nội dung.
 
 NHIỆM VỤ:
 1) Đặt TIÊU ĐỀ chapter cho TỪNG phần theo đúng thứ tự: 3–6 từ, có từ khóa, gợi tò mò, KHÔNG kèm số thứ tự, KHÔNG kèm timecode.
