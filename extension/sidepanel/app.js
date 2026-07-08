@@ -301,6 +301,7 @@ function initKnowledge() {
     sel.appendChild(opt);
   }
   sel.addEventListener('change', () => { state.platformId = sel.value; saveProject(); });
+  syncKnowledgeUI();
 }
 
 // mẫu prompt -> combo kiến thức tương ứng (Gắn prompt↔combo)
@@ -317,7 +318,10 @@ function applyCombo(key, { additive = false } = {}) {
   saveProject();
 }
 function syncKnowledgeUI() {
-  $$('#knowledgeChecks input').forEach((i) => { i.checked = state.blockIds.includes(i.value); });
+  $$('#knowledgeChecks input, #koBlocks input').forEach((i) => { i.checked = state.blockIds.includes(i.value); });
+  const label = `${state.blockIds.length} block đang bật`;
+  const kc = $('#koCount'); if (kc) kc.textContent = label;
+  const ks = $('#knowledgeSummary'); if (ks) ks.textContent = label;
   // đánh dấu combo đang khớp (tập block bật ⊇ combo) — cả bar ở Studio và Content
   const active = new Set(state.blockIds);
   $$('.combo-pill').forEach((b) => {
@@ -343,6 +347,49 @@ function initTemplates() {
   });
   $('#tplBody').value = PROMPT_TEMPLATES[sel.value].body;
 }
+
+// ---------------------------------------------------------------- KNOWLEDGE overlay (quản lý block, dùng chung)
+function blockDesc(text) {
+  const lines = String(text || '').split('\n').map((s) => s.trim());
+  const line = lines.find((s) => s && !/^[#>*\-]/.test(s)) || String(text || '').replace(/[#>*`]/g, ' ').trim();
+  return line.slice(0, 96);
+}
+function openKnowledge() {
+  const ov = $('#knowledgeOverlay'); if (!ov) return;
+  renderKoCombos(); renderKoBlocks();
+  const kc = $('#koCount'); if (kc) kc.textContent = `${state.blockIds.length} block đang bật`;
+  ov.hidden = false;
+}
+function renderKoCombos() {
+  const wrap = $('#koCombos'); if (!wrap) return; wrap.innerHTML = '';
+  for (const [key, combo] of Object.entries(Knowledge.COMBOS || {})) {
+    if (!combo.ids || !combo.ids.length) continue;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'combo-pill'; b.dataset.combo = key; b.textContent = combo.name;
+    b.title = 'Bật: ' + combo.ids.map((id) => (Knowledge.BLOCKS[id] || {}).name || id).join(', ');
+    b.addEventListener('click', () => applyCombo(key, { additive: false }));
+    wrap.appendChild(b);
+  }
+}
+function renderKoBlocks() {
+  const wrap = $('#koBlocks'); if (!wrap) return; wrap.innerHTML = '';
+  for (const [id, blk] of Object.entries(Knowledge.BLOCKS)) {
+    const row = document.createElement('label');
+    row.className = 'ko-row';
+    row.innerHTML = `<input type="checkbox" value="${id}" ${state.blockIds.includes(id) ? 'checked' : ''}>`
+      + `<span class="ko-main"><b>${escapeHtml(blk.name)}</b><small>${escapeHtml(blockDesc(blk.text))}</small></span>`;
+    row.querySelector('input').addEventListener('change', () => {
+      state.blockIds = $$('#koBlocks input:checked').map((i) => i.value);
+      saveProject(); syncKnowledgeUI();
+    });
+    wrap.appendChild(row);
+  }
+}
+$('#hdrKnowledge').addEventListener('click', openKnowledge);
+$('#knowledgeManageBtn').addEventListener('click', openKnowledge);
+$('#knowledgeClose').addEventListener('click', () => { $('#knowledgeOverlay').hidden = true; });
+$('#knowledgeOverlay').addEventListener('click', (e) => { if (e.target.id === 'knowledgeOverlay') $('#knowledgeOverlay').hidden = true; });
+$('#koClearAll').addEventListener('click', () => { state.blockIds = []; saveProject(); syncKnowledgeUI(); });
 
 // ---------------------------------------------------------------- TAB 2: RUN
 // ---------------------------------------------------------------- chọn provider (single-select)

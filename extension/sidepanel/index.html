@@ -17,6 +17,7 @@
       <span class="badge-premium">CONTENT</span>
     </div>
     <div class="header-tools">
+      <button class="icon-btn" id="hdrKnowledge" title="Kiến thức — bật/tắt block bơm vào prompt (dùng chung mọi nhánh)">🧠</button>
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
       <span class="dot-live" title="Sẵn sàng"></span>
     </div>
@@ -131,7 +132,11 @@
           <div class="sec">
             <div class="sec-head">🧠 Kiến thức SEOSONA</div>
             <div id="knowledgeCombos" class="combo-bar" title="Bật nhanh một bộ block phù hợp"></div>
-            <div id="knowledgeChecks" class="chips stack"></div>
+            <div class="kn-summary">
+              <span class="kn-count" id="knowledgeSummary">0 block đang bật</span>
+              <button type="button" id="knowledgeManageBtn" class="pill-btn">Quản lý block →</button>
+            </div>
+            <div id="knowledgeChecks" class="chips stack" hidden></div>
           </div>
 
           <div class="row">
@@ -507,6 +512,23 @@
         <button id="ovSave" class="btn-cta compact">Lưu override</button>
         <button id="ovReset">Về mặc định</button>
         <button id="ovClear" class="btn-danger">Xóa hết</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KNOWLEDGE OVERLAY ============ -->
+  <div id="knowledgeOverlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>🧠 Kiến thức SEOSONA</b>
+        <button class="icon-btn" id="knowledgeClose">✕</button>
+      </div>
+      <p class="hint">Bật block để bơm kiến thức vào prompt — dùng chung cho <b>SRT · Content · Research</b>. Combo = bật nhanh một bộ theo mục tiêu.</p>
+      <div id="koCombos" class="combo-bar"></div>
+      <div id="koBlocks" class="ko-blocks"></div>
+      <div class="row between">
+        <button id="koClearAll">Tắt hết</button>
+        <span class="hint" id="koCount"></span>
       </div>
     </div>
   </div>
