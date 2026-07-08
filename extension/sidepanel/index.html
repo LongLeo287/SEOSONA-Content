@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEOSONA SRT Studio</title>
+<title>SEOSONA Content</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
     <div class="brand">
       <img class="logo-img" src="../icons/icon-48.png" alt="SEOSONA">
       <span class="brand-name">SEOSONA</span>
-      <span class="badge-premium">STUDIO</span>
+      <span class="badge-premium">CONTENT</span>
     </div>
     <div class="header-tools">
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
@@ -33,7 +33,8 @@
 
   <!-- ============ SECTION NAV ============ -->
   <nav id="sectionNav" class="sectionnav">
-    <button data-view="studio" class="active"><span class="ico">🎬</span>SRT</button>
+    <button data-view="home" class="active"><span class="ico">🏠</span>Home</button>
+    <button data-view="studio"><span class="ico">🎬</span>SRT</button>
     <button data-view="content"><span class="ico">📝</span>Content</button>
     <button data-view="prompts"><span class="ico">📚</span>Prompts</button>
     <button data-view="batch"><span class="ico">📦</span>Batch</button>
@@ -42,8 +43,39 @@
 
   <main class="content">
 
+    <!-- ================= VIEW: HOME ================= -->
+    <section class="view active" id="view-home">
+      <div class="home-hero">
+        <h1 class="home-title">Content Studio</h1>
+        <p class="home-sub">Viết · audit · review · SEO · A/B — và cắt ghép video từ SRT. Điều khiển AI web, chuẩn content/SEO cho mọi ngành.</p>
+      </div>
+
+      <div class="home-branches">
+        <button class="home-branch" data-go="content">
+          <span class="hb-ico">📝</span>
+          <span class="hb-main"><b>Content</b><small>Viết / audit / review / SEO / A-B</small></span>
+          <span class="hb-arrow">→</span>
+        </button>
+        <button class="home-branch" data-go="studio">
+          <span class="hb-ico">🎬</span>
+          <span class="hb-main"><b>SRT → Video</b><small>Cắt · đánh giá · metadata · chapter · repurpose</small></span>
+          <span class="hb-arrow">→</span>
+        </button>
+      </div>
+
+      <div class="home-sec">
+        <div class="home-sec-head">⚡ Bắt đầu nhanh</div>
+        <div id="homeQuick" class="home-quick"></div>
+      </div>
+
+      <div class="home-sec">
+        <div class="home-sec-head between"><span>🕘 Phiên SRT gần đây</span><button id="homeNewSrt" class="pill-btn">＋ Phiên mới</button></div>
+        <div id="homeSessions" class="home-sessions"></div>
+      </div>
+    </section>
+
     <!-- ================= VIEW: STUDIO (pipeline) ================= -->
-    <section class="view active" id="view-studio">
+    <section class="view" id="view-studio">
 
       <!-- ---- STAGE 1: SRT ---- -->
       <section class="stage open" data-stage="srt">

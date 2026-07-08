@@ -1521,6 +1521,48 @@ $('#ovClear').addEventListener('click', async () => {
 });
 
 // ---------------------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử)
+// ---------------------------------------------------------------- HOME (landing)
+const HOME_QUICK = [
+  { task: 'write', label: '✍️ Viết mới' },
+  { task: 'audit', label: '🔧 Audit & sửa' },
+  { task: 'review', label: '⭐ Chấm điểm' },
+  { task: 'seo', label: '🔎 SEO on-page' },
+  { task: 'abtest', label: '🔀 A/B' },
+];
+function gotoContentTask(task) { showView('content'); setContentTask(task); const el = $('#contentInput'); if (el) el.focus(); }
+function renderHome() {
+  const q = $('#homeQuick');
+  if (q) {
+    q.innerHTML = '';
+    HOME_QUICK.forEach((it) => {
+      const b = document.createElement('button'); b.className = 'quick-chip'; b.textContent = it.label;
+      b.addEventListener('click', () => gotoContentTask(it.task)); q.appendChild(b);
+    });
+    const s = document.createElement('button'); s.className = 'quick-chip'; s.textContent = '🎬 Nạp SRT';
+    s.addEventListener('click', () => { showView('studio'); openStage('srt'); }); q.appendChild(s);
+  }
+  renderHomeSessions();
+}
+async function renderHomeSessions() {
+  const box = $('#homeSessions'); if (!box) return;
+  let sessions = {};
+  try { const r = await chrome.storage.local.get('srtSessions'); sessions = r.srtSessions || {}; } catch (_) {}
+  const list = Object.values(sessions).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
+  if (!list.length) { box.innerHTML = '<p class="hint">Chưa có phiên SRT nào.</p>'; return; }
+  box.innerHTML = '';
+  list.forEach((s) => {
+    const row = document.createElement('button'); row.className = 'home-sess';
+    const d = s.updatedAt ? new Date(s.updatedAt) : null;
+    const p = (n) => String(n).padStart(2, '0');
+    const w = d ? `${p(d.getHours())}:${p(d.getMinutes())} ${d.getDate()}/${d.getMonth() + 1}` : '';
+    const seg = (s.angles && s.angles[0] && s.angles[0].segments) ? s.angles[0].segments.filter((x) => x.valid).length : 0;
+    row.innerHTML = `<span class="hs-name">${escapeHtml(s.name || s.srtName || 'Phiên')}</span>`
+      + `<span class="hint">${escapeHtml(s.srtName || '')}${seg ? ' · ' + seg + ' đoạn' : ''}${w ? ' · ' + w : ''}</span>`;
+    row.addEventListener('click', () => switchSession(s.id));
+    box.appendChild(row);
+  });
+}
+
 function showView(name) {
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
   $$('#sectionNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
@@ -1528,9 +1570,17 @@ function showView(name) {
   else if (name === 'batch') openBatch();
   else if (name === 'history') openHistory();
   else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
+  else if (name === 'home') renderHome();
+  // session bar chỉ liên quan nhánh SRT
+  const sb = $('.sessionbar'); if (sb) sb.style.display = (name === 'studio') ? '' : 'none';
   const c = $('.content'); if (c) c.scrollTop = 0;
 }
 $$('#sectionNav button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+$$('#view-home [data-go]').forEach((b) => b.addEventListener('click', () => {
+  const t = b.dataset.go; showView(t);
+  if (t === 'studio') openStage(state.cues.length ? 'run' : 'srt');
+}));
+$('#homeNewSrt').addEventListener('click', () => newSession());
 
 // ---------------------------------------------------------------- điều khiển phiên
 document.getElementById('hdrNewSession').addEventListener('click', newSession);
@@ -1570,6 +1620,7 @@ initTemplates();
 initRepurpose();
 initContent();
 restoreContent();
-consumeQuickPending();
 updateLocks();
 restoreProject();
+showView('home');
+consumeQuickPending();
