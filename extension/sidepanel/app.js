@@ -1842,5 +1842,6 @@ restoreResearch();
 initHomeSearch();
 updateLocks();
 restoreProject();
+syncKnowledgeUI();
 showView('home');
 consumeQuickPending();
