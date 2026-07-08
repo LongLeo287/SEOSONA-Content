@@ -48,9 +48,16 @@
     <section class="view active" id="view-home">
       <div class="home-hero">
         <h1 class="home-title">Content Studio</h1>
-        <p class="home-sub">Viết · audit · review · SEO · A/B — và cắt ghép video từ SRT. Điều khiển AI web, chuẩn content/SEO cho mọi ngành.</p>
+        <p class="home-sub">Viết · audit · review · SEO · A/B · research — và cắt ghép video từ SRT. Chuẩn content/SEO cho mọi ngành.</p>
       </div>
 
+      <div class="home-search">
+        <span class="hs-ico">🔎</span>
+        <input type="search" id="homeSearch" placeholder="Tìm trong nội dung, phiên, prompt, lịch sử…" autocomplete="off">
+      </div>
+      <div id="homeSearchResults" class="home-results" hidden></div>
+
+      <div id="homeDefault">
       <div class="home-branches">
         <button class="home-branch" data-go="content">
           <span class="hb-ico">📝</span>
@@ -73,6 +80,7 @@
         <div class="home-sec-head between"><span>🕘 Phiên SRT gần đây</span><button id="homeNewSrt" class="pill-btn">＋ Phiên mới</button></div>
         <div id="homeSessions" class="home-sessions"></div>
       </div>
+      </div><!-- /#homeDefault -->
     </section>
 
     <!-- ================= VIEW: STUDIO (pipeline) ================= -->

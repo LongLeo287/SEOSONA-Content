@@ -1651,6 +1651,11 @@ const HOME_QUICK = [
 ];
 function gotoContentTask(task) { showView('content'); setContentTask(task); const el = $('#contentInput'); if (el) el.focus(); }
 function renderHome() {
+  // nếu không có truy vấn tìm kiếm, đảm bảo hiện phần mặc định
+  if (!($('#homeSearch') && $('#homeSearch').value.trim())) {
+    const r = $('#homeSearchResults'), d = $('#homeDefault');
+    if (r) r.hidden = true; if (d) d.hidden = false;
+  }
   const q = $('#homeQuick');
   if (q) {
     q.innerHTML = '';
@@ -1679,6 +1684,50 @@ async function renderHomeSessions() {
     row.innerHTML = `<span class="hs-name">${escapeHtml(s.name || s.srtName || 'Phiên')}</span>`
       + `<span class="hint">${escapeHtml(s.srtName || '')}${seg ? ' · ' + seg + ' đoạn' : ''}${w ? ' · ' + w : ''}</span>`;
     row.addEventListener('click', () => switchSession(s.id));
+    box.appendChild(row);
+  });
+}
+
+// ---- Home search: index nội bộ (phiên + prompt + lịch sử + content/research gần nhất)
+function resultsText(s) { return Object.values(s.results || {}).map((r) => (r && r.text) || '').join(' '); }
+async function gatherIndex() {
+  const out = [];
+  const get = (k) => chrome.storage.local.get(k).then((r) => r[k]).catch(() => undefined);
+  const [sessions, prompts, history, cLast, rLast] = await Promise.all([
+    get('srtSessions'), get('srtPrompts'), get('srtHistory'), get('srtContentLast'), get('srtResearchLast'),
+  ]);
+  Object.values(sessions || {}).forEach((s) => out.push({ type: 'Phiên SRT', title: s.name || s.srtName || 'Phiên', text: (s.srtName || '') + ' ' + resultsText(s), open: () => switchSession(s.id) }));
+  (prompts || []).forEach((p) => out.push({ type: 'Prompt', title: p.title || '', text: p.body || '', open: () => showView('prompts') }));
+  (history || []).forEach((h) => out.push({ type: 'Lịch sử', title: (h.provider || '') + ' · ' + (h.srtName || ''), text: h.text || '', open: () => reopenHistory(h) }));
+  if (cLast && cLast.result) out.push({ type: 'Content', title: 'Kết quả Content gần nhất', text: (cLast.input || '') + ' ' + cLast.result, open: () => showView('content') });
+  if (rLast && rLast.result) out.push({ type: 'Research', title: 'Kết quả Research gần nhất', text: (rLast.input || '') + ' ' + rLast.result, open: () => showView('research') });
+  return out;
+}
+function searchSnippet(text, q) {
+  const t = String(text || ''); const i = t.toLowerCase().indexOf(q);
+  if (i < 0) return t.slice(0, 90);
+  const start = Math.max(0, i - 30);
+  return (start > 0 ? '…' : '') + t.slice(start, i + q.length + 60).replace(/\s+/g, ' ') + '…';
+}
+let homeSearchT;
+function initHomeSearch() {
+  const inp = $('#homeSearch'); if (!inp) return;
+  inp.addEventListener('input', () => { clearTimeout(homeSearchT); homeSearchT = setTimeout(runHomeSearch, 180); });
+}
+async function runHomeSearch() {
+  const q = ($('#homeSearch').value || '').trim().toLowerCase();
+  const box = $('#homeSearchResults'), def = $('#homeDefault');
+  if (!q) { box.hidden = true; box.innerHTML = ''; def.hidden = false; return; }
+  def.hidden = true; box.hidden = false;
+  const items = await gatherIndex();
+  const hits = items.filter((it) => (it.title + ' ' + it.text).toLowerCase().includes(q)).slice(0, 25);
+  if (!hits.length) { box.innerHTML = `<p class="hint">Không tìm thấy kết quả cho “${escapeHtml(q)}”.</p>`; return; }
+  box.innerHTML = '';
+  hits.forEach((it) => {
+    const row = document.createElement('button'); row.className = 'res-row';
+    row.innerHTML = `<span class="res-top"><span class="res-type">${escapeHtml(it.type)}</span><span class="res-title">${escapeHtml(it.title || '')}</span></span>`
+      + `<span class="hint">${escapeHtml(searchSnippet(it.text, q))}</span>`;
+    row.addEventListener('click', () => { if (it.open) it.open(); });
     box.appendChild(row);
   });
 }
@@ -1743,6 +1792,7 @@ initContent();
 restoreContent();
 initResearch();
 restoreResearch();
+initHomeSearch();
 updateLocks();
 restoreProject();
 showView('home');
