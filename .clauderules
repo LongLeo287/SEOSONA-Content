@@ -17,5 +17,3 @@ This project is bound to SEOSONA OS through `seosona.project.json`.
 - Memory namespace: `seosona-content`
 - Autonomy level: `project_edit`
 - Publish/deploy actions require explicit user intent.
-
-TASK COMPLETED

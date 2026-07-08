@@ -200,45 +200,70 @@ Output the result in Vietnamese using the specified markdown table format.
 {{SRT}}
 `;
 
-const EVALUATE_PROMPT = `Bạn là chuyên gia review video short-form (Shorts/TikTok/Reels) mảng SEO, Digital Marketing, AI, Automation.
+const EVALUATE_PROMPT = `Bạn là biên tập viên nội dung video của SEOSONA. Chấm bảng kịch bản (short-form hoặc long-form) dưới đây một cách KHẮT KHE, theo 6 tiêu chí. Chỉ đánh giá dựa trên phụ đề nguyên văn được cung cấp, không bịa nội dung.
 
-Dưới đây là một kịch bản cắt ghép từ video dài (mỗi dòng gồm segment, timecode gốc, phụ đề nguyên văn). Hãy đánh giá kịch bản này theo thang điểm 1-10 cho từng tiêu chí:
+THANG ĐIỂM mỗi tiêu chí /10 (0–3 Kém: viết lại · 4–6 Tạm: cần sửa · 7–8 Tốt · 9–10 Xuất sắc).
 
-1. **Hook (3 giây đầu)** — có khiến người xem dừng lại không?
-2. **Flow / mạch truyện** — các đoạn ghép có mượt, liền mạch như một bài nói không?
-3. **Retention** — mật độ thông tin, nhịp độ, có đoạn nào gây tụt hứng không?
-4. **Giá trị thực tiễn** — người xem học được gì, hành động được gì?
-5. **CTA / kết** — có động lực follow/xem tiếp không?
+TIÊU CHÍ:
+1. Sức mạnh Hook — 3 giây đầu có "chặn scroll"? Đạt 4U (Useful/Unique/Urgent/Ultra-specific)? Mở curiosity-gap thật, không clickbait, hoạt động khi tắt tiếng?
+2. Giữ chân & Nhịp điệu — nhịp teach→ví dụ→chuyển; 3–7 ý; có re-hook/open loop giữa video; KHÔNG "dead air" (chào dài, lặp ý, lạc đề). Mục tiêu retention > 50%.
+3. Giá trị & Rõ ràng — mỗi cue có insight cụ thể; trả đúng ý người xem; dễ hiểu, câu ngắn, chủ động.
+4. Mạch chuyện — trình tự cue logic; có mở–thân–chốt; chuyển ý mượt, không rời rạc.
+5. CTA — một CTA chính rõ ràng, ngôi thứ nhất, đặt đúng 15–30s cuối, kèm lợi ích/social proof.
+6. Tín hiệu SEO/E-E-A-T — có từ khóa chính; có cue trải nghiệm-thật/số liệu/nguồn; khai thác được title/thumbnail CTR.
 
-Trả kết quả dạng bảng markdown:
+Trả kết quả dạng bảng markdown (giữ nguyên các cột):
 
-| Tiêu chí | Điểm /10 | Nhận xét | Đề xuất cải thiện cụ thể |
+| Tiêu chí | Điểm /10 | Nhận xét | Đề xuất |
 |---|---|---|---|
+| Sức mạnh Hook | | | |
+| Giữ chân & Nhịp điệu | | | |
+| Giá trị & Rõ ràng | | | |
+| Mạch chuyện | | | |
+| CTA | | | |
+| Tín hiệu SEO/E-E-A-T | | | |
 
-Sau bảng, thêm mục:
-- **Tổng điểm trung bình**
-- **Verdict**: NÊN ĐĂNG / CẦN SỬA / LÀM LẠI
-- **Top 3 chỉnh sửa ưu tiên** (nếu đề xuất đổi thứ tự/cắt bớt cue, ghi rõ timecode).
-
-Chỉ đánh giá dựa trên phụ đề nguyên văn được cung cấp, không bịa nội dung.
+Sau bảng, thêm:
+- **Điểm trung bình:** X.X/10
+- **Kết luận:** NÊN ĐĂNG (≥8.0) / CẦN SỬA (6.0–7.9) / LÀM LẠI (<6.0)
+- **Top 3 cần sửa** (tác động cao nhất; nếu đề xuất đổi thứ tự/cắt cue, ghi rõ timecode).
 
 ===== KỊCH BẢN =====
 
 {{SCRIPT}}
 `;
 
-// Prompt sinh metadata SEO (title/description/hashtags/thumbnail) từ kịch bản đã cắt
-const METADATA_PROMPT = `Bạn là chuyên gia YouTube/TikTok SEO. Dưới đây là kịch bản short-form đã cắt ghép (phụ đề nguyên văn + timecode). Hãy sinh metadata để đăng, tối ưu SEO và CTR.
+// Prompt sinh metadata SEO (title/description/hashtags+tags/thumbnail) — nâng cấp từ SEOSONA OS YouTube SEO
+const METADATA_PROMPT = `Bạn là chuyên gia YouTube SEO của SEOSONA. Dưới đây là KỊCH BẢN VIDEO ĐÃ CẮT (phụ đề + timecode). Tạo bộ metadata tối ưu tìm kiếm + CTR.
 
-Công thức tiêu đề: [Từ khóa chính] — [Lợi ích/Kết quả] ([Năm hoặc Con số]). Tổng 60-70 ký tự, có số/ngoặc, không clickbait.
+NGUYÊN TẮC:
+- Từ khóa chính nằm trong 50 ký tự đầu của tiêu đề; tiêu đề 50–60 ký tự; có số/ngoặc để tăng CTR; KHÔNG clickbait rỗng (lời hứa phải khớp nội dung).
+- 2–3 câu mô tả đầu chứa từ khóa chính + tóm tắt giá trị.
+- TIMESTAMPS bắt buộc mốc đầu 00:00; lấy mốc từ các điểm chuyển ý trong phụ đề.
+- Tự suy ra từ khóa chính từ nội dung nếu chưa rõ.
 
-Trả ĐÚNG định dạng sau (giữ nguyên nhãn):
+XUẤT RA ĐÚNG ĐỊNH DẠNG NHÃN SAU (dòng TITLE và THUMBNAIL phải có giá trị chính ngay trên cùng dòng):
 
-TITLE: <tiêu đề>
+TITLE: <tiêu đề chính ≤60 ký tự, công thức [Từ khóa] — [Lợi ích/Kết quả] ([Số/Năm])>
+Phương án khác:
+- <option 2 — góc curiosity-gap>
+- <option 3 — góc kết quả/số liệu>
+
 DESCRIPTION:
-<2-3 câu có từ khóa chính, kèm mục TIMESTAMPS nếu hợp lý>
-HASHTAGS: #tag1 #tag2 #tag3 #tag4 #tag5
-THUMBNAIL: <mô tả prompt ảnh bìa: tối đa 3 từ text, mặt người + cảm xúc, độ tương phản cao>
+<2–3 câu đầu có từ khóa chính + tóm tắt "Video này hướng dẫn [chủ đề] gồm [ý1], [ý2], [ý3]">
+
+📌 TIMESTAMPS
+00:00 — Giới thiệu
+[MM:SS] — [Tiêu đề chương theo mốc chuyển ý]
+[MM:SS] — [Tiêu đề chương]
+
+🔔 ĐĂNG KÝ kênh để nhận nội dung mới mỗi tuần
+
+HASHTAGS: #tukhoachinh #biente1 #brand #tag4 #tag5
+TAGS: <15–20 tag cách nhau bởi dấu phẩy: tag đầu trùng từ khóa tiêu đề, 5–10 biến thể từ khóa chính, 3–5 tag danh mục rộng, 2–3 tag thương hiệu; mỗi tag < 30 ký tự>
+
+THUMBNAIL: <text ≤3–4 từ, power word (MIỄN PHÍ/BÍ MẬT/số)> — <loại: Face/Số-List/Before-After/Curiosity; màu tương phản cao> — khoảnh khắc: <timecode cue mạnh nhất>
+Phương án A/B: A) <...>  B) <...>
 
 Viết bằng tiếng Việt. Bám sát nội dung kịch bản, không bịa số liệu.
 

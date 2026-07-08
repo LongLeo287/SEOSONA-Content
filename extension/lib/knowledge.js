@@ -109,6 +109,82 @@ TRÁNH: ngôn ngữ thổi phồng ("số 1 Việt Nam", "cam kết 100%"); gi�
 - GHI CHÚ theo giọng SEOSONA — DO: tiếng Việt đơn giản, trực tiếp, chủ động; mỗi nhận định gắn dữ liệu/lý do; hành động cụ thể. DON'T: nói quá ("số 1 VN", "cam kết 100%"), giọng AI ("Điều quan trọng cần lưu ý là..."), lạm dụng từ tiếng Anh khi có từ Việt.
 - LƯU Ý: chỉ áp brand voice cho phần ghi chú/đánh giá; TUYỆT ĐỐI giữ nguyên văn phụ đề gốc.`,
     },
+    eeatSignals: {
+      name: "Tín hiệu E-E-A-T & Trải nghiệm thực tế",
+      default: false,
+      text:
+`## Ưu tiên cue mang tín hiệu Trải nghiệm & Thẩm quyền (E-E-A-T)
+Google chấm E-E-A-T cho mọi chủ đề cạnh tranh, và "Experience" là yếu tố khác biệt hàng đầu vì AI không bịa được trải nghiệm thật.
+Khi chọn/xếp cue, ƯU TIÊN GIỮ (điểm cao → đưa lên sớm):
+- Cue ngôi thứ nhất: "tôi đã test…", "trong 6 tháng tôi…", "kinh nghiệm của tôi".
+- Cue có SỐ LIỆU/DỮ LIỆU cụ thể, case study, kết quả before/after, ảnh/màn hình gốc.
+- Cue thể hiện quy trình/phương pháp làm thật ("bước tôi làm là…").
+- Cue chứng nhận/uy tín: chức danh, năm kinh nghiệm, nguồn trích dẫn.
+LOẠI/HẠ ưu tiên: câu chung chung, lý thuyết sách vở, khẳng định không kèm bằng chứng.
+Với chủ đề YMYL (sức khỏe, tài chính, pháp lý) siết chặt hơn: bắt buộc có cue nguồn/uy tín.
+QUY TẮC XẾP: mở đầu video nên có ít nhất 1 cue trải nghiệm-thật để tạo lòng tin ngay.`,
+    },
+    retentionPacing: {
+      name: "Giữ chân & Nhịp điệu (chống \"chết cảnh\")",
+      default: false,
+      text:
+`## Chọn cue để giữ retention & nhịp điệu
+Mục tiêu: average view duration > 50%, tránh vực rơi < 30% ở đầu. Chọn/xếp cue theo nhịp:
+- Mỗi ý = cụm 3 cue: Khái niệm → Ví dụ → Ứng dụng, rồi CHUYỂN NGAY (dạy 1 thứ, minh hoạ, đi tiếp).
+- Giữ 3–7 ý chính (số lẻ cảm giác trọn vẹn); cắt ý thừa, gộp ý trùng.
+- MỞ VÒNG LẶP (open loop) sớm và cài "re-hook" giữa video: giữ lại 1 cue tiết lộ đắt
+  ("trước khi tới mẹo #5 — cái quan trọng nhất…") để đặt ở khoảng giữa.
+- LOẠI cue gây "dead air": lời chào dài, giải thích lý do làm video, đoạn lặp ý, ậm ừ, lạc đề.
+- Đổi nhịp: xen cue ngắn-mạnh (số liệu, câu chốt) giữa các cue giải thích dài để tránh đơn điệu.
+QUY TẮC XẾP: cue mạnh nhất KHÔNG dồn hết đầu — rải đều để mỗi 20–30s có 1 điểm níu.
+Short-form: dồn giá trị, không có đoạn đệm; mỗi giây phải "trả tiền".`,
+    },
+    antiAiStyle: {
+      name: "Tránh văn AI & chống clickbait",
+      default: false,
+      text:
+`## Loại cue "mùi AI" và clickbait
+Nội dung AI generic bị phạt; clickbait làm tăng abandon-rate và bị thuật toán trừng phạt.
+LOẠI/HẠ ưu tiên các cue:
+- Clickbait rỗng: "bạn sẽ KHÔNG TIN nổi", "SHOCKING", "cực sốc", "gây bão", "ai cũng đang nói".
+- Đấm keyword: VIẾT HOA để nhấn, chấm than!!!, spam emoji.
+- Câu chung chung không có insight, cấu trúc lặp, tính từ đại ngôn ("tốt nhất mọi thời đại").
+- Mở đầu chậm: "hôm nay mình muốn nói về…", giải thích lý do làm nội dung.
+GIỮ/ƯU TIÊN cue: cụ thể (số liệu, tên, mốc thời gian), có góc nhìn riêng/trái chiều,
+mở curiosity-gap thật (không lừa), khớp với nội dung phía sau (không bait-and-switch).
+QUY TẮC: giọng tự nhiên như người thật; câu dài–ngắn xen kẽ; giữ nguyên từ khóa SEO gốc.
+Kiểm: hook có trả "lời hứa giá trị" trong 3 giây và hoạt động được khi TẮT TIẾNG không?
+Lưu ý: KHÔNG sửa nguyên văn phụ đề — chỉ dùng tiêu chí này để CHỌN/BỎ cue.`,
+    },
+    ctaGrowthPsych: {
+      name: "CTA & Tâm lý tăng trưởng kênh",
+      default: false,
+      text:
+`## Chọn & xếp cue cho CTA và tăng trưởng kênh
+Nguyên tắc: MỘT CTA chính mỗi video (2 CTA = 0 CTA). Chọn cue hỗ trợ đòn tâm lý:
+- Reciprocity: đặt cue "cho giá trị trước" (tip/tài nguyên free) NGAY TRƯỚC lời kêu gọi → xin sub/comment sau.
+- Zeigarnik/open loop: giữ cue "vòng lặp mở" dẫn sang video tiếp theo/end screen.
+- Goal-Gradient: cue "bạn đã nắm 80% rồi, còn 1 bước…" để đẩy hành động cuối.
+- Social proof: ưu tiên cue có con số ("12.000+ người…", "4.9/5") đặt gần CTA để tăng tự tin.
+- Foot-in-the-door: xin hành động NHỎ trước (like/comment) rồi mới hành động lớn (đăng ký/click link).
+XẾP: CTA sub sớm-nhẹ (không ép) sau khi đã chứng minh giá trị; CTA chính dồn về 15–30s cuối,
+gắn 1 hành động DUY NHẤT + lợi ích ("Đăng ký để nhận mẹo SEO mỗi tuần").
+LOẠI: nhiều lời kêu gọi rải rác, CTA mơ hồ ("theo dõi mình nhé") không kèm lý do/lợi ích.`,
+    },
+    thumbnailCtr: {
+      name: "Chọn khoảnh khắc cho Thumbnail/Title (CTR)",
+      default: false,
+      text:
+`## Đánh dấu cue "vàng" cho Thumbnail & Title (CTR)
+Mục tiêu CTR > 5%. Trong lúc chọn cue, GẮN CỜ những cue có thể thành thumbnail/title:
+- Cue tạo curiosity-gap (hé lộ giá trị mà chưa lộ hết), cue trái chiều ("lời khuyên ai cũng nói đều sai").
+- Cue có SỐ/mốc ("5 cách", "$1000", "trong 30 ngày") → hợp thumbnail dạng số & title tăng CTR.
+- Cue before/after, khoảnh khắc biểu cảm mạnh (bất ngờ, hào hứng) → hợp thumbnail mặt người.
+- Cue tuyên bố táo bạo/kết quả cụ thể → làm title theo công thức [Từ khóa] — [Kết quả] ([Số/Năm]).
+QUY TẮC: chọn 1 câu chốt ≤ 3–4 từ đọc được ở 150×84px làm text thumbnail; đảm bảo tương phản cao.
+Không hứa suông (YouTube phạt abandon cao) — thumbnail/title PHẢI khớp cue thật trong video.
+Đề xuất 2–3 phương án thumbnail-text để A/B test.`,
+    },
   };
   // <<<END:BLOCKS>>>
 

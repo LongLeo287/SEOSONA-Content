@@ -17,10 +17,7 @@
       "deploy"
     ]
   },
-  "commands": {
-    "typecheck": "npm run typecheck",
-    "build": "npm run build"
-  },
+  "commands": {},
   "workflows": [
     "project-doctor",
     "portable-rule-sync",

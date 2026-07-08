@@ -40,7 +40,8 @@ function escTemplate(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 }
 
-const files = readdirSync(SRC_DIR).filter((f) => f.endsWith('.md')).sort();
+// Chỉ lấy file block dạng "NN-<slug>.md" (bỏ README.md và file khác)
+const files = readdirSync(SRC_DIR).filter((f) => /^\d{2,}-.+\.md$/.test(f)).sort();
 if (!files.length) { console.error('Không có file .md nào trong knowledge-src/'); process.exit(1); }
 
 const blocks = files.map((f) => parseBlock(readFileSync(join(SRC_DIR, f), 'utf8'), f));
