@@ -443,9 +443,14 @@
         if (s.responseInner) { try { inner = el.querySelector(s.responseInner); } catch (_) {} }
         return stripSpeaker((inner || el).innerText || '');
       },
+      // Multi-signal (học từ SEOSONA Flow): còn "đang sinh" nếu indicator generating
+      // XUẤT HIỆN, HOẶC nút Stop còn hiển thị → tránh lấy text lúc stream dở.
       isGenerating: () => {
-        if (!s.generating) return false;
-        try { return !!document.querySelector(s.generating); } catch (_) { return false; }
+        try {
+          if (s.generating && document.querySelector(s.generating)) return true;
+          if (s.stop) { const b = document.querySelector(s.stop); if (b && isVisible(b)) return true; }
+        } catch (_) {}
+        return false;
       },
       clickStop: () => {
         if (!s.stop) return;
