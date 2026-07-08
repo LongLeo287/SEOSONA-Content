@@ -5,7 +5,8 @@
   "displayName": "SEOSONA Content",
   "domain": "software-project",
   "stack": [
-    "unknown"
+    "browser-extension",
+    "javascript"
   ],
   "osRoot": "~/.seosona",
   "memoryNamespace": "seosona-content",
