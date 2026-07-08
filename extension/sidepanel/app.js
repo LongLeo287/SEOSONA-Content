@@ -270,6 +270,23 @@ function initKnowledge() {
     });
     wrap.appendChild(lbl);
   }
+  // combo bar: bật nhanh một bộ block
+  const cwrap = $('#knowledgeCombos');
+  if (cwrap) {
+    cwrap.innerHTML = '';
+    for (const [key, combo] of Object.entries(Knowledge.COMBOS || {})) {
+      if (!combo.ids || !combo.ids.length) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'combo-pill';
+      btn.dataset.combo = key;
+      btn.textContent = combo.name;
+      btn.title = 'Bật: ' + combo.ids.map((id) => (Knowledge.BLOCKS[id] || {}).name || id).join(', ');
+      btn.addEventListener('click', () => applyCombo(key, { additive: false }));
+      cwrap.appendChild(btn);
+    }
+  }
+
   const sel = $('#platformSelect');
   sel.innerHTML = '';
   for (const [id, p] of Object.entries(Knowledge.PLATFORMS)) {
@@ -279,8 +296,29 @@ function initKnowledge() {
   }
   sel.addEventListener('change', () => { state.platformId = sel.value; saveProject(); });
 }
+
+// mẫu prompt -> combo kiến thức tương ứng (Gắn prompt↔combo)
+const TPL_COMBO = { analyze_v2: 'shorts', longform: 'long', highlights: 'quality' };
+
+// bật một combo. additive=false => thay cả bộ; additive=true => cộng thêm vào bộ đang bật
+function applyCombo(key, { additive = false } = {}) {
+  const combo = (Knowledge.COMBOS || {})[key];
+  if (!combo) return;
+  const cur = additive ? new Set(state.blockIds) : new Set();
+  combo.ids.forEach((id) => cur.add(id));
+  state.blockIds = [...cur];
+  syncKnowledgeUI();
+  saveProject();
+}
 function syncKnowledgeUI() {
   $$('#knowledgeChecks input').forEach((i) => { i.checked = state.blockIds.includes(i.value); });
+  // đánh dấu combo đang khớp (tập block bật ⊇ combo)
+  const active = new Set(state.blockIds);
+  $$('#knowledgeCombos .combo-pill').forEach((b) => {
+    const combo = (Knowledge.COMBOS || {})[b.dataset.combo];
+    const on = combo && combo.ids.length && combo.ids.every((id) => active.has(id));
+    b.classList.toggle('active', !!on);
+  });
 }
 
 function initTemplates() {
@@ -292,7 +330,11 @@ function initTemplates() {
     opt.value = key; opt.textContent = tpl.name;
     sel.appendChild(opt);
   }
-  sel.addEventListener('change', () => { $('#tplBody').value = PROMPT_TEMPLATES[sel.value].body; });
+  sel.addEventListener('change', () => {
+    $('#tplBody').value = PROMPT_TEMPLATES[sel.value].body;
+    const comboKey = TPL_COMBO[sel.value];
+    if (comboKey) { applyCombo(comboKey, { additive: false }); toast('Đã bật combo kiến thức: ' + (Knowledge.COMBOS[comboKey] || {}).name); }
+  });
   $('#tplBody').value = PROMPT_TEMPLATES[sel.value].body;
 }
 

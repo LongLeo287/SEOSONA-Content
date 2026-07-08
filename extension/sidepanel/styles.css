@@ -335,6 +335,19 @@ button:disabled:hover { color: var(--text); border-color: var(--border); }
 }
 .chip:has(input:checked)::before { content: "✓"; font-size: 10px; }
 
+/* combo bar: bật nhanh một bộ block */
+.combo-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.combo-pill {
+  padding: 4px 10px; border-radius: 20px; cursor: pointer;
+  background: var(--bg-2); border: 1px dashed var(--border);
+  color: var(--muted); font-size: 11px; font-weight: 600; transition: .15s;
+}
+.combo-pill:hover { color: var(--text); border-color: #444; }
+.combo-pill.active {
+  color: var(--neon); border-style: solid; border-color: var(--neon-line);
+  background: var(--neon-soft);
+}
+
 /* result / angle switch dùng button — tạo dáng pill */
 #resultTabs button, #angleSwitch button {
   border-radius: 20px; padding: 6px 12px; font-size: 12px; color: var(--muted);

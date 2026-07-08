@@ -218,6 +218,18 @@ Không hứa suông (YouTube phạt abandon cao) — thumbnail/title PHẢI kh�
 - ${p.hook}`;
   }
 
+  // -------------------------------------------------- combo (bộ block bật sẵn 1 phát)
+  // Mỗi combo = danh sách id block. Dùng ở UI (nút combo) + gắn theo mẫu prompt.
+  const COMBOS = {
+    shorts:    { name: '📱 Shorts',      ids: ['hooks', 'structure', 'retentionPacing', 'ctaGrowthPsych', 'antiAiStyle'] },
+    long:      { name: '🎬 Video dài',   ids: ['structure', 'contentFrameworks', 'eeatSignals', 'retentionPacing', 'cboBrand'] },
+    seo:       { name: '🔎 SEO',         ids: ['youtubeSeo', 'seoAware', 'thumbnailCtr', 'cboBrand'] },
+    marketing: { name: '📣 Marketing',   ids: ['marketingPsychology', 'ctaGrowthPsych', 'formulas', 'brandVoice'] },
+    quality:   { name: '✨ Chất lượng cao', ids: ['hooks', 'structure', 'formulas', 'brandVoice', 'antiAiStyle', 'retentionPacing'] },
+  };
+  // Chỉ giữ id thực sự tồn tại trong BLOCKS (phòng khi đổi tên block)
+  for (const k of Object.keys(COMBOS)) COMBOS[k].ids = COMBOS[k].ids.filter((id) => BLOCKS[id]);
+
   function buildKnowledgeSection(blockIds) {
     const parts = blockIds.map((id) => BLOCKS[id] && BLOCKS[id].text).filter(Boolean);
     if (!parts.length) return '';
@@ -243,5 +255,5 @@ Không hứa suông (YouTube phạt abandon cao) — thumbnail/title PHẢI kh�
 #tukhoa1 #tukhoa2 #tukhoa3`,
   };
 
-  return { BLOCKS, PLATFORMS, platformInstruction, buildKnowledgeSection, YOUTUBE_SEO };
+  return { BLOCKS, COMBOS, PLATFORMS, platformInstruction, buildKnowledgeSection, YOUTUBE_SEO };
 })();
