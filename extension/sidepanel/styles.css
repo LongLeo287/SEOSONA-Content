@@ -220,6 +220,16 @@ body {
 .ppill.active { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
 .ppill.has-session::after { content: " ●"; color: var(--neon); font-size: 9px; }
 
+/* task pill (nhánh Content) */
+.task-pill {
+  padding: 7px 12px; border-radius: 9px; font-size: 12px; font-weight: 600;
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+  transition: .15s;
+}
+.task-pill:hover { color: var(--text); border-color: #444; }
+.task-pill.active { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
+.row.between { display: flex; align-items: center; justify-content: space-between; }
+
 /* stepper số góc */
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-2); }
 .stepper button { border: none; background: none; color: var(--neon); font-size: 15px; width: 26px; height: 30px; padding: 0; border-radius: 0; }

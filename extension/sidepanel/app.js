@@ -18,6 +18,7 @@ const state = {
   metadata: null,     // { title, description, hashtags, thumbnail, raw }
   repurpose: null,    // { format, name, text } — kết quả tái sử dụng gần nhất
   chapters: null,     // { local:[{startMs,clock,text}], titles:[], description } — chapter + mô tả
+  content: { task: 'write', result: '', chatUrl: null }, // nhánh Content (viết/audit/review/seo)
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -316,9 +317,9 @@ function applyCombo(key, { additive = false } = {}) {
 }
 function syncKnowledgeUI() {
   $$('#knowledgeChecks input').forEach((i) => { i.checked = state.blockIds.includes(i.value); });
-  // đánh dấu combo đang khớp (tập block bật ⊇ combo)
+  // đánh dấu combo đang khớp (tập block bật ⊇ combo) — cả bar ở Studio và Content
   const active = new Set(state.blockIds);
-  $$('#knowledgeCombos .combo-pill').forEach((b) => {
+  $$('.combo-pill').forEach((b) => {
     const combo = (Knowledge.COMBOS || {})[b.dataset.combo];
     const on = combo && combo.ids.length && combo.ids.every((id) => active.has(id));
     b.classList.toggle('active', !!on);
@@ -504,6 +505,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
+    if (jobId.startsWith('content_')) return handleContentUpdate(status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
@@ -887,6 +889,141 @@ $('#btnDescDl').addEventListener('click', () => {
   Exporter.download(baseName() + '.description.txt', body, 'text/plain');
   toast('Đã tải description.txt', 'success');
 });
+
+// ---------------------------------------------------------------- NHÁNH CONTENT (viết/audit/review/seo)
+function initContent() {
+  if (typeof CONTENT_TASKS === 'undefined') return;
+  // task chips
+  const tasks = $('#contentTasks');
+  tasks.innerHTML = '';
+  for (const [key, t] of Object.entries(CONTENT_TASKS)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'task-pill'; b.dataset.task = key; b.textContent = t.name;
+    b.addEventListener('click', () => setContentTask(key));
+    tasks.appendChild(b);
+  }
+  // format select
+  const fmt = $('#contentFormat');
+  fmt.innerHTML = '';
+  for (const [key, name] of Object.entries(CONTENT_FORMATS)) {
+    const o = document.createElement('option'); o.value = key; o.textContent = name; fmt.appendChild(o);
+  }
+  // combo bar (dùng chung applyCombo -> state.blockIds)
+  const cwrap = $('#contentCombos');
+  if (cwrap) {
+    cwrap.innerHTML = '';
+    for (const [key, combo] of Object.entries(Knowledge.COMBOS || {})) {
+      if (!combo.ids || !combo.ids.length) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'combo-pill'; btn.dataset.combo = key; btn.textContent = combo.name;
+      btn.title = 'Bật: ' + combo.ids.map((id) => (Knowledge.BLOCKS[id] || {}).name || id).join(', ');
+      btn.addEventListener('click', () => applyCombo(key, { additive: false }));
+      cwrap.appendChild(btn);
+    }
+  }
+  $('#contentProvider').value = state.provider;
+  $('#contentInput').addEventListener('input', () => { state.content.input = $('#contentInput').value; });
+  setContentTask(state.content.task || 'write');
+}
+
+function setContentTask(key) {
+  const t = CONTENT_TASKS[key]; if (!t) return;
+  state.content.task = key;
+  $$('#contentTasks .task-pill').forEach((b) => b.classList.toggle('active', b.dataset.task === key));
+  $('#contentInputLabel').textContent = t.inputLabel;
+  $('#contentInput').placeholder = t.inputLabel;
+  $('#contentFormatRow').hidden = !t.needsFormat;
+  $('#contentKeywordRow').hidden = !t.needsKeyword;
+}
+
+$('#btnContentRun').addEventListener('click', async () => {
+  const input = ($('#contentInput').value || '').trim();
+  if (!input) { alert('Nhập chủ đề/brief hoặc dán nội dung.'); return; }
+  const key = state.content.task || 'write';
+  const t = CONTENT_TASKS[key]; if (!t) return;
+  const provider = $('#contentProvider').value || state.provider;
+  const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
+  const kw = ($('#contentKeyword').value || '').trim() || '(chưa cung cấp)';
+  const fmt = CONTENT_FORMATS[$('#contentFormat').value] || $('#contentFormat').value || '';
+  const lit = (v) => () => v; // tránh $-pattern trong replacement khi input chứa $&, $1...
+  let body = t.body
+    .replace('{{INPUT}}', lit(input))
+    .replace('{{KEYWORD}}', lit(kw))
+    .replace('{{FORMAT}}', lit(fmt));
+  const text = knowledge ? (knowledge + '\n' + body) : body;
+  const jobId = `content_${provider}_${Date.now()}`;
+  state.content.result = ''; state.content.chatUrl = null;
+  $('#btnContentRun').disabled = true;
+  $('#contentResultCard').hidden = true;
+  $('#contentStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
+  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  if (!resp || !resp.ok) { $('#contentStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnContentRun').disabled = false; }
+});
+
+function handleContentUpdate(status, result) {
+  const row = $('#contentStatus .job');
+  if (row) {
+    row.className = 'job ' + (status === 'done' ? 'done' : status);
+    row.querySelector('.hint').textContent = status === 'done' ? 'xong'
+      : status === 'running' ? 'AI đang xử lý…' : (result && (result.message || result.error)) || status;
+  }
+  if (status === 'done' || status === 'error') {
+    $('#btnContentRun').disabled = false;
+    if (status === 'done' && result && result.text) {
+      state.content.result = result.text;
+      state.content.chatUrl = result.chatUrl || null;
+      renderContent();
+      saveContent();
+      toast('Content xong', 'success');
+    } else if (status === 'error') toast('Content lỗi', 'error');
+  }
+}
+
+function renderContent() {
+  const c = state.content || {};
+  const card = $('#contentResultCard');
+  if (!card) return;
+  if (c.result) {
+    card.hidden = false;
+    $('#contentResult').textContent = c.result;
+    const chatBtn = $('#btnContentChat');
+    chatBtn.hidden = !c.chatUrl;
+    if (c.chatUrl) chatBtn.onclick = () => openChatFor($('#contentProvider').value, c.chatUrl);
+  } else { card.hidden = true; }
+}
+
+$('#btnContentDownload').addEventListener('click', () => {
+  const c = state.content || {};
+  if (!c.result) { toast('Chưa có kết quả', 'warn'); return; }
+  const task = (CONTENT_TASKS[c.task] || {}).name || 'content';
+  Exporter.download('seosona-content.' + (c.task || 'out') + '.md', `# ${task}\n\n` + c.result, 'text/markdown');
+  toast('Đã tải .md', 'success');
+});
+
+// Content lưu riêng (độc lập phiên SRT)
+async function saveContent() {
+  try {
+    await chrome.storage.local.set({ srtContentLast: {
+      task: state.content.task,
+      input: ($('#contentInput') || {}).value || '',
+      keyword: ($('#contentKeyword') || {}).value || '',
+      format: ($('#contentFormat') || {}).value || '',
+      result: state.content.result || '', chatUrl: state.content.chatUrl || null,
+    } });
+  } catch (_) {}
+}
+async function restoreContent() {
+  try {
+    const { srtContentLast: c } = await chrome.storage.local.get('srtContentLast');
+    if (!c) return;
+    state.content = { task: c.task || 'write', result: c.result || '', chatUrl: c.chatUrl || null };
+    if ($('#contentInput')) $('#contentInput').value = c.input || '';
+    if ($('#contentKeyword')) $('#contentKeyword').value = c.keyword || '';
+    if (c.format && $('#contentFormat')) $('#contentFormat').value = c.format;
+    setContentTask(state.content.task);
+    renderContent();
+  } catch (_) {}
+}
 
 function renderRepurpose() {
   const view = $('#repurposeView'), btn = $('#btnRepurposeDownload');
@@ -1301,6 +1438,7 @@ function showView(name) {
   if (name === 'prompts') openPrompts();
   else if (name === 'batch') openBatch();
   else if (name === 'history') openHistory();
+  else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
   const c = $('.content'); if (c) c.scrollTop = 0;
 }
 $$('#sectionNav button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1341,5 +1479,7 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
 initKnowledge();
 initTemplates();
 initRepurpose();
+initContent();
+restoreContent();
 updateLocks();
 restoreProject();
