@@ -18,6 +18,7 @@ const state = {
   metadata: null,     // { title, description, hashtags, thumbnail, raw }
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
+  chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -400,8 +401,11 @@ function updateJobRow(provider, status, msg, scope = document) {
   el.querySelector('.hint').textContent = msg || status;
 }
 
-$('#btnRun').addEventListener('click', async () => {
-  if (!state.cues.length) { alert('Chưa nạp SRT.'); return; }
+$('#btnRun').addEventListener('click', () => runAnalyze());
+$('#btnChain').addEventListener('click', () => startChain());
+
+async function runAnalyze() {
+  if (!state.cues.length) { alert('Chưa nạp SRT.'); return false; }
   const providers = [state.provider];
 
   const angleCount = Math.max(1, Math.min(5, +$('#angleCount').value || 1));
@@ -428,10 +432,12 @@ $('#btnRun').addEventListener('click', async () => {
     if (!resp || !resp.ok) {
       state.results[provider] = { status: 'error', error: (resp && resp.error) || 'Không gửi được job' };
       updateJobRow(provider, 'error', state.results[provider].error);
+      chainAbort('Gửi phân tích thất bại');
     }
   }
   refreshRunButtons();
-});
+  return true;
+}
 
 $('#btnAbort').addEventListener('click', async () => {
   for (const [provider, r] of Object.entries(state.results)) {
@@ -454,6 +460,36 @@ function refreshRunButtons() {
   } else if (Object.values(state.results).some((r) => r.text)) {
     setStatus('✅ Phân tích xong');
   }
+}
+
+// ---------------------------------------------------------------- WORKFLOW CHAIN tự động
+// Chạy một mạch: Phân tích → Dựng bảng cắt → SEO metadata → Đánh giá (cùng 1 provider).
+// Điều phối bằng cờ state.chain.active + các mốc 'done' trong handle*Update.
+function startChain() {
+  if (!state.cues.length) { alert('Chưa nạp SRT.'); return; }
+  if (state.chain.active) return;
+  state.chain = { active: true, steps: ['analyze', 'build', 'metadata', 'evaluate'] };
+  setChainUI(true);
+  toast('▶▶ Chạy tự động: Phân tích → Cắt → Metadata → Đánh giá', 'info', 4500);
+  runAnalyze();
+}
+function chainAbort(reason) {
+  if (!state.chain.active) return;
+  state.chain.active = false;
+  setChainUI(false);
+  toast('⛔ Dừng chạy tự động' + (reason ? ': ' + reason : ''), 'warn', 6000);
+}
+function chainDone() {
+  if (!state.chain.active) return;
+  state.chain.active = false;
+  setChainUI(false);
+  const r = Object.values(state.review).find((x) => x.scores && x.scores.average != null);
+  const avg = r ? r.scores.average : null;
+  toast('✅ Chạy tự động HOÀN TẤT' + (avg != null ? ` · điểm ${avg}/10` : ''), 'success', 7000);
+}
+function setChainUI(on) {
+  const b = $('#btnChain');
+  if (b) { b.disabled = on; b.classList.toggle('running', on); b.textContent = on ? '⏳ Đang chạy tự động…' : '▶▶ Chạy tự động (toàn bộ)'; }
 }
 
 // ---------------------------------------------------------------- message hub
@@ -491,6 +527,11 @@ function handleAnalyzeUpdate(provider, status, result, jobId) {
   refreshRunButtons();
   renderResults();
   saveProject();
+  // workflow chain: phân tích xong → tự dựng bảng → sang metadata
+  if (state.chain.active) {
+    if (status === 'done') { if (buildTableFromResult({ silent: true })) runMetadata(); else chainAbort('không dựng được bảng cắt'); }
+    else chainAbort(state.results[provider] && state.results[provider].error);
+  }
 }
 
 function renderResults() {
@@ -521,17 +562,22 @@ function renderResults() {
   $('#rawResponse').textContent = cur.text || '';
 }
 
-$('#btnUseResult').addEventListener('click', () => {
+$('#btnUseResult').addEventListener('click', () => buildTableFromResult());
+
+// Dựng bảng cắt ghép từ kết quả AI. silent=true (dùng trong workflow chain) => không hỏi confirm.
+// Trả về true nếu dựng được bảng.
+function buildTableFromResult({ silent = false } = {}) {
   const r = state.results[state.activeProvider];
-  if (!r || !r.text) return;
+  if (!r || !r.text) return false;
   const angles = OutputParser.parseAngles(r.text, state.cues);
   if (!angles.length) {
     const hasTable = /\|.*\|/.test(r.text);
     const msg = hasTable
       ? 'Có bảng nhưng timecode không khớp SRT gốc (AI có thể đã sửa/bịa timecode, hoặc SRT quá dài nên AI phân tích thiếu). Bạn có thể tải kết quả .md để dùng ngoài.'
       : 'AI không trả về bảng markdown (thường do SRT quá dài, prompt bị cắt cụt). Xem "Kết quả thô", hoặc tải .md để dùng ngoài.';
-    if (confirm(msg + '\n\nTải kết quả AI ra file .md?')) downloadRawResult();
-    return;
+    if (silent) { toast('Không dựng được bảng cắt — ' + (hasTable ? 'timecode lệch SRT gốc' : 'AI không trả bảng'), 'warn', 5000); }
+    else if (confirm(msg + '\n\nTải kết quả AI ra file .md?')) downloadRawResult();
+    return false;
   }
   state.angles = angles;
   state.activeAngle = 0;
@@ -546,7 +592,8 @@ $('#btnUseResult').addEventListener('click', () => {
   saveProject();
   openStage('edit');
   toast(`Đã dựng ${angles.length} kịch bản · ${validCount} đoạn`, 'success');
-});
+  return true;
+}
 
 // Tải nguyên văn kết quả AI ra file .md
 function downloadRawResult() {
@@ -666,17 +713,21 @@ $('#btnExportJson').addEventListener('click', () => Exporter.download(baseName()
 }), 'application/json'));
 
 // ---------------------------------------------------------------- TAB 3: SEO metadata
-$('#btnMeta').addEventListener('click', async () => {
-  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return; }
-  const provider = $('#metaProvider').value;
+$('#btnMeta').addEventListener('click', () => runMetadata());
+
+async function runMetadata() {
+  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return false; }
+  // trong workflow chain, dùng đúng provider đang chọn để nhất quán
+  const provider = state.chain.active ? state.provider : $('#metaProvider').value;
   const script = Exporter.buildMarkdown(validSegments(), state.cues, { provider: state.segmentSource });
   const text = PROMPT_TEMPLATES.metadata.body.replace('{{SCRIPT}}', script);
   const jobId = `meta_${provider}_${Date.now()}`;
   $('#btnMeta').disabled = true;
   $('#metaStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
   const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
-  if (!resp || !resp.ok) { $('#metaStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnMeta').disabled = false; }
-});
+  if (!resp || !resp.ok) { $('#metaStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnMeta').disabled = false; chainAbort('Gửi metadata thất bại'); return false; }
+  return true;
+}
 
 function handleMetaUpdate(status, result) {
   const row = $('#metaStatus .job');
@@ -689,6 +740,8 @@ function handleMetaUpdate(status, result) {
     $('#btnMeta').disabled = false;
     if (result && result.text) { state.metadata = OutputParser.parseMetadata(result.text); renderMetadata(); saveProject(); toast('Đã sinh SEO metadata', 'success'); }
     else if (status === 'error') toast('Sinh metadata lỗi', 'error');
+    // workflow chain: metadata xong → sang đánh giá
+    if (state.chain.active) { if (status === 'done') runReview(); else chainAbort('metadata lỗi'); }
   }
 }
 
@@ -706,8 +759,10 @@ function renderMetadata() {
 $('#btnExportMeta').addEventListener('click', () => { if (state.metadata) Exporter.download(baseName() + '.metadata.txt', Exporter.buildMetadataTxt(state.metadata), 'text/plain'); });
 
 // ---------------------------------------------------------------- BƯỚC 4: ĐÁNH GIÁ (single provider)
-$('#btnReview').addEventListener('click', async () => {
-  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return; }
+$('#btnReview').addEventListener('click', () => runReview());
+
+async function runReview() {
+  if (!validSegments().length) { alert('Chưa có bảng cắt ghép.'); return false; }
   const providers = [state.provider];
   const script = Exporter.buildMarkdown(validSegments(), state.cues, { provider: state.segmentSource });
   const text = PROMPT_TEMPLATES.evaluate.body.replace('{{SCRIPT}}', script);
@@ -721,9 +776,10 @@ $('#btnReview').addEventListener('click', async () => {
     const jobId = `review_${provider}_${Date.now()}`;
     state.review[provider] = { status: 'running' };
     const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 600000, freshChat: true });
-    if (!resp || !resp.ok) { state.review[provider] = { status: 'error' }; updateJobRow(provider, 'error', (resp && resp.error) || 'lỗi', $('#reviewStatus')); }
+    if (!resp || !resp.ok) { state.review[provider] = { status: 'error' }; updateJobRow(provider, 'error', (resp && resp.error) || 'lỗi', $('#reviewStatus')); chainAbort('Gửi đánh giá thất bại'); return false; }
   }
-});
+  return true;
+}
 
 function handleReviewUpdate(provider, status, result) {
   if (!provider) return;
@@ -744,6 +800,7 @@ function handleReviewUpdate(provider, status, result) {
   if (!pending) {
     const any = Object.values(state.review).some((r) => r.scores && r.scores.criteria.length);
     toast(any ? 'Đánh giá xong' : 'Đánh giá không đọc được điểm', any ? 'success' : 'warn');
+    if (state.chain.active) chainDone(); // workflow chain: bước cuối xong → hoàn tất
   }
 }
 
