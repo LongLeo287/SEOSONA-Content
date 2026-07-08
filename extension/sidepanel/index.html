@@ -276,9 +276,17 @@
         <div class="row" id="contentKeywordRow" hidden>
           <div class="field grow">
             <label>🔑 Từ khóa chính (tùy chọn)</label>
-            <input type="text" id="contentKeyword" placeholder="vd: dịch vụ SEO tổng thể">
+            <input type="text" id="contentKeyword" placeholder="vd: phần mềm quản lý kho">
           </div>
         </div>
+
+        <details class="subcard acc-card" id="contentBrandRow">
+          <summary class="card-sum">🎨 Brand voice / hướng dẫn (tùy chọn)</summary>
+          <div class="acc-body">
+            <p class="hint">Để trống = dùng chuẩn nội dung phổ quát. Dán guideline thương hiệu/ngành của bạn để AI viết theo giọng riêng.</p>
+            <textarea id="contentBrand" rows="4" placeholder="vd: Giọng thân thiện, xưng 'mình–bạn'; tránh thuật ngữ khó; luôn nhấn yếu tố an toàn…"></textarea>
+          </div>
+        </details>
 
         <div class="sec">
           <div class="sec-head" id="contentInputLabel">✍️ Nội dung / brief</div>
@@ -306,9 +314,12 @@
         <div id="contentStatus"></div>
 
         <div id="contentResultCard" hidden>
+          <div id="contentScoreCard" class="score-card" hidden></div>
           <div class="row between">
             <label>Kết quả</label>
-            <div>
+            <div class="result-actions">
+              <button id="btnContentApply" hidden title="Đưa bản đã sửa vào ô nhập để dùng/chỉnh tiếp">⤵ Áp bản đã sửa</button>
+              <button id="btnContentCopy">📋 Copy</button>
               <button id="btnContentDownload">⬇ .md</button>
               <button id="btnContentChat" class="chat-link" hidden>↗ Mở lại chat</button>
             </div>

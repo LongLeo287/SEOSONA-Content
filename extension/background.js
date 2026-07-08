@@ -31,6 +31,42 @@ const PROVIDERS = {
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
+// ---------------------------------------------------------------- context menu (audit/rewrite nhanh)
+// Bôi đen văn bản trên bất kỳ trang nào -> chuột phải -> chọn action.
+// Lưu "pending" vào storage.local rồi mở side panel; side panel tự nạp + chạy.
+const QUICK_MENU = [
+  { id: 'quick_audit', title: '🔍 Audit nhanh' },
+  { id: 'quick_rewrite', title: '✍️ Viết lại hay hơn' },
+  { id: 'quick_grammar', title: '✅ Sửa ngữ pháp' },
+  { id: 'quick_shorten', title: '✂️ Rút gọn' },
+  { id: 'quick_expand', title: '➕ Mở rộng' },
+  { id: 'quick_ab', title: '🔀 Tạo A/B' },
+];
+function buildContextMenus() {
+  if (!chrome.contextMenus) return;
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'seosona_root', title: 'SEOSONA Content', contexts: ['selection'] });
+    for (const m of QUICK_MENU) {
+      chrome.contextMenus.create({ id: m.id, parentId: 'seosona_root', title: m.title, contexts: ['selection'] });
+    }
+  });
+}
+chrome.runtime.onInstalled.addListener(buildContextMenus);
+chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(buildContextMenus);
+
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    const text = (info.selectionText || '').trim();
+    if (!text || !info.menuItemId || info.menuItemId === 'seosona_root') return;
+    try {
+      await chrome.storage.local.set({ srtQuickPending: { action: info.menuItemId, text, ts: Date.now() } });
+    } catch (_) {}
+    try {
+      if (tab && tab.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId });
+    } catch (_) {}
+  });
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- job store

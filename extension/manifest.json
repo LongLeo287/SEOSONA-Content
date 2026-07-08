@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SEOSONA SRT Studio",
-  "version": "0.1.0",
-  "description": "Phân tích, đánh giá & cắt ghép nội dung SRT cho video shorts — điều khiển ChatGPT / Gemini / Grok / Claude web làm bộ não phân tích.",
+  "name": "SEOSONA Content",
+  "version": "0.2.0",
+  "description": "Studio nội dung: viết – audit (Grammarly) – review – SEO – A/B – cắt ghép SRT, chuẩn content/SEO phổ quát cho mọi ngành. Điều khiển ChatGPT / Gemini / Grok / Claude web.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -15,7 +15,8 @@
     "sidePanel",
     "scripting",
     "downloads",
-    "notifications"
+    "notifications",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://chatgpt.com/*",
@@ -31,7 +32,7 @@
     "default_path": "sidepanel/index.html"
   },
   "action": {
-    "default_title": "SRT Studio — mở bảng điều khiển",
+    "default_title": "SEOSONA Content — mở bảng điều khiển",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

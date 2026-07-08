@@ -934,6 +934,7 @@ function setContentTask(key) {
   $('#contentInput').placeholder = t.inputLabel;
   $('#contentFormatRow').hidden = !t.needsFormat;
   $('#contentKeywordRow').hidden = !t.needsKeyword;
+  $('#contentBrandRow').hidden = !t.needsBrand;
 }
 
 $('#btnContentRun').addEventListener('click', async () => {
@@ -945,11 +946,14 @@ $('#btnContentRun').addEventListener('click', async () => {
   const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
   const kw = ($('#contentKeyword').value || '').trim() || '(chưa cung cấp)';
   const fmt = CONTENT_FORMATS[$('#contentFormat').value] || $('#contentFormat').value || '';
+  const brandRaw = t.needsBrand ? ($('#contentBrand').value || '').trim() : '';
+  const brand = brandRaw ? `\n## BRAND VOICE (BẮT BUỘC tuân theo, ưu tiên hơn chuẩn chung khi có xung đột về giọng)\n${brandRaw}\n` : '';
   const lit = (v) => () => v; // tránh $-pattern trong replacement khi input chứa $&, $1...
   let body = t.body
     .replace('{{INPUT}}', lit(input))
     .replace('{{KEYWORD}}', lit(kw))
-    .replace('{{FORMAT}}', lit(fmt));
+    .replace('{{FORMAT}}', lit(fmt))
+    .replace('{{BRAND}}', lit(brand));
   const text = knowledge ? (knowledge + '\n' + body) : body;
   const jobId = `content_${provider}_${Date.now()}`;
   state.content.result = ''; state.content.chatUrl = null;
@@ -983,22 +987,105 @@ function renderContent() {
   const c = state.content || {};
   const card = $('#contentResultCard');
   if (!card) return;
-  if (c.result) {
-    card.hidden = false;
-    $('#contentResult').textContent = c.result;
-    const chatBtn = $('#btnContentChat');
-    chatBtn.hidden = !c.chatUrl;
-    if (c.chatUrl) chatBtn.onclick = () => openChatFor($('#contentProvider').value, c.chatUrl);
-  } else { card.hidden = true; }
+  if (!c.result) { card.hidden = true; $('#contentScoreCard').hidden = true; $('#btnContentApply').hidden = true; return; }
+  card.hidden = false;
+  $('#contentResult').textContent = c.result;
+  const chatBtn = $('#btnContentChat');
+  chatBtn.hidden = !c.chatUrl;
+  if (c.chatUrl) chatBtn.onclick = () => openChatFor($('#contentProvider').value, c.chatUrl);
+
+  // review -> bảng điểm trực quan
+  if (c.task === 'review') renderContentScores(c.result);
+  else $('#contentScoreCard').hidden = true;
+
+  // audit -> nút áp "bản đã sửa"
+  const corrected = c.task === 'audit' ? extractCorrected(c.result) : '';
+  $('#btnContentApply').hidden = !corrected;
+  $('#btnContentApply').dataset.corrected = corrected || '';
+}
+
+// trích "### 1. BẢN ĐÃ SỬA" tới mục kế tiếp
+function extractCorrected(text) {
+  const m = /###\s*1\.?\s*B[ẢA]N\s*Đ[ÃA]\s*S[ỬU]A\s*\n([\s\S]*?)(?:\n###\s|\n##\s|$)/i.exec(text || '');
+  return m ? m[1].trim() : '';
+}
+
+function renderContentScores(text) {
+  const box = $('#contentScoreCard');
+  const scores = OutputParser.parseScores(text || '');
+  if (!scores || !scores.criteria || !scores.criteria.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const rows = scores.criteria.map((cr) => ({ name: cr.name, avg: cr.score / cr.max * 10, suggest: cr.suggest || cr.comment || '' }));
+  const overall = scores.average != null ? scores.average : (rows.reduce((s, x) => s + x.avg, 0) / (rows.length || 1));
+  const barColor = (v) => v >= 8 ? 'var(--ok)' : v >= 6 ? 'var(--warn)' : 'var(--err)';
+  let html = `<div class="overall">Điểm tổng: <b>${overall.toFixed(1)}/10</b>${scores.verdict ? ' · ' + escapeHtml(scores.verdict) : ''}</div>`;
+  for (const row of rows) {
+    html += `<div class="score">
+      <div class="score-head"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}</b></div>
+      <div class="bar"><i style="width:${Math.max(0, Math.min(100, row.avg * 10))}%;background:${barColor(row.avg)}"></i></div>
+      ${row.suggest ? `<div class="hint">${escapeHtml(row.suggest)}</div>` : ''}</div>`;
+  }
+  box.innerHTML = html;
 }
 
 $('#btnContentDownload').addEventListener('click', () => {
   const c = state.content || {};
   if (!c.result) { toast('Chưa có kết quả', 'warn'); return; }
   const task = (CONTENT_TASKS[c.task] || {}).name || 'content';
-  Exporter.download('seosona-content.' + (c.task || 'out') + '.md', `# ${task}\n\n` + c.result, 'text/markdown');
+  Exporter.download('content.' + (c.task || 'out') + '.md', `# ${task}\n\n` + c.result, 'text/markdown');
   toast('Đã tải .md', 'success');
 });
+$('#btnContentCopy').addEventListener('click', async () => {
+  const c = state.content || {};
+  if (!c.result) return;
+  try { await navigator.clipboard.writeText(c.result); toast('Đã copy kết quả', 'success'); }
+  catch (_) { toast('Không copy được (thử bôi đen tay)', 'warn'); }
+});
+// Áp bản đã sửa (audit) -> đưa vào ô nhập để dùng/chỉnh tiếp
+$('#btnContentApply').addEventListener('click', () => {
+  const corrected = $('#btnContentApply').dataset.corrected || '';
+  if (!corrected) return;
+  $('#contentInput').value = corrected;
+  state.content.input = corrected;
+  saveContent();
+  $('#contentInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast('Đã đưa bản đã sửa vào ô nhập', 'success');
+});
+
+// Quick action từ menu chuột phải (audit/rewrite nhanh trên selection)
+async function runQuickAction(action, text) {
+  if (typeof QUICK_ACTIONS === 'undefined') return;
+  const qa = QUICK_ACTIONS[action]; if (!qa || !text) return;
+  showView('content');
+  $('#contentProvider').value = state.provider;
+  $('#contentInput').value = text;
+  state.content = { task: action, result: '', chatUrl: null };
+  const provider = $('#contentProvider').value || state.provider;
+  const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
+  const body = qa.body.replace('{{INPUT}}', () => text);
+  const prompt = knowledge ? knowledge + '\n' + body : body;
+  const jobId = `content_${provider}_${Date.now()}`;
+  $('#btnContentRun').disabled = true;
+  $('#contentResultCard').hidden = true;
+  $('#contentScoreCard').hidden = true;
+  $('#contentStatus').innerHTML = jobRow(provider, 'preparing', `${qa.name}…`);
+  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text: prompt, timeout: 300000, freshChat: true });
+  if (!resp || !resp.ok) { $('#contentStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnContentRun').disabled = false; }
+  else toast(`${qa.name} → đã gửi cho ${PROVIDER_LABEL[provider] || provider}`, 'info');
+}
+async function consumeQuickPending() {
+  try {
+    const { srtQuickPending } = await chrome.storage.local.get('srtQuickPending');
+    if (!srtQuickPending || !srtQuickPending.text) return;
+    await chrome.storage.local.remove('srtQuickPending');
+    runQuickAction(srtQuickPending.action, srtQuickPending.text);
+  } catch (_) {}
+}
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.srtQuickPending && changes.srtQuickPending.newValue) consumeQuickPending();
+  });
+}
 
 // Content lưu riêng (độc lập phiên SRT)
 async function saveContent() {
@@ -1008,6 +1095,7 @@ async function saveContent() {
       input: ($('#contentInput') || {}).value || '',
       keyword: ($('#contentKeyword') || {}).value || '',
       format: ($('#contentFormat') || {}).value || '',
+      brand: ($('#contentBrand') || {}).value || '',
       result: state.content.result || '', chatUrl: state.content.chatUrl || null,
     } });
   } catch (_) {}
@@ -1019,6 +1107,7 @@ async function restoreContent() {
     state.content = { task: c.task || 'write', result: c.result || '', chatUrl: c.chatUrl || null };
     if ($('#contentInput')) $('#contentInput').value = c.input || '';
     if ($('#contentKeyword')) $('#contentKeyword').value = c.keyword || '';
+    if ($('#contentBrand')) $('#contentBrand').value = c.brand || '';
     if (c.format && $('#contentFormat')) $('#contentFormat').value = c.format;
     setContentTask(state.content.task);
     renderContent();
@@ -1481,5 +1570,6 @@ initTemplates();
 initRepurpose();
 initContent();
 restoreContent();
+consumeQuickPending();
 updateLocks();
 restoreProject();

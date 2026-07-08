@@ -161,7 +161,10 @@ const OutputParser = (() => {
     else if (criteria.length) average = +(criteria.reduce((s, c) => s + c.score / c.max * 10, 0) / criteria.length).toFixed(1);
 
     let verdict = '';
-    const vM = /verdict[*:\s]*([^\n]+)/i.exec(text || '')
+    // ưu tiên dòng "Kết luận:/Verdict:" (tránh bắt nhầm "Việc cần sửa" ở header bảng)
+    const vM = /(?:kết luận|verdict|kết quả)\s*[*:：\s]*\**\s*(nên đăng[^\n]*|cần sửa[^\n]*|làm lại[^\n]*)/i.exec(text || '')
+      || /\*\*\s*(nên đăng|cần sửa|làm lại)\s*\**/i.exec(text || '')
+      || /verdict[*:\s]*([^\n]+)/i.exec(text || '')
       || /(nên đăng|cần sửa|làm lại)/i.exec(text || '');
     if (vM) verdict = (vM[1] || vM[0]).replace(/[*:]+/g, ' ').trim();
     return { criteria, average, verdict, raw: text };
