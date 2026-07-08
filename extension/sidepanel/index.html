@@ -38,6 +38,7 @@
     <button data-view="studio"><span class="ico">🎬</span>SRT</button>
     <button data-view="content"><span class="ico">📝</span>Content</button>
     <button data-view="research"><span class="ico">🔍</span>Research</button>
+    <button data-view="library"><span class="ico">🗂️</span>Thư viện</button>
     <button data-view="prompts"><span class="ico">📚</span>Prompts</button>
     <button data-view="batch"><span class="ico">📦</span>Batch</button>
     <button data-view="history"><span class="ico">🕘</span>Lịch sử</button>
@@ -429,6 +430,21 @@
           </div>
           <pre id="researchResult" class="meta-pre"></pre>
         </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW: LIBRARY ================= -->
+    <section class="view" id="view-library">
+      <div class="card">
+        <div class="view-head">🗂️ Thư viện — mọi nội dung đã tạo</div>
+        <p class="hint">Tìm & mở lại Content · Research · Repurpose · phiên SRT · prompt. Lưu cục bộ trên máy bạn.</p>
+        <div class="home-search">
+          <span class="hs-ico">🔎</span>
+          <input type="search" id="libSearch" placeholder="Tìm trong thư viện…" autocomplete="off">
+        </div>
+        <div id="libFilters" class="chips"></div>
+        <div id="libStats" class="hint"></div>
+        <div id="libList" class="lib-list"></div>
       </div>
     </section>
 

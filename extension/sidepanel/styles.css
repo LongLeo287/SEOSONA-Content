@@ -253,6 +253,17 @@ body {
   color: var(--neon); background: var(--neon-soft); border: 1px solid var(--neon-line); border-radius: 5px; padding: 1px 6px; flex: none; }
 .res-title { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Thư viện */
+.lib-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.lib-item { border: 1px solid var(--border-soft); border-radius: 10px; background: var(--bg-1); overflow: hidden; }
+.lib-head { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer;
+  padding: 9px 11px; background: transparent; border: none; transition: .15s; }
+.lib-head:hover { background: var(--neon-soft); }
+.lib-title { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-when { flex: none; font-size: 10.5px; }
+.lib-body { padding: 0 11px 10px; display: flex; flex-direction: column; gap: 8px; }
+.lib-pre { max-height: 220px; margin: 0; }
+
 /* ---------------------------------------------------- prompt hero (kiểu Gen) */
 .prompt-hero {
   background: var(--bg-2); border: 1px solid var(--border);

@@ -20,6 +20,7 @@ const state = {
   chapters: null,     // { local:[{startMs,clock,text}], titles:[], description } — chapter + mô tả
   content: { task: 'write', result: '', chatUrl: null }, // nhánh Content (viết/audit/review/seo)
   research: { task: 'keywords', result: '', chatUrl: null }, // nhánh Research (keyword/brief/gap…)
+  libFilter: 'all',   // bộ lọc Thư viện
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -871,6 +872,7 @@ function handleRepurposeUpdate(status, result) {
       view.hidden = false; view.textContent = result.text;
       $('#btnRepurposeDownload').hidden = false;
       saveProject();
+      libAdd({ type: 'Repurpose', task: (state.repurpose.format || '').replace('repurpose_', ''), title: (state.repurpose.name || 'Repurpose') + ' — ' + state.srtName, text: result.text });
       toast('Đã tạo nội dung tái sử dụng', 'success');
     } else if (status === 'error') toast('Tạo nội dung lỗi', 'error');
   }
@@ -1027,6 +1029,7 @@ function handleContentUpdate(status, result) {
       state.content.chatUrl = result.chatUrl || null;
       renderContent();
       saveContent();
+      libAdd({ type: 'Content', task: state.content.task, title: libTitle('Content', state.content.task, ($('#contentInput') || {}).value), text: result.text });
       toast('Content xong', 'success');
     } else if (status === 'error') toast('Content lỗi', 'error');
   }
@@ -1311,7 +1314,7 @@ async function saveCurrentPromptFlow() {
   const title = prompt('Tên prompt:', 'Prompt SRT');
   if (!title) return;
   const list = await plibLoad();
-  list.unshift({ id: 'p_' + Date.now(), title, body });
+  list.unshift({ id: 'p_' + Date.now(), title, body, ts: Date.now() });
   await plibStore(list); renderPromptList(list); toast('Đã lưu prompt', 'success');
 }
 $('#btnSaveCurrentPrompt').addEventListener('click', saveCurrentPromptFlow);
@@ -1570,6 +1573,121 @@ $('#ovClear').addEventListener('click', async () => {
 });
 
 // ---------------------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử)
+// ---------------------------------------------------------------- THƯ VIỆN (library/index) — kho mọi nội dung đã tạo
+let libSeq = 0;
+function taskDisplayName(kind, task) {
+  if (kind === 'Content') {
+    if (task && task.startsWith('quick_')) return ((typeof QUICK_ACTIONS !== 'undefined' && QUICK_ACTIONS[task]) || {}).name || 'Quick action';
+    return ((typeof CONTENT_TASKS !== 'undefined' && CONTENT_TASKS[task]) || {}).name || 'Content';
+  }
+  if (kind === 'Research') return ((typeof RESEARCH_TASKS !== 'undefined' && RESEARCH_TASKS[task]) || {}).name || 'Research';
+  if (kind === 'Repurpose') return (PROMPT_TEMPLATES['repurpose_' + task] || {}).name || 'Repurpose';
+  return kind;
+}
+function libTitle(kind, task, input) {
+  const nm = taskDisplayName(kind, task);
+  const snip = String(input || '').replace(/\s+/g, ' ').trim().slice(0, 48);
+  return snip ? nm + ' — ' + snip : nm;
+}
+async function libAdd(entry) {
+  try {
+    const { srtLibrary = [] } = await chrome.storage.local.get('srtLibrary');
+    srtLibrary.unshift({ id: 'lib_' + Date.now() + '_' + (libSeq++), ts: Date.now(), ...entry });
+    if (srtLibrary.length > 200) srtLibrary.length = 200;
+    await chrome.storage.local.set({ srtLibrary });
+  } catch (_) {}
+}
+async function gatherLibrary() {
+  const get = (k) => chrome.storage.local.get(k).then((r) => r[k]).catch(() => undefined);
+  const [lib, sessions, prompts] = await Promise.all([get('srtLibrary'), get('srtSessions'), get('srtPrompts')]);
+  const items = [];
+  (lib || []).forEach((it) => items.push({ id: it.id, type: it.type || 'Content', task: it.task, title: it.title || taskDisplayName(it.type, it.task), text: it.text || '', ts: it.ts || 0, source: 'lib' }));
+  Object.values(sessions || {}).forEach((s) => items.push({ id: s.id, type: 'Phiên SRT', title: s.name || s.srtName || 'Phiên', text: resultsText(s), ts: s.updatedAt || 0, source: 'session' }));
+  (prompts || []).forEach((p) => items.push({ id: p.id, type: 'Prompt', title: p.title || 'Prompt', text: p.body || '', ts: p.ts || 0, source: 'prompt' }));
+  return items;
+}
+const LIB_FILTERS = ['all', 'Content', 'Research', 'Repurpose', 'Phiên SRT', 'Prompt'];
+const LIB_BADGE = { Content: '📝', Research: '🔍', Repurpose: '♻', 'Phiên SRT': '🎬', Prompt: '📚' };
+function openLibrary() { renderLibFilters(); renderLibrary(); }
+function renderLibFilters() {
+  const wrap = $('#libFilters'); if (!wrap) return; wrap.innerHTML = '';
+  LIB_FILTERS.forEach((f) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'task-pill' + (state.libFilter === f ? ' active' : ''); b.dataset.f = f;
+    b.textContent = f === 'all' ? 'Tất cả' : f;
+    b.addEventListener('click', () => { state.libFilter = f; renderLibFilters(); renderLibrary(); });
+    wrap.appendChild(b);
+  });
+}
+let libSearchT;
+async function renderLibrary() {
+  const list = $('#libList'); if (!list) return;
+  const q = ($('#libSearch').value || '').trim().toLowerCase();
+  const all = await gatherLibrary();
+  const items = all
+    .filter((it) => state.libFilter === 'all' || it.type === state.libFilter)
+    .filter((it) => !q || (it.title + ' ' + it.text).toLowerCase().includes(q))
+    .sort((a, b) => b.ts - a.ts);
+  const st = $('#libStats');
+  if (st) st.textContent = `${items.length} mục${q ? ' khớp' : ''} · tổng ${all.length}`;
+  list.innerHTML = '';
+  if (!items.length) { list.innerHTML = '<p class="hint">Chưa có mục nào. Kết quả Content/Research/Repurpose sẽ tự lưu vào đây.</p>'; return; }
+  items.slice(0, 150).forEach((it) => list.appendChild(libRow(it)));
+}
+function libRow(it) {
+  const el = document.createElement('div');
+  el.className = 'lib-item';
+  const d = it.ts ? new Date(it.ts) : null;
+  const p = (n) => String(n).padStart(2, '0');
+  const when = d ? `${p(d.getHours())}:${p(d.getMinutes())} ${d.getDate()}/${d.getMonth() + 1}` : '';
+  const head = document.createElement('button');
+  head.className = 'lib-head';
+  head.innerHTML = `<span class="res-type">${LIB_BADGE[it.type] || ''} ${escapeHtml(it.type)}</span>`
+    + `<span class="lib-title">${escapeHtml(it.title || '')}</span><span class="hint lib-when">${when}</span>`;
+  const body = document.createElement('div');
+  body.className = 'lib-body'; body.hidden = true;
+  const canOpen = it.source === 'session' || it.source === 'prompt' || it.type === 'Content' || it.type === 'Research';
+  body.innerHTML = `<pre class="meta-pre lib-pre">${escapeHtml((it.text || '').slice(0, 4000))}</pre>`
+    + `<div class="result-actions">`
+    + (canOpen ? `<button data-a="open">↗ Mở</button>` : '')
+    + `<button data-a="copy">📋 Copy</button><button data-a="dl">⬇ .md</button><button data-a="del" class="btn-danger">🗑</button></div>`;
+  head.addEventListener('click', () => { body.hidden = !body.hidden; });
+  el.append(head, body);
+  body.querySelector('[data-a="copy"]').addEventListener('click', async () => { try { await navigator.clipboard.writeText(it.text || ''); toast('Đã copy', 'success'); } catch (_) { toast('Không copy được', 'warn'); } });
+  body.querySelector('[data-a="dl"]').addEventListener('click', () => {
+    const slug = (it.type || 'item').toLowerCase().replace(/\s+/g, '-');
+    Exporter.download('library.' + slug + '.md', `# ${it.title}\n\n` + (it.text || ''), 'text/markdown');
+    toast('Đã tải .md', 'success');
+  });
+  body.querySelector('[data-a="del"]').addEventListener('click', async () => { if (confirm('Xóa mục này khỏi thư viện?')) await delLibItem(it); });
+  if (canOpen) body.querySelector('[data-a="open"]').addEventListener('click', () => openLibItem(it));
+  return el;
+}
+function openLibItem(it) {
+  if (it.source === 'session') return switchSession(it.id);
+  if (it.source === 'prompt') return showView('prompts');
+  if (it.type === 'Content') {
+    state.content = { task: it.task || 'write', result: it.text, chatUrl: null };
+    showView('content'); if (typeof CONTENT_TASKS !== 'undefined' && CONTENT_TASKS[it.task]) setContentTask(it.task); renderContent(); return;
+  }
+  if (it.type === 'Research') {
+    state.research = { task: it.task || 'keywords', result: it.text, chatUrl: null };
+    showView('research'); if (typeof RESEARCH_TASKS !== 'undefined' && RESEARCH_TASKS[it.task]) setResearchTask(it.task); renderResearch(); return;
+  }
+}
+async function delLibItem(it) {
+  try {
+    if (it.source === 'lib') { const { srtLibrary = [] } = await chrome.storage.local.get('srtLibrary'); await chrome.storage.local.set({ srtLibrary: srtLibrary.filter((x) => x.id !== it.id) }); }
+    else if (it.source === 'prompt') { const { srtPrompts = [] } = await chrome.storage.local.get('srtPrompts'); await chrome.storage.local.set({ srtPrompts: srtPrompts.filter((x) => x.id !== it.id) }); }
+    else if (it.source === 'session') { const { srtSessions = {} } = await chrome.storage.local.get('srtSessions'); delete srtSessions[it.id]; await chrome.storage.local.set({ srtSessions }); }
+    renderLibrary();
+  } catch (_) {}
+}
+function initLibrary() {
+  const inp = $('#libSearch');
+  if (inp) inp.addEventListener('input', () => { clearTimeout(libSearchT); libSearchT = setTimeout(renderLibrary, 180); });
+}
+
 // ---------------------------------------------------------------- NHÁNH RESEARCH (keyword/brief/gap…)
 function initResearch() {
   if (typeof RESEARCH_TASKS === 'undefined') return;
@@ -1639,6 +1757,7 @@ function handleResearchUpdate(status, result) {
     if (status === 'done' && result && result.text) {
       state.research.result = result.text; state.research.chatUrl = result.chatUrl || null;
       renderResearch(); saveResearch();
+      libAdd({ type: 'Research', task: state.research.task, title: libTitle('Research', state.research.task, ($('#researchInput') || {}).value), text: result.text });
       toast('Research xong', 'success');
     } else if (status === 'error') toast('Research lỗi', 'error');
   }
@@ -1787,6 +1906,7 @@ function showView(name) {
   else if (name === 'history') openHistory();
   else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
   else if (name === 'research') { $('#researchProvider').value = state.provider; renderResearch(); }
+  else if (name === 'library') openLibrary();
   else if (name === 'home') renderHome();
   // session bar chỉ liên quan nhánh SRT
   const sb = $('.sessionbar'); if (sb) sb.style.display = (name === 'studio') ? '' : 'none';
@@ -1840,6 +1960,7 @@ restoreContent();
 initResearch();
 restoreResearch();
 initHomeSearch();
+initLibrary();
 updateLocks();
 restoreProject();
 syncKnowledgeUI();
