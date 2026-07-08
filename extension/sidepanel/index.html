@@ -36,6 +36,7 @@
     <button data-view="home" class="active"><span class="ico">🏠</span>Home</button>
     <button data-view="studio"><span class="ico">🎬</span>SRT</button>
     <button data-view="content"><span class="ico">📝</span>Content</button>
+    <button data-view="research"><span class="ico">🔍</span>Research</button>
     <button data-view="prompts"><span class="ico">📚</span>Prompts</button>
     <button data-view="batch"><span class="ico">📦</span>Batch</button>
     <button data-view="history"><span class="ico">🕘</span>Lịch sử</button>
@@ -361,6 +362,63 @@
       </div>
     </section>
 
+    <!-- ================= VIEW: RESEARCH ================= -->
+    <section class="view" id="view-research">
+      <div class="card">
+        <div class="view-head">🔍 Research — nghiên cứu content & keyword</div>
+        <p class="hint">Ý tưởng qua AI — hữu ích để lên chủ đề/brief. <b>Không phải số liệu thật</b> (volume/độ khó là ước lượng). Riêng <b>Keyword workspace</b> phân tích trên số thật bạn dán vào.</p>
+
+        <div class="sec">
+          <div class="sec-head">🧭 Loại nghiên cứu</div>
+          <div id="researchTasks" class="chips"></div>
+        </div>
+
+        <div class="row" id="researchAudienceRow">
+          <div class="field grow">
+            <label>🎯 Đối tượng / ngành (tùy chọn)</label>
+            <input type="text" id="researchAudience" placeholder="vd: chủ shop thời trang, dân văn phòng…">
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head" id="researchInputLabel">Đầu vào</div>
+          <textarea id="researchInput" rows="7" placeholder="Nhập chủ đề/từ khóa hạt giống…"></textarea>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head">🧠 Kiến thức SEOSONA</div>
+          <div id="researchCombos" class="combo-bar"></div>
+        </div>
+
+        <div class="row">
+          <div class="field grow">
+            <label>🤖 Chạy trên AI</label>
+            <select id="researchProvider">
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="claude">Claude</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="btnResearchRun" class="btn-cta">🚀 Chạy Research</button>
+        <div id="researchStatus"></div>
+
+        <div id="researchResultCard" hidden>
+          <div class="row between">
+            <label>Kết quả</label>
+            <div class="result-actions">
+              <button id="btnResearchCopy">📋 Copy</button>
+              <button id="btnResearchDownload">⬇ .md</button>
+              <button id="btnResearchChat" class="chat-link" hidden>↗ Mở lại chat</button>
+            </div>
+          </div>
+          <pre id="researchResult" class="meta-pre"></pre>
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-prompts">
       <div class="card">
         <div class="view-head">📚 Thư viện prompt</div>
@@ -462,6 +520,7 @@
 <script src="../lib/prompts-longform.js"></script>
 <script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/prompts-content.js"></script>
+<script src="../lib/prompts-research.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>
 <script src="../lib/exporter.js"></script>

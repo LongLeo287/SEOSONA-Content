@@ -19,6 +19,7 @@ const state = {
   repurpose: null,    // { format, name, text } — kết quả tái sử dụng gần nhất
   chapters: null,     // { local:[{startMs,clock,text}], titles:[], description } — chapter + mô tả
   content: { task: 'write', result: '', chatUrl: null }, // nhánh Content (viết/audit/review/seo)
+  research: { task: 'keywords', result: '', chatUrl: null }, // nhánh Research (keyword/brief/gap…)
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -506,6 +507,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
     if (jobId.startsWith('content_')) return handleContentUpdate(status, result);
+    if (jobId.startsWith('research_')) return handleResearchUpdate(status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
@@ -1521,6 +1523,124 @@ $('#ovClear').addEventListener('click', async () => {
 });
 
 // ---------------------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử)
+// ---------------------------------------------------------------- NHÁNH RESEARCH (keyword/brief/gap…)
+function initResearch() {
+  if (typeof RESEARCH_TASKS === 'undefined') return;
+  const tasks = $('#researchTasks');
+  tasks.innerHTML = '';
+  for (const [key, t] of Object.entries(RESEARCH_TASKS)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'task-pill'; b.dataset.task = key; b.textContent = t.name;
+    b.addEventListener('click', () => setResearchTask(key));
+    tasks.appendChild(b);
+  }
+  const cwrap = $('#researchCombos');
+  if (cwrap) {
+    cwrap.innerHTML = '';
+    for (const [key, combo] of Object.entries(Knowledge.COMBOS || {})) {
+      if (!combo.ids || !combo.ids.length) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'combo-pill'; btn.dataset.combo = key; btn.textContent = combo.name;
+      btn.title = 'Bật: ' + combo.ids.map((id) => (Knowledge.BLOCKS[id] || {}).name || id).join(', ');
+      btn.addEventListener('click', () => applyCombo(key, { additive: false }));
+      cwrap.appendChild(btn);
+    }
+  }
+  $('#researchProvider').value = state.provider;
+  setResearchTask(state.research.task || 'keywords');
+}
+function setResearchTask(key) {
+  const t = RESEARCH_TASKS[key]; if (!t) return;
+  state.research.task = key;
+  $$('#researchTasks .task-pill').forEach((b) => b.classList.toggle('active', b.dataset.task === key));
+  $('#researchInputLabel').textContent = t.inputLabel;
+  $('#researchInput').placeholder = t.inputLabel;
+  $('#researchAudienceRow').hidden = !t.needsAudience;
+}
+$('#btnResearchRun').addEventListener('click', async () => {
+  const input = ($('#researchInput').value || '').trim();
+  if (!input) { alert('Nhập đầu vào (chủ đề/từ khóa/dữ liệu).'); return; }
+  const key = state.research.task || 'keywords';
+  const t = RESEARCH_TASKS[key]; if (!t) return;
+  const provider = $('#researchProvider').value || state.provider;
+  const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
+  const aud = ($('#researchAudience').value || '').trim() || '(mọi đối tượng)';
+  const lit = (v) => () => v;
+  let body = t.body
+    .replace('{{INPUT}}', lit(input))
+    .replace('{{DATA}}', lit(input))
+    .replace('{{AUDIENCE}}', lit(aud))
+    .replace('{{KEYWORD}}', lit(input));
+  const text = knowledge ? (knowledge + '\n' + body) : body;
+  const jobId = `research_${provider}_${Date.now()}`;
+  state.research = { task: key, result: '', chatUrl: null };
+  $('#btnResearchRun').disabled = true;
+  $('#researchResultCard').hidden = true;
+  $('#researchStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
+  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  if (!resp || !resp.ok) { $('#researchStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnResearchRun').disabled = false; }
+});
+function handleResearchUpdate(status, result) {
+  const row = $('#researchStatus .job');
+  if (row) {
+    row.className = 'job ' + (status === 'done' ? 'done' : status);
+    row.querySelector('.hint').textContent = status === 'done' ? 'xong'
+      : status === 'running' ? 'AI đang xử lý…' : (result && (result.message || result.error)) || status;
+  }
+  if (status === 'done' || status === 'error') {
+    $('#btnResearchRun').disabled = false;
+    if (status === 'done' && result && result.text) {
+      state.research.result = result.text; state.research.chatUrl = result.chatUrl || null;
+      renderResearch(); saveResearch();
+      toast('Research xong', 'success');
+    } else if (status === 'error') toast('Research lỗi', 'error');
+  }
+}
+function renderResearch() {
+  const r = state.research || {};
+  const card = $('#researchResultCard');
+  if (!card) return;
+  if (!r.result) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#researchResult').textContent = r.result;
+  const chatBtn = $('#btnResearchChat');
+  chatBtn.hidden = !r.chatUrl;
+  if (r.chatUrl) chatBtn.onclick = () => openChatFor($('#researchProvider').value, r.chatUrl);
+}
+$('#btnResearchCopy').addEventListener('click', async () => {
+  const r = state.research || {};
+  if (!r.result) return;
+  try { await navigator.clipboard.writeText(r.result); toast('Đã copy', 'success'); }
+  catch (_) { toast('Không copy được', 'warn'); }
+});
+$('#btnResearchDownload').addEventListener('click', () => {
+  const r = state.research || {};
+  if (!r.result) { toast('Chưa có kết quả', 'warn'); return; }
+  const name = (RESEARCH_TASKS[r.task] || {}).name || 'research';
+  Exporter.download('research.' + (r.task || 'out') + '.md', `# ${name}\n\n` + r.result, 'text/markdown');
+  toast('Đã tải .md', 'success');
+});
+async function saveResearch() {
+  try {
+    await chrome.storage.local.set({ srtResearchLast: {
+      task: state.research.task, input: ($('#researchInput') || {}).value || '',
+      audience: ($('#researchAudience') || {}).value || '',
+      result: state.research.result || '', chatUrl: state.research.chatUrl || null,
+    } });
+  } catch (_) {}
+}
+async function restoreResearch() {
+  try {
+    const { srtResearchLast: r } = await chrome.storage.local.get('srtResearchLast');
+    if (!r) return;
+    state.research = { task: r.task || 'keywords', result: r.result || '', chatUrl: r.chatUrl || null };
+    if ($('#researchInput')) $('#researchInput').value = r.input || '';
+    if ($('#researchAudience')) $('#researchAudience').value = r.audience || '';
+    setResearchTask(state.research.task);
+    renderResearch();
+  } catch (_) {}
+}
+
 // ---------------------------------------------------------------- HOME (landing)
 const HOME_QUICK = [
   { task: 'write', label: '✍️ Viết mới' },
@@ -1570,6 +1690,7 @@ function showView(name) {
   else if (name === 'batch') openBatch();
   else if (name === 'history') openHistory();
   else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
+  else if (name === 'research') { $('#researchProvider').value = state.provider; renderResearch(); }
   else if (name === 'home') renderHome();
   // session bar chỉ liên quan nhánh SRT
   const sb = $('.sessionbar'); if (sb) sb.style.display = (name === 'studio') ? '' : 'none';
@@ -1620,6 +1741,8 @@ initTemplates();
 initRepurpose();
 initContent();
 restoreContent();
+initResearch();
+restoreResearch();
 updateLocks();
 restoreProject();
 showView('home');
