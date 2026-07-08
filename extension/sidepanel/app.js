@@ -21,6 +21,7 @@ const state = {
   content: { task: 'write', result: '', chatUrl: null }, // nhánh Content (viết/audit/review/seo)
   research: { task: 'keywords', result: '', chatUrl: null }, // nhánh Research (keyword/brief/gap…)
   libFilter: 'all',   // bộ lọc Thư viện
+  flow: { id: '', name: '', steps: [] }, // flow đang soạn (builder)
   review: {},         // provider -> { status, text, scores }
   batch: { files: [], running: false, stopFlag: false }, // batch nhiều SRT
   chain: { active: false, steps: [] }, // workflow chain tự động (analyze→cắt→metadata→đánh giá)
@@ -556,6 +557,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
     if (jobId.startsWith('content_')) return handleContentUpdate(status, result);
     if (jobId.startsWith('research_')) return handleResearchUpdate(status, result);
+    if (jobId.startsWith('flow_')) return handleFlowUpdate(jobId, status, result);
     if (jobId.startsWith('meta_')) return handleMetaUpdate(status, result);
     if (jobId.startsWith('batch_')) return handleBatchUpdate(jobId, status, result);
     if (jobId.startsWith('analyze_')) return handleAnalyzeUpdate(provider, status, result, jobId);
@@ -1573,6 +1575,173 @@ $('#ovClear').addEventListener('click', async () => {
 });
 
 // ---------------------------------------------------------------- section nav (Studio/Prompts/Batch/Lịch sử)
+// ---------------------------------------------------------------- FLOW (pipeline tuyến tính tự động)
+let flowStoreCache = [];
+const flowWaiters = {};
+let flowRunState = null;
+let flowLastResults = [];
+function flowInterp(tpl, ctx) { return String(tpl || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : '')); }
+
+async function loadFlows() { try { const r = await chrome.storage.local.get('srtFlows'); return r.srtFlows || []; } catch (_) { return []; } }
+async function initFlow() {
+  if (typeof FLOW_PRESETS === 'undefined') return;
+  $('#flowProvider').value = state.provider;
+  await renderFlowSelect();
+  $('#flowSelect').addEventListener('change', () => selectFlow($('#flowSelect').value));
+  $('#flowNew').addEventListener('click', () => {
+    state.flow = { id: '', name: '', steps: [{ title: 'Bước 1', prompt: '' }] };
+    $('#flowSelect').value = ''; $('#flowInputLabel').innerHTML = 'Đầu vào <code>{{input}}</code>'; renderFlowSteps();
+  });
+  $('#flowAddStep').addEventListener('click', () => {
+    state.flow.steps = state.flow.steps || [];
+    state.flow.steps.push({ title: 'Bước ' + (state.flow.steps.length + 1), prompt: '' }); renderFlowSteps();
+  });
+  $('#flowRun').addEventListener('click', runFlow);
+  $('#flowStop').addEventListener('click', flowStop);
+  $('#flowSave').addEventListener('click', saveFlow);
+  $('#flowDownloadAll').addEventListener('click', downloadAllFlow);
+  selectFlow('preset:seo_article');
+}
+async function renderFlowSelect() {
+  const sel = $('#flowSelect'); if (!sel) return;
+  flowStoreCache = await loadFlows();
+  sel.innerHTML = '';
+  const og1 = document.createElement('optgroup'); og1.label = 'Preset';
+  for (const [k, p] of Object.entries(FLOW_PRESETS)) { const o = document.createElement('option'); o.value = 'preset:' + k; o.textContent = p.name; og1.appendChild(o); }
+  sel.appendChild(og1);
+  if (flowStoreCache.length) {
+    const og2 = document.createElement('optgroup'); og2.label = 'Của tôi';
+    flowStoreCache.forEach((f) => { const o = document.createElement('option'); o.value = f.id; o.textContent = f.name || 'Flow'; og2.appendChild(o); });
+    sel.appendChild(og2);
+  }
+}
+function selectFlow(id) {
+  let flow;
+  if (id && id.startsWith('preset:')) { const p = FLOW_PRESETS[id.slice(7)]; flow = p ? { id, name: p.name, steps: p.steps.map((s) => ({ ...s })), inputLabel: p.inputLabel } : { id: '', name: '', steps: [] }; }
+  else { const s = flowStoreCache.find((f) => f.id === id); flow = s ? { id: s.id, name: s.name, steps: (s.steps || []).map((x) => ({ ...x })) } : { id: '', name: '', steps: [{ title: 'Bước 1', prompt: '' }] }; }
+  state.flow = flow;
+  $('#flowInputLabel').innerHTML = 'Đầu vào <code>{{input}}</code>' + (flow.inputLabel ? ' — ' + escapeHtml(flow.inputLabel) : '');
+  if ($('#flowSelect')) $('#flowSelect').value = id;
+  renderFlowSteps();
+}
+function renderFlowSteps() {
+  const box = $('#flowSteps'); if (!box) return; box.innerHTML = '';
+  (state.flow.steps || []).forEach((s, i) => {
+    const el = document.createElement('div'); el.className = 'flow-step';
+    el.innerHTML = `<div class="flow-step-head"><input class="flow-step-title" placeholder="Tên bước ${i + 1}">`
+      + `<div class="flow-step-actions"><button data-a="up" title="Lên">↑</button><button data-a="down" title="Xuống">↓</button><button data-a="del" title="Xóa">✕</button></div></div>`
+      + `<textarea class="flow-step-prompt" rows="4" placeholder="Prompt bước này — dùng {{input}}, {{s1}}, {{prev}}…"></textarea>`;
+    el.querySelector('.flow-step-title').value = s.title || '';
+    el.querySelector('.flow-step-prompt').value = s.prompt || '';
+    el.querySelector('.flow-step-title').addEventListener('input', (e) => { s.title = e.target.value; });
+    el.querySelector('.flow-step-prompt').addEventListener('input', (e) => { s.prompt = e.target.value; });
+    el.querySelector('[data-a="del"]').addEventListener('click', () => { state.flow.steps.splice(i, 1); renderFlowSteps(); });
+    el.querySelector('[data-a="up"]').addEventListener('click', () => { if (i > 0) { const a = state.flow.steps; [a[i - 1], a[i]] = [a[i], a[i - 1]]; renderFlowSteps(); } });
+    el.querySelector('[data-a="down"]').addEventListener('click', () => { const a = state.flow.steps; if (i < a.length - 1) { [a[i + 1], a[i]] = [a[i], a[i + 1]]; renderFlowSteps(); } });
+    box.appendChild(el);
+  });
+}
+async function saveFlow() {
+  const nm = prompt('Tên flow:', state.flow.name || 'Flow của tôi'); if (!nm) return;
+  const steps = (state.flow.steps || []).map((s) => ({ title: s.title || '', prompt: s.prompt || '', provider: s.provider || '' }));
+  if (!steps.length) { alert('Flow chưa có bước.'); return; }
+  const id = (state.flow.id && !state.flow.id.startsWith('preset:')) ? state.flow.id : ('flow_' + Date.now());
+  const list = await loadFlows();
+  const entry = { id, name: nm, steps, ts: Date.now() };
+  const idx = list.findIndex((f) => f.id === id);
+  if (idx >= 0) list[idx] = entry; else list.unshift(entry);
+  try { await chrome.storage.local.set({ srtFlows: list }); } catch (_) {}
+  state.flow = { id, name: nm, steps };
+  await renderFlowSelect(); $('#flowSelect').value = id;
+  toast('Đã lưu flow', 'success');
+}
+function renderFlowProgress(steps) {
+  const box = $('#flowProgress'); if (!box) return; box.innerHTML = '';
+  steps.forEach((s, i) => {
+    const row = document.createElement('div'); row.className = 'job'; row.dataset.i = i;
+    row.innerHTML = `<span class="job-name">${escapeHtml(s.title || ('Bước ' + (i + 1)))}</span><span class="hint">chờ</span>`;
+    box.appendChild(row);
+  });
+}
+function setFlowStepStatus(i, status) {
+  const row = $(`#flowProgress .job[data-i="${i}"]`); if (!row) return;
+  row.className = 'job ' + (status === 'done' ? 'done' : status);
+  const h = row.querySelector('.hint');
+  if (h) h.textContent = status === 'done' ? 'xong' : status === 'running' ? 'AI đang xử lý…' : status === 'error' ? 'lỗi' : 'đang gửi…';
+}
+function appendFlowResult(step, i, text) {
+  const box = $('#flowResults');
+  const el = document.createElement('div'); el.className = 'lib-item';
+  const head = document.createElement('button'); head.className = 'lib-head';
+  head.innerHTML = `<span class="res-type">B${i + 1}</span><span class="lib-title">${escapeHtml(step.title || ('Bước ' + (i + 1)))}</span>`;
+  const body = document.createElement('div'); body.className = 'lib-body'; body.hidden = true;
+  body.innerHTML = `<pre class="meta-pre lib-pre">${escapeHtml(text)}</pre><div class="result-actions"><button data-a="copy">📋 Copy</button></div>`;
+  head.addEventListener('click', () => { body.hidden = !body.hidden; });
+  body.querySelector('[data-a="copy"]').addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); toast('Đã copy', 'success'); } catch (_) {} });
+  el.append(head, body); box.appendChild(el);
+  flowLastResults.push({ title: step.title || ('Bước ' + (i + 1)), text });
+}
+function runFlowStep(provider, text, i) {
+  return new Promise((resolve) => {
+    const jobId = `flow_${provider}_${Date.now()}_${i}`;
+    flowWaiters[jobId] = resolve;
+    if (flowRunState) flowRunState.currentJobId = jobId;
+    chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true })
+      .then((resp) => { if (!resp || !resp.ok) { delete flowWaiters[jobId]; resolve({ ok: false, error: (resp && resp.error) || 'không gửi được' }); } })
+      .catch(() => { delete flowWaiters[jobId]; resolve({ ok: false, error: 'lỗi gửi job' }); });
+  });
+}
+function handleFlowUpdate(jobId, status, result) {
+  const i = +jobId.split('_').pop();
+  if (status === 'running' || status === 'preparing') { setFlowStepStatus(i, status); return; }
+  const w = flowWaiters[jobId]; if (!w) return;
+  delete flowWaiters[jobId];
+  if (status === 'done' && result && result.text) { setFlowStepStatus(i, 'done'); w({ ok: true, text: result.text }); }
+  else { setFlowStepStatus(i, 'error'); w({ ok: false, error: (result && (result.message || result.error)) || status }); }
+}
+async function runFlow() {
+  if (flowRunState && flowRunState.active) return;
+  const steps = (state.flow.steps || []).filter((s) => (s.prompt || '').trim());
+  if (!steps.length) { alert('Flow chưa có bước nào có prompt.'); return; }
+  const input = ($('#flowInput').value || '').trim();
+  const provider = $('#flowProvider').value || state.provider;
+  const knowledge = $('#flowKnowledge').checked ? Knowledge.buildKnowledgeSection(state.blockIds || []) : '';
+  flowRunState = { active: true, results: {}, currentJobId: null };
+  flowLastResults = [];
+  $('#flowRun').disabled = true; $('#flowStop').hidden = false;
+  $('#flowResults').innerHTML = ''; $('#flowDownloadAll').hidden = true;
+  renderFlowProgress(steps);
+  for (let i = 0; i < steps.length; i++) {
+    if (!flowRunState.active) break;
+    const ctx = { input, prev: i > 0 ? flowRunState.results['s' + i] : input };
+    for (let j = 1; j <= i; j++) ctx['s' + j] = flowRunState.results['s' + j];
+    let text = flowInterp(steps[i].prompt, ctx);
+    if (knowledge) text = knowledge + '\n' + text;
+    const res = await runFlowStep(steps[i].provider || provider, text, i);
+    if (!res || !res.ok) { toast(`Flow dừng ở bước ${i + 1}: ${(res && res.error) || 'lỗi'}`, 'error', 6000); flowStop(); return; }
+    flowRunState.results['s' + (i + 1)] = res.text;
+    appendFlowResult(steps[i], i, res.text);
+    libAdd({ type: 'Content', task: 'flow', title: 'Flow · ' + (state.flow.name || '') + ' · ' + (steps[i].title || ('Bước ' + (i + 1))), text: res.text });
+  }
+  flowRunState.active = false;
+  $('#flowRun').disabled = false; $('#flowStop').hidden = true; $('#flowDownloadAll').hidden = false;
+  toast(`✅ Flow hoàn tất ${steps.length} bước`, 'success', 6000);
+}
+function flowStop() {
+  if (flowRunState) {
+    flowRunState.active = false;
+    if (flowRunState.currentJobId) { try { chrome.runtime.sendMessage({ action: 'srt:abortJob', jobId: flowRunState.currentJobId }); } catch (_) {} }
+  }
+  $('#flowRun').disabled = false; $('#flowStop').hidden = true;
+}
+function downloadAllFlow() {
+  if (!flowLastResults || !flowLastResults.length) { toast('Chưa có kết quả', 'warn'); return; }
+  const md = flowLastResults.map((r) => `## ${r.title}\n\n${r.text}`).join('\n\n---\n\n');
+  const slug = (state.flow.name || 'ket-qua').toLowerCase().replace(/\s+/g, '-').slice(0, 30);
+  Exporter.download('flow.' + slug + '.md', `# Flow: ${state.flow.name || ''}\n\n` + md, 'text/markdown');
+  toast('Đã tải tất cả (.md)', 'success');
+}
+
 // ---------------------------------------------------------------- THƯ VIỆN (library/index) — kho mọi nội dung đã tạo
 let libSeq = 0;
 function taskDisplayName(kind, task) {
@@ -1906,6 +2075,7 @@ function showView(name) {
   else if (name === 'history') openHistory();
   else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
   else if (name === 'research') { $('#researchProvider').value = state.provider; renderResearch(); }
+  else if (name === 'flow') { $('#flowProvider').value = state.provider; }
   else if (name === 'library') openLibrary();
   else if (name === 'home') renderHome();
   // session bar chỉ liên quan nhánh SRT
@@ -1961,6 +2131,7 @@ initResearch();
 restoreResearch();
 initHomeSearch();
 initLibrary();
+initFlow();
 updateLocks();
 restoreProject();
 syncKnowledgeUI();

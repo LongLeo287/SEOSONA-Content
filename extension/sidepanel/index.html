@@ -37,6 +37,7 @@
     <button data-view="home" class="active"><span class="ico">🏠</span>Home</button>
     <button data-view="studio"><span class="ico">🎬</span>SRT</button>
     <button data-view="content"><span class="ico">📝</span>Content</button>
+    <button data-view="flow"><span class="ico">⚡</span>Flow</button>
     <button data-view="research"><span class="ico">🔍</span>Research</button>
     <button data-view="library"><span class="ico">🗂️</span>Thư viện</button>
     <button data-view="prompts"><span class="ico">📚</span>Prompts</button>
@@ -376,6 +377,54 @@
       </div>
     </section>
 
+    <!-- ================= VIEW: FLOW ================= -->
+    <section class="view" id="view-flow">
+      <div class="card">
+        <div class="view-head">⚡ Flow — chuỗi nhiều bước tự động</div>
+        <p class="hint">Chạy một mạch nhiều bước; output bước trước tự đổ vào bước sau qua <code>{{input}}</code>, <code>{{s1}}</code>, <code>{{prev}}</code>. Mỗi bước tự lưu vào Thư viện.</p>
+
+        <div class="row">
+          <div class="field grow">
+            <label>Chọn flow</label>
+            <select id="flowSelect"></select>
+          </div>
+          <button id="flowNew" class="pill-btn" title="Flow trống mới">＋ Mới</button>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head" id="flowInputLabel">Đầu vào <code>{{input}}</code></div>
+          <textarea id="flowInput" rows="4" placeholder="Nhập chủ đề / nội dung ban đầu…"></textarea>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head between"><span>🧩 Các bước</span><button id="flowAddStep" class="pill-btn">＋ Thêm bước</button></div>
+          <div id="flowSteps" class="flow-steps"></div>
+        </div>
+
+        <div class="row">
+          <div class="field grow">
+            <label>🤖 Chạy trên AI</label>
+            <select id="flowProvider">
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="claude">Claude</option>
+            </select>
+          </div>
+          <label class="inline" title="Bơm block kiến thức đang bật vào mỗi bước"><input type="checkbox" id="flowKnowledge"> Bơm kiến thức</label>
+        </div>
+
+        <div class="row">
+          <button id="flowRun" class="btn-cta">▶▶ Chạy Flow</button>
+          <button id="flowStop" class="btn-danger" hidden>⛔ Dừng</button>
+          <button id="flowSave" class="pill-btn">💾 Lưu flow</button>
+        </div>
+        <div id="flowProgress" class="flow-progress"></div>
+        <div id="flowResults" class="lib-list"></div>
+        <button id="flowDownloadAll" hidden>⬇ Tải tất cả kết quả (.md)</button>
+      </div>
+    </section>
+
     <!-- ================= VIEW: RESEARCH ================= -->
     <section class="view" id="view-research">
       <div class="card">
@@ -566,6 +615,7 @@
 <script src="../lib/prompts-longform.js"></script>
 <script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/prompts-content.js"></script>
+<script src="../lib/prompts-flows.js"></script>
 <script src="../lib/prompts-research.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>
