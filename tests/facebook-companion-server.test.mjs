@@ -64,3 +64,63 @@ test('serves the current OS context only to the authenticated extension', async 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).brand.id, 'seosona');
 });
+
+test('reports Companion, Flow, provider, and OS context readiness', async (t) => {
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    flow: { callTool: async () => ({ ok: true }) },
+    contextProvider: async () => ({ brand: { id: 'seosona' }, group: { id: 'seo-vn' }, policy: {}, evidence: [] }),
+    preflight: async () => ({ contractVersion: '1.1.0', provider: { provider: 'flow', ready: true, reason: 'ready' } }),
+    companionVersion: '1.0.0',
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const response = await fetch(`http://127.0.0.1:${port}/v1/health`, {
+    headers: { Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': 'nonce-ffffffffffffffff' },
+  });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.ok, true);
+  assert.equal(result.companion.version, '1.0.0');
+  assert.equal(result.flow.contractVersion, '1.1.0');
+  assert.equal(result.flow.provider.ready, true);
+  assert.match(result.context.revision, /^ctx-[a-f0-9]{8}$/);
+});
+
+test('writes a complete draft package through the authenticated library endpoint', async (t) => {
+  const writes = [];
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    writePackage: async (value) => { writes.push(value); return { draftRef: 'content-library://batch-1/post-01/draft.json' }; },
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const body = { batch: { id: 'batch-1' }, snapshot: { contextRevision: 'ctx-1' }, draft: { id: 'post-01' } };
+  const response = await fetch(`http://127.0.0.1:${port}/v1/library/package`, {
+    method: 'POST',
+    headers: { Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': 'nonce-gggggggggggggggg', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).draftRef, 'content-library://batch-1/post-01/draft.json');
+  assert.deepEqual(writes, [body]);
+});
+
+test('uses a stable error envelope for incompatible Flow contracts', async (t) => {
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    flow: { callTool: async () => ({ ok: true }) },
+    contextProvider: async () => ({ brand: {}, group: {}, policy: {}, evidence: [] }),
+    preflight: async () => { const error = new Error('Wrong Flow version.'); error.code = 'INCOMPATIBLE_FLOW_CONTRACT'; error.retryable = false; throw error; },
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const response = await fetch(`http://127.0.0.1:${port}/v1/health`, {
+    headers: { Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': 'nonce-hhhhhhhhhhhhhhhh' },
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: { code: 'INCOMPATIBLE_FLOW_CONTRACT', message: 'Wrong Flow version.', retryable: false } });
+});

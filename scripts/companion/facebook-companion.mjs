@@ -2,11 +2,12 @@ import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
-import { runVisualJob } from './facebook-runner.mjs';
+import { preflightFlow, runVisualJob } from './facebook-runner.mjs';
 import { createFlowMcpClientFromEnv } from './facebook-mcp-client.mjs';
-import { ingestExportedAsset } from './facebook-library.mjs';
+import { ingestExportedAsset, writeBatchPackage } from './facebook-library.mjs';
 
 const JSON_LIMIT = 128 * 1024;
+const COMPANION_VERSION = '1.0.0';
 
 function contextFileInside(root, candidate) {
   const rel = relative(root, candidate);
@@ -24,6 +25,25 @@ function canonicalize(value) {
 
 function digest(value) {
   return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
+}
+
+function contextRevision(context) {
+  if (context && context.contextRevision) return context.contextRevision;
+  const snapshot = {
+    contractVersion: '1.0',
+    brand: canonicalize(context && context.brand || {}),
+    group: canonicalize(context && context.group || {}),
+    policy: canonicalize(context && context.policy || {}),
+    evidence: Array.isArray(context && context.evidence) ? context.evidence.map(canonicalize) : [],
+  };
+  if (context && context.brandKitSnapshot) snapshot.brandKitSnapshot = canonicalize(context.brandKitSnapshot);
+  let hash = 0x811c9dc5;
+  const text = JSON.stringify(snapshot);
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return 'ctx-' + ('00000000' + (hash >>> 0).toString(16)).slice(-8);
 }
 
 async function attachBrandKitSnapshot(context, brandKitFile) {
@@ -80,6 +100,16 @@ function json(res, status, body, origin) {
   res.end(JSON.stringify(body));
 }
 
+function errorEnvelope(error, fallbackCode = 'COMPANION_REQUEST_FAILED') {
+  return {
+    error: {
+      code: String(error && error.code || fallbackCode),
+      message: error instanceof Error ? error.message : 'Companion request failed.',
+      retryable: error && error.retryable === true,
+    },
+  };
+}
+
 function requestBody(req) {
   return new Promise((resolve, reject) => {
     let bytes = 0;
@@ -107,7 +137,17 @@ function authorized(req, token, allowedOrigins, usedNonces) {
   return { ok: true, origin };
 }
 
-export function createCompanionServer({ token, allowedOrigins, flow, runVisual = runVisualJob, archiveAsset = null, contextProvider = null }) {
+export function createCompanionServer({
+  token,
+  allowedOrigins,
+  flow,
+  runVisual = runVisualJob,
+  archiveAsset = null,
+  contextProvider = null,
+  writePackage = null,
+  preflight = preflightFlow,
+  companionVersion = COMPANION_VERSION,
+}) {
   if (!token || token.length < 16) throw new Error('Companion token must contain at least 16 characters.');
   if (!Array.isArray(allowedOrigins) || !allowedOrigins.length || allowedOrigins.some((origin) => !/^chrome-extension:\/\/[a-z]{32}$/.test(origin))) {
     throw new Error('allowedOrigins must contain explicit chrome-extension origins.');
@@ -116,13 +156,23 @@ export function createCompanionServer({ token, allowedOrigins, flow, runVisual =
   return http.createServer(async (req, res) => {
     const requestOrigin = req.headers.origin || '';
     if (req.method === 'OPTIONS') {
-      if (!allowedOrigins.includes(requestOrigin)) return json(res, 403, { error: 'Origin is not allowlisted.' });
+      if (!allowedOrigins.includes(requestOrigin)) return json(res, 403, errorEnvelope(Object.assign(new Error('Origin is not allowlisted.'), { code: 'ORIGIN_DENIED' })));
       res.writeHead(204, { 'access-control-allow-origin': requestOrigin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'authorization, content-type, x-seosona-nonce', 'cache-control': 'no-store' });
       return res.end();
     }
     const auth = authorized(req, token, allowedOrigins, usedNonces);
-    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    if (!auth.ok) return json(res, auth.status, errorEnvelope(Object.assign(new Error(auth.error), { code: auth.status === 403 ? 'ORIGIN_DENIED' : 'UNAUTHORIZED' })));
     try {
+      if (req.method === 'GET' && req.url === '/v1/health') {
+        if (!contextProvider) throw Object.assign(new Error('No OS context provider is configured.'), { code: 'CONTEXT_UNAVAILABLE' });
+        const [context, readiness] = await Promise.all([contextProvider(), preflight({ flow })]);
+        return json(res, 200, {
+          ok: true,
+          companion: { version: companionVersion },
+          flow: { contractVersion: readiness.contractVersion, extensionConnected: true, provider: readiness.provider },
+          context: { revision: contextRevision(context) },
+        }, auth.origin);
+      }
       if (req.method === 'GET' && req.url === '/v1/context') {
         if (!contextProvider) throw new Error('No OS context provider is configured.');
         return json(res, 200, await contextProvider(), auth.origin);
@@ -144,9 +194,13 @@ export function createCompanionServer({ token, allowedOrigins, flow, runVisual =
         const result = await flow.callTool('cancel_job', { job_id: body.jobId });
         return json(res, 200, result, auth.origin);
       }
-      return json(res, 404, { error: 'Unknown Companion endpoint.' }, auth.origin);
+      if (req.method === 'POST' && req.url === '/v1/library/package') {
+        if (!writePackage) throw Object.assign(new Error('No Content Library writer is configured.'), { code: 'LIBRARY_UNAVAILABLE' });
+        return json(res, 200, await writePackage(await requestBody(req)), auth.origin);
+      }
+      return json(res, 404, errorEnvelope(Object.assign(new Error('Unknown Companion endpoint.'), { code: 'ENDPOINT_NOT_FOUND' })), auth.origin);
     } catch (error) {
-      return json(res, 400, { error: error instanceof Error ? error.message : 'Companion request failed.' }, auth.origin);
+      return json(res, 400, errorEnvelope(error), auth.origin);
     }
   });
 }
@@ -165,7 +219,7 @@ async function waitForExport(archive, attempts = 40) {
 
 export function createFlowAssetArchiver({ flow, downloadsRoot, libraryRoot }) {
   if (!downloadsRoot || !libraryRoot) throw new Error('SEOSONA_FLOW_DOWNLOAD_ROOT and SEOSONA_CONTENT_LIBRARY_ROOT are required for asset archival.');
-  return async ({ batchId, draftId, asset, quality, retryCount, clientRef, brandKitRef }) => {
+  return async ({ batchId, draftId, asset, quality, retryCount, clientRef, brandKitRef, flowContractVersion }) => {
     if (!asset || !asset.url) throw new Error('Flow did not return an exportable asset URL.');
     const folder = `seosona-content/${batchId}/${draftId}`;
     const fileName = asset.file_name || `${asset.asset_id}.png`;
@@ -174,7 +228,7 @@ export function createFlowAssetArchiver({ flow, downloadsRoot, libraryRoot }) {
     const download = exported.data && exported.data.download || { folder, file_name: fileName };
     return waitForExport(() => ingestExportedAsset({
       downloadsRoot, libraryRoot, exportInfo: download, batchId, draftId, asset, quality, retryCount,
-      promptRevision: Number((String(clientRef || '').match(/\/r(\d+)$/) || [])[1]) || 1, brandKitRef,
+      promptRevision: Number((String(clientRef || '').match(/\/r(\d+)$/) || [])[1]) || 1, brandKitRef, flowContractVersion,
     }));
   };
 }
@@ -188,7 +242,9 @@ async function main() {
   const contextFile = process.env.SEOSONA_CONTENT_CONTEXT_FILE;
   if (!contextFile) throw new Error('SEOSONA_CONTENT_CONTEXT_FILE is required and must point to the OS-owned Facebook context JSON.');
   const contextProvider = async () => loadOsContext(contextFile, { brandKitFile: process.env.SEOSONA_BRAND_KIT_FILE });
-  const server = createCompanionServer({ token, allowedOrigins: [`chrome-extension://${extensionId}`], flow, archiveAsset, contextProvider });
+  const libraryRoot = process.env.SEOSONA_CONTENT_LIBRARY_ROOT;
+  const writePackage = async (value) => writeBatchPackage({ libraryRoot, ...value });
+  const server = createCompanionServer({ token, allowedOrigins: [`chrome-extension://${extensionId}`], flow, archiveAsset, contextProvider, writePackage });
   const port = Number(process.env.SEOSONA_CONTENT_COMPANION_PORT) || 43117;
   server.listen(port, '127.0.0.1', () => console.error(`SEOSONA Content Companion listening on 127.0.0.1:${port}`));
   const close = async () => { server.close(); await flow.close(); };
