@@ -1,7 +1,9 @@
 # SEOSONA Facebook Content Factory V2 Audit
 
-**Review date:** 2026-08-10  
-**Scope:** SEOSONA OS policy/context, SEOSONA Content control plane and Companion, SEOSONA Flow MCP image worker, SEOSONA Video BrandKit.  
+**Review date:** 2026-08-10
+
+**Scope:** SEOSONA OS policy/context, SEOSONA Content control plane and Companion, SEOSONA Flow MCP image worker, SEOSONA Video BrandKit.
+
 **Runtime boundary:** draft packages only; no Facebook publishing, scheduling, OAuth, or credentials.
 
 ## Verdict
