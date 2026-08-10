@@ -186,3 +186,34 @@ test('can cancel the Companion-owned active Flow generation without a leaked job
   assert.equal(response.status, 200);
   assert.deepEqual(calls, [{ name: 'cancel_job', args: {} }]);
 });
+
+test('runs long Flow work behind a short idempotent Companion job API', async (t) => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    flow: { callTool: async () => ({ ok: true }) },
+    runVisual: async () => { await pending; return { status: 'asset_ready', asset: { asset_id: 'asset-async' } }; },
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const port = server.address().port;
+  const headers = (nonce) => ({ Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': nonce, 'content-type': 'application/json' });
+  const body = JSON.stringify({ batchId: 'batch-1', draftId: 'post-01', visualJob: { clientRef: 'batch-1/post-01/r1', prompt: 'image', ratio: '1:1' } });
+
+  const submitted = await fetch(`http://127.0.0.1:${port}/v1/flow/jobs`, { method: 'POST', headers: headers('nonce-async-aaaaaaaa'), body });
+  assert.equal(submitted.status, 202);
+  const first = await submitted.json();
+  assert.equal(first.status, 'running');
+  assert.match(first.jobId, /^visual-[a-f0-9]{24}$/);
+  const duplicate = await fetch(`http://127.0.0.1:${port}/v1/flow/jobs`, { method: 'POST', headers: headers('nonce-async-bbbbbbbb'), body });
+  assert.equal((await duplicate.json()).jobId, first.jobId);
+
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  const completed = await fetch(`http://127.0.0.1:${port}/v1/flow/jobs/${first.jobId}`, { headers: headers('nonce-async-cccccccc') });
+  const result = await completed.json();
+  assert.equal(result.status, 'done');
+  assert.equal(result.result.status, 'asset_ready');
+});

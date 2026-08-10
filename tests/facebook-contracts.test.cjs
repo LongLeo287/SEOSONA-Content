@@ -88,7 +88,7 @@ test('blocks a draft that makes a claim without an evidence reference', () => {
 test('allows an evidence-backed draft and returns a normalized visual job', () => {
   const result = Factory.validateDraftPackage({
     id: 'draft-2',
-    copy: 'Use Google Search Central documentation as a starting point for technical SEO decisions.',
+    copy: 'Google Search Central documentation was reviewed. Use it as a starting point for technical SEO decisions.',
     claims: [{ text: 'Google Search Central documentation was reviewed.', evidenceId: 'e1' }],
     creativeBrief: { visualPrompt: 'Vietnamese SEO practitioner reviewing a crawl report, clean editorial lighting, no text in image.', ratio: '1:1' },
   }, BASE_CONTEXT.evidence, { clientRef: 'week-2026-33/post-02/r1' });
@@ -104,7 +104,7 @@ test('allows an evidence-backed draft and returns a normalized visual job', () =
 
 test('merges the verified BrandKit snapshot into VisualJob and the Flow-safe prompt', () => {
   const result = Factory.validateDraftPackage({
-    id: 'draft-brand', copy: 'A useful, evidence-backed SEO discussion.',
+    id: 'draft-brand', copy: 'Google Search Central documentation was reviewed. In my view, use it as a practical starting point.',
     claims: [{ text: 'Google Search Central documentation was reviewed.', evidenceId: 'e1' }],
     creativeBrief: { visualPrompt: 'SEO analyst reviewing a crawl report.', ratio: '1:1', mode: 'lightEditorial', component: 'proof_cards' },
   }, BASE_CONTEXT.evidence, { clientRef: 'week-2026-33/post-03/r1', brandKitSnapshot: BASE_CONTEXT.brandKitSnapshot });
@@ -173,6 +173,10 @@ test('background owns the resumable factory and the sidepanel exposes variable b
   assert.match(background, /facebook:startBatch/);
   assert.match(background, /facebook:resumeBatch/);
   assert.match(background, /facebook:cancelBatch/);
+  assert.match(background, /chrome\.alarms\.onAlarm/);
+  assert.match(background, /provider_tab_closed/);
+  assert.match(background, /leaseUpdatedAt/);
+  assert.equal(JSON.parse(readFileSync(join(__dirname, '../extension/manifest.json'), 'utf8')).permissions.includes('alarms'), true);
   assert.match(app, /requestedCount/);
   assert.match(html, /id="fbRequestedCount"[\s\S]*min="1"[\s\S]*max="20"/);
   assert.doesNotMatch(html, /id="fbTopics"/);
@@ -198,4 +202,114 @@ test('blocks a claim mapped to semantically unrelated evidence', () => {
   }, BASE_CONTEXT.evidence);
   assert.equal(result.ok, false);
   assert.equal(result.issues.some((issue) => issue.code === 'EVIDENCE_MISMATCH'), true);
+});
+
+test('blocks a claim whose negation contradicts the canonical evidence claim', () => {
+  const evidence = [{ id: 'ranking', claim: 'Google không đảm bảo thứ hạng trong bảy ngày.', source: 'internal://verified' }];
+  const result = Factory.validateDraftPackage({
+    id: 'draft-negation',
+    copy: 'Google đảm bảo thứ hạng trong bảy ngày.',
+    claims: [{ text: 'Google đảm bảo thứ hạng trong bảy ngày.', evidenceId: 'ranking' }],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'EVIDENCE_MISMATCH'), true);
+});
+
+test('blocks copy that reverses a canonical evidence claim hidden behind an exact claim map', () => {
+  const evidence = [{ id: 'ranking', claim: 'Google không đảm bảo thứ hạng trong bảy ngày.', source: 'internal://verified' }];
+  const result = Factory.validateDraftPackage({
+    id: 'draft-copy-negation',
+    copy: 'Google đảm bảo thứ hạng trong bảy ngày.',
+    claims: [{ text: evidence[0].claim, evidenceId: 'ranking' }],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});
+
+test('blocks copy whose number or named entity differs from its canonical claim', () => {
+  const evidence = [{ id: 'factors', claim: 'Google sử dụng 200 yếu tố xếp hạng.', source: 'internal://verified' }];
+  const result = Factory.validateDraftPackage({
+    id: 'draft-copy-shape',
+    copy: 'Bing sử dụng 300 yếu tố xếp hạng.',
+    claims: [{ text: evidence[0].claim, evidenceId: 'factors' }],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});
+
+test('blocks copy that reverses the direction of a canonical evidence predicate', () => {
+  const evidence = [{ id: 'conversion', claim: 'Page speed increases conversions.', source: 'internal://verified' }];
+  const result = Factory.validateDraftPackage({
+    id: 'draft-direction',
+    copy: 'Page speed decreases conversions.',
+    claims: [{ text: evidence[0].claim, evidenceId: 'conversion' }],
+    creativeBrief: { visualPrompt: 'Editorial analytics desk, no text in image.', ratio: '1:1' },
+  }, evidence, { requiredEvidence: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});
+
+test('blocks unseen English and Vietnamese antonyms without relying on a relation dictionary', () => {
+  const cases = [
+    ['Page speed accelerates conversions.', 'Page speed slows conversions.'],
+    ['Tốc độ tốt thúc đẩy chuyển đổi.', 'Tốc độ tốt kìm hãm chuyển đổi.'],
+  ];
+  for (const [claim, copy] of cases) {
+    const result = Factory.validateDraftPackage({
+      id: 'draft-unseen-direction', copy,
+      claims: [{ text: claim, evidenceId: 'direction' }],
+      creativeBrief: { visualPrompt: 'Editorial analytics desk, no text in image.', ratio: '1:1' },
+    }, [{ id: 'direction', claim, source: 'internal://verified' }], { requiredEvidence: true });
+    assert.equal(result.ok, false);
+    assert.equal(result.issues.some((issue) => issue.code === 'CLAIM_NOT_VERBATIM_IN_COPY'), true);
+  }
+});
+
+test('blocks unmapped numerical factual assertions outside the original signal list', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-number',
+    copy: 'Google sử dụng hơn 200 yếu tố xếp hạng.',
+    claims: [],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, BASE_CONTEXT.evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});
+
+test('fails closed for generic declarative copy when OS requires evidence', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-strict',
+    copy: 'SEO hiện đại vận hành theo một mô hình hoàn toàn mới.',
+    claims: [],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, BASE_CONTEXT.evidence, { requiredEvidence: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});
+
+test('allows an explicitly framed personal opinion without evidence', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-opinion',
+    copy: 'Theo kinh nghiệm cá nhân, bạn nên bắt đầu bằng một checklist nhỏ.',
+    claims: [],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, [], { requiredEvidence: true });
+  assert.equal(result.ok, true);
+});
+
+test('records independent brand voice checks and blocks disrespectful copy', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-brand-qa',
+    copy: 'Bạn thật ngu ngốc nếu chưa làm SEO.',
+    cta: 'Hãy chia sẻ cách bạn đang làm.',
+    claims: [],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, [], { brandProfile: { ...BASE_CONTEXT.brand, voice: ['practical', 'evidence-led', 'clear', 'respectful'] } });
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'BRAND_VOICE_MISMATCH' && issue.voice === 'respectful'), true);
+  assert.equal(Array.isArray(result.copyQa.brandChecks), true);
+  assert.equal(result.copyQa.brandChecks.find((item) => item.voice === 'respectful').pass, false);
 });

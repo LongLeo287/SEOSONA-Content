@@ -150,7 +150,7 @@ The readiness fixture is `{data:{providers:[{provider:'flow',ready:true,reason:'
 **Interfaces:**
 - Produces: `GET /v1/health` with Companion version, Flow contract version, extension readiness, provider readiness and context revision.
 - Produces: `POST /v1/library/package` for durable batch/draft snapshots.
-- Keeps: authenticated `GET /v1/context`, `POST /v1/flow/generate`, `POST /v1/flow/cancel`.
+- Keeps legacy authenticated `POST /v1/flow/generate` for local compatibility, but production orchestration uses idempotent `POST /v1/flow/jobs`, short job status reads, and per-job cancel endpoints.
 
 - [ ] **Step 1: Write failing authenticated endpoint tests and negative auth/replay tests**
 

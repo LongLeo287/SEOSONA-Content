@@ -31,6 +31,7 @@ async function auditContent() {
     'extension/lib/facebook-factory.js',
     'extension/lib/facebook-batch.js',
     'extension/lib/facebook-state.js',
+    'extension/lib/facebook-provider-lease.js',
     'extension/lib/facebook-orchestrator.js',
     'scripts/companion/facebook-companion.mjs',
     'scripts/companion/facebook-runner.mjs',
@@ -41,7 +42,11 @@ async function auditContent() {
   record('CONTENT_RUNTIME_COMPONENTS', missing.length ? 'fail' : 'pass', missing.length ? `Missing: ${missing.join(', ')}` : 'Control plane, state reducer, Companion, Flow adapter, and library writer are present.');
 
   const source = await readFile(join(projectRoot, 'extension', 'lib', 'facebook-orchestrator.js'), 'utf8');
-  record('CONTENT_RESUMABLE_STATE', /persist\(current\)/.test(source) && /resume/.test(source) && /clientRef/.test(source) ? 'pass' : 'fail', 'Orchestrator persists transitions and supports resume with stable client references.');
+  const background = await readFile(join(projectRoot, 'extension', 'background.js'), 'utf8');
+  const companion = await readFile(join(projectRoot, 'scripts', 'companion', 'facebook-companion.mjs'), 'utf8');
+  const resumable = /persist\(current\)/.test(source) && /resume/.test(source) && /clientRef/.test(source)
+    && /chrome\.alarms\.onAlarm/.test(background) && /\/v1\/flow\/jobs/.test(companion);
+  record('CONTENT_RESUMABLE_STATE', resumable ? 'pass' : 'fail', 'Orchestrator persists transitions, uses short Companion visual jobs, and wakes through Chrome alarms with stable client references.');
 }
 
 async function auditOsAndBrand() {

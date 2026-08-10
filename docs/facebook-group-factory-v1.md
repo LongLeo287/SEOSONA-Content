@@ -9,7 +9,7 @@ This V1 creates a configurable number of Facebook Group draft packages per batch
 - The Companion verifies the physical BrandKit supplied through `SEOSONA_BRAND_KIT_FILE`, then freezes only the palette, font family, modes, components, allowed mascot assets, Flow boundary, and negative rules into the immutable batch snapshot.
 - The local Content Companion listens on loopback, accepts only one configured Chrome extension origin, and requires both a bearer token and a single-use nonce.
 - SEOSONA Flow remains the image worker. The Companion starts and calls its official stdio MCP server; Content never connects to Flow's executor WebSocket.
-- The Content background service worker owns the resumable state machine. The side panel is only a simple start, status, resume, and cancel interface.
+- The Content background service worker owns the resumable state machine. Long Flow generation/export work runs as an idempotent asynchronous Companion job; the service worker only submits or polls with short requests and `chrome.alarms` wakes it after suspension. The side panel is only a simple start, status, resume, and cancel interface.
 
 ## Local setup
 
@@ -36,7 +36,9 @@ Run `npm run facebook:companion`, open the extension, enter its loopback URL and
 
 The extension keeps the Companion URL locally but retains the Companion token only for the current browser session.
 
-Every state transition is written to `srtFacebookBatchLast`. If Chrome or the side panel closes, **Chạy tiếp** resumes the stored idea, copy, or visual step. Provider transport retries preserve the same job reference. Only a judged visual-quality failure creates a new image revision.
+Every state transition is written to `srtFacebookBatchLast`. If Chrome or the side panel closes, **Chạy tiếp** resumes the stored idea, copy, or visual step. Provider jobs have a deadline and tab-liveness lease, so stale work can be safely redispatched with the same stable reference. Companion visual jobs survive Manifest V3 worker suspension and are polled automatically. Only a judged visual-quality failure creates a new image revision.
+
+Factual `claims[].text` must copy the exact canonical claim from the OS evidence packet, and that claim must appear verbatim as its own sentence in the post copy. V1 does not authorize paraphrased facts through heuristic similarity. Brand QA records deterministic verdicts for the configured practical, evidence-led, clear, and respectful criteria.
 
 The Flow extension must already be connected to a logged-in image provider and configured with `SEOSONA_LOCAL_MCP_TOKEN`. A visual that is judged failed is retried with a new `client_ref` revision no more than twice. An unjudged visual is always returned as `asset_needs_review`.
 

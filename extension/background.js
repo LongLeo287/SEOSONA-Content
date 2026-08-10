@@ -2,7 +2,7 @@
 // Vai trò: điều phối tab provider, chuyển job từ side panel -> content script,
 // nhận kết quả từ content script -> lưu storage.session + broadcast cho UI.
 
-importScripts('lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js', 'lib/facebook-orchestrator.js');
+importScripts('lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js', 'lib/facebook-provider-lease.js', 'lib/facebook-orchestrator.js');
 
 const PROVIDERS = {
   chatgpt: {
@@ -157,7 +157,7 @@ async function ensureProviderTab(provider, { freshChat = false, chatUrl = null }
 async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl }) {
   if (!PROVIDERS[provider]) return { ok: false, error: 'Provider không hợp lệ: ' + provider };
   try {
-    await setJob(jobId, { provider, status: 'preparing', startedAt: Date.now() });
+    await setJob(jobId, { provider, status: 'preparing', startedAt: Date.now(), leaseUpdatedAt: Date.now() });
     broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'preparing' });
 
     const tab = await ensureProviderTab(provider, { freshChat, chatUrl });
@@ -176,7 +176,7 @@ async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl
     if (!ack || !ack.accepted) throw new Error('Content script từ chối job');
 
     // Lưu spec để auto-retry khi lỗi tạm thời
-    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000 }, attempt: 0, maxRetries: 2 });
+    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000 }, attempt: 0, maxRetries: 2, leaseUpdatedAt: Date.now() });
     broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', tabId: tab.id });
     return { ok: true, tabId: tab.id };
   } catch (e) {
@@ -200,7 +200,7 @@ async function maybeRetry(jobId, provider, result) {
   const max = job.maxRetries || 2;
   if (attempt > max) return false;
 
-  await setJob(jobId, { attempt, status: 'running' });
+  await setJob(jobId, { attempt, status: 'running', leaseUpdatedAt: Date.now() });
   broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', result: { retrying: true, attempt, message: `Thử lại ${attempt}/${max}…` } });
   await sleep(3000 * attempt); // backoff: 3s, 6s
 
@@ -213,7 +213,7 @@ async function maybeRetry(jobId, provider, result) {
       action: 'srt:submitAndWait', jobId, text: job.spec.text, timeout: job.spec.timeout,
     });
     if (!ack || !ack.accepted) throw new Error('reject');
-    await setJob(jobId, { tabId: tab.id });
+    await setJob(jobId, { tabId: tab.id, leaseUpdatedAt: Date.now() });
     return true;
   } catch (_) {
     return false; // không retry được -> để finalize thành lỗi
@@ -303,15 +303,22 @@ async function facebookConfig() {
 
 async function facebookCompanion(path, body) {
   const config = await facebookConfig();
-  const response = await fetch(config.url + path, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      Authorization: 'Bearer ' + config.token,
-      'x-seosona-nonce': crypto.randomUUID().replace(/-/g, ''),
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+  let response;
+  try {
+    response = await fetch(config.url + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        Authorization: 'Bearer ' + config.token,
+        'x-seosona-nonce': crypto.randomUUID().replace(/-/g, ''),
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch (cause) {
+    const error = new Error('Content Companion is unavailable.');
+    error.code = 'COMPANION_UNAVAILABLE'; error.retryable = true; error.cause = cause;
+    throw error;
+  }
   const value = await response.json().catch(() => ({}));
   if (!response.ok) {
     const normalized = facebookError(value);
@@ -346,18 +353,48 @@ async function indexFacebookLibrary(batch) {
   await chrome.storage.local.set({ srtLibrary });
 }
 
+const FACEBOOK_VISUAL_ALARM = 'seosona-facebook-visual-poll';
+async function scheduleFacebookVisualPoll(batch) {
+  const waiting = batch && batch.status === 'visuals_running' && batch.active && batch.active.kind === 'visual';
+  if (waiting) chrome.alarms.create(FACEBOOK_VISUAL_ALARM, { delayInMinutes: 0.5 });
+  else await chrome.alarms.clear(FACEBOOK_VISUAL_ALARM).catch(() => false);
+}
+
 const facebookOrchestrator = FacebookOrchestrator.createOrchestrator({
   load: async () => (await chrome.storage.local.get('srtFacebookBatchLast')).srtFacebookBatchLast || null,
   persist: async (batch) => chrome.storage.local.set({ srtFacebookBatchLast: batch }),
-  emit: async (batch) => { await indexFacebookLibrary(batch); broadcast({ action: 'facebook:batchUpdate', batch }); },
+  emit: async (batch) => {
+    await indexFacebookLibrary(batch);
+    await scheduleFacebookVisualPoll(batch);
+    broadcast({ action: 'facebook:batchUpdate', batch });
+  },
   providerStart: handleRunJob,
   providerStatus: async (jobId) => {
     const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
-    return srtJobs[jobId] || null;
+    const job = srtJobs[jobId] || null;
+    if (!job || !['preparing', 'running'].includes(job.status)) return job;
+    if (FacebookProviderLease.isExpired(job, Date.now())) return { ...job, status: 'stale', reason: 'lease_expired' };
+    if (job.tabId) {
+      try { await chrome.tabs.get(job.tabId); } catch { return { ...job, status: 'stale', reason: 'provider_tab_closed' }; }
+    }
+    return job;
   },
   providerAbort: handleAbort,
   companion: facebookCompanion,
 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (!alarm || alarm.name !== FACEBOOK_VISUAL_ALARM) return;
+  facebookOrchestrator.resume().then(scheduleFacebookVisualPoll).catch((error) => {
+    broadcast({ action: 'facebook:batchError', error: facebookError(error) });
+  });
+});
+
+if (chrome.runtime.onStartup) {
+  chrome.runtime.onStartup.addListener(() => {
+    facebookOrchestrator.getState().then(scheduleFacebookVisualPoll).catch(() => {});
+  });
+}
 
 async function handleFacebookAction(action, msg) {
   try {

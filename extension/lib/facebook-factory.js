@@ -92,33 +92,73 @@
     });
   }
 
-  function semanticTokens(text) {
-    const stop = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'was', 'were', 'được', 'của', 'cho', 'với', 'trong', 'một', 'những']);
-    return new Set(String(text || '').toLocaleLowerCase('vi').match(/[\p{L}\p{N}]+/gu)?.filter((token) => token.length >= 3 && !stop.has(token)) || []);
+  function canonicalClaim(text) {
+    return String(text || '').toLocaleLowerCase('vi').normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   }
 
-  function semanticOverlap(left, right) {
-    const a = semanticTokens(left); const b = semanticTokens(right);
-    if (!a.size || !b.size) return 0;
-    let shared = 0;
-    a.forEach((token) => { if (b.has(token)) shared += 1; });
-    return shared / Math.min(a.size, b.size);
+  function namedEntities(text) {
+    const value = String(text || '').normalize('NFC');
+    const entityStop = new Set(['Theo', 'Một', 'Bạn', 'Hãy', 'Nếu', 'Khi', 'Use', 'The', 'A', 'An', 'In']);
+    return (value.match(/[\p{Lu}][\p{L}\p{N}._-]*/gu) || []).filter((item) => !entityStop.has(item) && item !== item.toLocaleUpperCase('vi'));
+  }
+
+  function isFactualSentence(sentence) {
+    const text = String(sentence || '');
+    const numbers = /\d/u;
+    const attribution = /\b(?:according to|research|study|report|data|official|documentation)\b|(?:theo (?:nghiên cứu|báo cáo|số liệu|tài liệu)|nghiên cứu|báo cáo|số liệu|chính thức|tài liệu)/iu;
+    const assertion = /\b(?:is|are|was|were|has|have|uses?|causes?|increases?|decreases?|ranks?|requires?|supports?|guarantees?|can)\b|(?:\blà\b|\bcó\b|sử dụng|gây ra|tăng|giảm|ảnh hưởng|xếp hạng|yêu cầu|hỗ trợ|đảm bảo|cam kết)/iu;
+    return numbers.test(text) || attribution.test(text) || assertion.test(text) || namedEntities(text).length > 0;
+  }
+
+  function isHardFactualSentence(sentence) {
+    const text = String(sentence || '');
+    return /\d/u.test(text)
+      || /\b(?:according to|research|study|report|data|official|documentation)\b|(?:theo (?:nghiên cứu|báo cáo|số liệu|tài liệu)|nghiên cứu|báo cáo|số liệu|chính thức|tài liệu)/iu.test(text)
+      || namedEntities(text).length > 0;
+  }
+
+  function isExplicitOpinionOrAdvice(sentence) {
+    return /\?|(?:theo (?:tôi|mình)|mình nghĩ|tôi nghĩ|góc nhìn|quan điểm|kinh nghiệm (?:của )?(?:tôi|mình|cá nhân)|hãy|nên|thử|đừng|bạn có thể|cùng thảo luận|chia sẻ)|\b(?:in my view|i think|my experience|consider|try|use|you can)\b/iu.test(String(sentence || ''));
+  }
+
+  function brandVoiceChecks(draft, brandProfile, evidenceIssues) {
+    const voice = Array.isArray(brandProfile && brandProfile.voice) ? brandProfile.voice : [];
+    const copy = String(draft && draft.copy || '');
+    const words = copy.trim().split(/\s+/u).filter(Boolean);
+    const sentences = copy.split(/[.!?\n]+/u).map((item) => item.trim()).filter(Boolean);
+    const maxSentenceWords = sentences.reduce((max, sentence) => Math.max(max, sentence.split(/\s+/u).filter(Boolean).length), 0);
+    const disrespectful = /(?:ngu ngốc|đồ ngốc|vô dụng|dốt|idiot|stupid|moron)/iu.test(copy);
+    const checks = voice.map((item) => {
+      const key = String(item).toLocaleLowerCase('vi');
+      if (key === 'practical') return { voice: item, pass: Boolean(String(draft && draft.cta || '').trim()), criterion: 'non-empty CTA' };
+      if (key === 'evidence-led') return { voice: item, pass: evidenceIssues.length === 0, criterion: 'all factual claims mapped to canonical evidence' };
+      if (key === 'clear') return { voice: item, pass: words.length <= 800 && maxSentenceWords <= 60, criterion: 'copy <= 800 words and every sentence <= 60 words' };
+      if (key === 'respectful') return { voice: item, pass: !disrespectful, criterion: 'no insulting or demeaning language' };
+      return { voice: item, pass: true, criterion: 'prompt-enforced voice; no deterministic rule configured' };
+    });
+    return checks;
   }
 
   function validateDraftPackage(draft, evidence, options) {
     const evidenceById = new Map((evidence || []).map((item) => [item && item.id, item]).filter((item) => item[0]));
     const knownEvidence = new Set(evidenceById.keys());
     const issues = [];
+    const sentences = (String(draft && draft.copy || '').match(/[^.!?\n]+[.!?]?/gu) || []).map((sentence) => sentence.trim()).filter(Boolean);
+    const canonicalSentences = new Set(sentences.map(canonicalClaim).filter(Boolean));
     (draft && draft.claims || []).forEach((claim, claimIndex) => {
       if (!claim || !claim.evidenceId || !knownEvidence.has(claim.evidenceId)) {
         issues.push({ code: 'MISSING_EVIDENCE', claimIndex });
-      } else if (semanticOverlap(claim.text, evidenceById.get(claim.evidenceId).claim) < 0.35) {
+      } else if (!canonicalClaim(claim.text) || canonicalClaim(claim.text) !== canonicalClaim(evidenceById.get(claim.evidenceId).claim)) {
         issues.push({ code: 'EVIDENCE_MISMATCH', claimIndex, evidenceId: claim.evidenceId });
+      } else if (!canonicalSentences.has(canonicalClaim(claim.text))) {
+        issues.push({ code: 'CLAIM_NOT_VERBATIM_IN_COPY', claimIndex, evidenceId: claim.evidenceId });
       }
     });
-    const claimSignals = /\b(?:guarantee(?:s|d)?|official|according to|research shows|studies? show|reports? show|data shows|percent)\b|(?:\d+(?:[.,]\d+)?)\s*(?:%|percent|days?|weeks?|months?|ngày|tuần|tháng)|(?:cam kết|đảm bảo|chính thức|theo nghiên cứu|theo báo cáo|số liệu cho thấy)/iu;
-    String(draft && draft.copy || '').split(/[.!?\n]+/).map((sentence) => sentence.trim()).filter(Boolean).forEach((sentence, sentenceIndex) => {
-      if (claimSignals.test(sentence) && !(draft && draft.claims || []).some((claim) => semanticOverlap(sentence, claim && claim.text) >= 0.35)) {
+    const strictEvidence = options && options.requiredEvidence === true;
+    sentences.forEach((sentence, sentenceIndex) => {
+      const explicitOpinion = isExplicitOpinionOrAdvice(sentence);
+      const requiresClaim = isHardFactualSentence(sentence) || (!explicitOpinion && (isFactualSentence(sentence) || strictEvidence));
+      if (requiresClaim && !(draft && draft.claims || []).some((claim) => canonicalClaim(sentence) === canonicalClaim(claim && claim.text))) {
         issues.push({ code: 'UNMAPPED_CLAIM', sentenceIndex });
       }
     });
@@ -128,12 +168,16 @@
     if (expectedLanguage === 'vi' && !looksVietnamese) issues.push({ code: 'LANGUAGE_MISMATCH', expected: 'vi' });
     const brief = draft && draft.creativeBrief;
     if (!brief || !String(brief.visualPrompt || '').trim() || !String(brief.ratio || '').trim()) issues.push({ code: 'MISSING_CREATIVE_BRIEF' });
+    const evidenceIssues = issues.filter((issue) => ['MISSING_EVIDENCE', 'EVIDENCE_MISMATCH', 'CLAIM_NOT_VERBATIM_IN_COPY', 'UNMAPPED_CLAIM'].includes(issue.code));
+    const brandChecks = brandVoiceChecks(draft, options && options.brandProfile, evidenceIssues);
+    brandChecks.filter((check) => !check.pass).forEach((check) => issues.push({ code: 'BRAND_VOICE_MISMATCH', voice: check.voice }));
     const copyQa = {
       verdict: issues.length ? 'blocked' : 'pass',
       language: expectedLanguage || null,
       claimCount: (draft && draft.claims || []).length,
       evidenceRevision: options && options.contextRevision || null,
       brandProfileId: options && options.brandProfile && options.brandProfile.id || null,
+      brandChecks: canonicalize(brandChecks),
       issues: canonicalize(issues),
     };
     if (issues.length) return { ok: false, issues, copyQa };

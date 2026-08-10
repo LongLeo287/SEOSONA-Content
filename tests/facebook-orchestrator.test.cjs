@@ -26,23 +26,31 @@ function harness(options = {}) {
   const jobs = [];
   const calls = [];
   const packages = [];
+  let visualPoll = 0;
   const companion = async (path, body) => {
     calls.push({ path, body });
     if (path === '/v1/health') return { ok: true, flow: { contractVersion: '1.1.0', provider: { ready: true } }, context: { revision: 'ctx-health' } };
     if (path === '/v1/context') return CONTEXT;
-    if (path === '/v1/flow/generate') {
-      if (options.visualError) throw Object.assign(new Error(options.visualError.message), options.visualError);
-      return options.visual || { status: 'asset_ready', receipt: { assetId: 'asset-1', fileRef: 'content-library://batch/post/image.png' } };
+    if (path === '/v1/flow/jobs') {
+      const status = Array.isArray(options.visualJobStates) ? options.visualJobStates[Math.min(visualPoll++, options.visualJobStates.length - 1)] : 'done';
+      if (options.visualError) return { jobId: 'visual-test', status: 'error', error: options.visualError };
+      if (status === 'running') return { jobId: 'visual-test', status: 'running' };
+      return { jobId: 'visual-test', status: 'done', result: options.visual || { status: 'asset_ready', receipt: { assetId: 'asset-1', fileRef: 'content-library://batch/post/image.png' } } };
     }
-    if (path === '/v1/library/package') { packages.push(body); return { draftRef: `content-library://${body.batch.id}/${body.draft.id}/draft.json`, runtimeDraftRef: 'machine-path' }; }
-    if (path === '/v1/flow/cancel') return { ok: true };
+    if (path === '/v1/library/package') {
+      packages.push(body);
+      if (options.packageError) throw Object.assign(new Error(options.packageError.message), options.packageError);
+      if (options.packageDeferred) await options.packageDeferred.promise;
+      return { draftRef: `content-library://${body.batch.id}/${body.draft.id}/draft.json`, runtimeDraftRef: 'machine-path' };
+    }
+    if (/^\/v1\/flow\/jobs\/[^/]+\/cancel$/.test(path)) return { ok: true };
     throw new Error('Unexpected Companion path: ' + path);
   };
   const orchestrator = createOrchestrator({
     load: async () => saved,
     persist: async (state) => { saved = JSON.parse(JSON.stringify(state)); },
     providerStart: async (job) => { jobs.push(job); return { ok: true }; },
-    providerStatus: async (jobId) => jobs.some((job) => job.jobId === jobId) ? { status: 'running' } : null,
+    providerStatus: options.providerStatus || (async (jobId) => jobs.some((job) => job.jobId === jobId) ? { status: 'running' } : null),
     providerAbort: async () => ({ ok: true }),
     companion,
     now: () => '2026-08-10T00:00:00.000Z',
@@ -80,7 +88,7 @@ test('blocks unsupported claims without calling Flow', async () => {
   });
   assert.equal(state.status, 'needs_review');
   assert.equal(state.drafts[0].status, 'copy_blocked');
-  assert.equal(h.calls.some((call) => call.path === '/v1/flow/generate'), false);
+  assert.equal(h.calls.some((call) => call.path === '/v1/flow/jobs'), false);
 });
 
 test('keeps an unjudged visual out of ready state', async () => {
@@ -120,6 +128,19 @@ test('halts the batch on quota errors without spending later draft work', async 
   assert.equal(h.jobs.length, 2);
 });
 
+test('halts the batch when the Content Library cannot persist a package', async () => {
+  const h = harness({ packageError: { code: 'CONTENT_LIBRARY_FAILED', message: 'Disk unavailable.' } });
+  await h.orchestrator.start({ requestedCount: 2, provider: 'gemini' });
+  await h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: JSON.stringify({ ideas: [
+    { title: 'First', angle: 'One' }, { title: 'Second', angle: 'Two' },
+  ] }) });
+  const state = await h.orchestrator.handleProviderResult({ jobId: h.jobs[1].jobId, success: true, text: draftJson() });
+  assert.equal(state.status, 'failed');
+  assert.equal(state.haltReason.code, 'CONTENT_LIBRARY_FAILED');
+  assert.deepEqual(state.drafts.map((draft) => draft.status), ['failed', 'idea_queued']);
+  assert.equal(h.jobs.length, 2);
+});
+
 test('continues after one draft fails and preserves the successful draft', async () => {
   const h = harness();
   await h.orchestrator.start({ requestedCount: 2, provider: 'gemini' });
@@ -145,7 +166,7 @@ test('resumes a persisted visual with the same client reference', async () => {
   const h = harness({ initial: state });
   const resumed = await h.orchestrator.resume();
   assert.equal(resumed.status, 'completed');
-  assert.equal(h.calls.find((call) => call.path === '/v1/flow/generate').body.visualJob.clientRef, 'batch-resume/post-01/r1');
+  assert.equal(h.calls.find((call) => call.path === '/v1/flow/jobs').body.visualJob.clientRef, 'batch-resume/post-01/r1');
 });
 
 test('cancels a Companion-owned visual job and leaves the batch terminal', async () => {
@@ -156,11 +177,54 @@ test('cancels a Companion-owned visual job and leaves the batch terminal', async
   state = global.FacebookState.transition(state, { type: 'IDEAS_CREATED', drafts: global.FacebookFactory.createWeeklyBatch({ id: state.id, snapshot, ideas: [{ title: 'Cancel', angle: 'Safe' }] }).drafts });
   state = global.FacebookState.transition(state, { type: 'COPY_STARTED', draftId: 'post-01', jobId: 'copy' });
   state = global.FacebookState.transition(state, { type: 'VISUAL_STARTED', draftId: 'post-01', package: { parsed: JSON.parse(draftJson()), visualJob: { clientRef: `${state.id}/post-01/r1`, prompt: 'SEO image', ratio: '1:1' } } });
+  state = global.FacebookState.transition(state, { type: 'VISUAL_SUBMITTED', draftId: 'post-01', jobId: 'visual-cancel-test' });
   const h = harness({ initial: state });
   const cancelled = await h.orchestrator.cancel('user');
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(cancelled.drafts[0].status, 'cancelled');
-  assert.equal(h.calls.some((call) => call.path === '/v1/flow/cancel'), true);
+  assert.equal(h.calls.some((call) => /\/v1\/flow\/jobs\/[^/]+\/cancel$/.test(call.path)), true);
+});
+
+test('submits a short Companion visual job and completes it after a later resume poll', async () => {
+  const h = harness({ visualJobStates: ['running', 'done'] });
+  await h.orchestrator.start({ requestedCount: 1, provider: 'gemini' });
+  await h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: JSON.stringify({ ideas: [{ title: 'MV3', angle: 'Wake safely' }] }) });
+  let state = await h.orchestrator.handleProviderResult({ jobId: h.jobs[1].jobId, success: true, text: draftJson() });
+  assert.equal(state.status, 'visuals_running');
+  assert.equal(state.drafts[0].companionJobId, 'visual-test');
+  assert.equal(h.packages.length, 0);
+
+  state = await h.orchestrator.resume();
+  assert.equal(state.status, 'completed');
+  assert.equal(h.packages.length, 1);
+  assert.equal(h.calls.some((call) => call.path === '/v1/flow/generate'), false);
+});
+
+test('does not let a late package completion overwrite a durable cancellation', async () => {
+  let release;
+  const packageDeferred = { promise: new Promise((resolve) => { release = resolve; }) };
+  const h = harness({ packageDeferred });
+  await h.orchestrator.start({ requestedCount: 1, provider: 'gemini' });
+  await h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: JSON.stringify({ ideas: [{ title: 'Cancel race', angle: 'Safe' }] }) });
+  const finishing = h.orchestrator.handleProviderResult({ jobId: h.jobs[1].jobId, success: true, text: draftJson() });
+  while (!h.calls.some((call) => call.path === '/v1/library/package')) await new Promise((resolve) => setImmediate(resolve));
+  const cancelled = await h.orchestrator.cancel('user');
+  assert.equal(cancelled.status, 'cancelled');
+  release();
+  const final = await finishing;
+  assert.equal(final.status, 'cancelled');
+  assert.equal(h.current().status, 'cancelled');
+});
+
+test('redispatches a provider job whose persisted lease is stale', async () => {
+  let saved;
+  const first = harness();
+  await first.orchestrator.start({ requestedCount: 1, provider: 'gemini' });
+  saved = first.current();
+  const resumed = harness({ initial: saved, providerStatus: async () => ({ status: 'stale' }) });
+  await resumed.orchestrator.resume();
+  assert.equal(resumed.jobs.length, 1);
+  assert.equal(resumed.jobs[0].jobId, saved.active.jobId);
 });
 
 for (const requestedCount of [1, 5, 20]) {

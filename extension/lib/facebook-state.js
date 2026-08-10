@@ -66,7 +66,12 @@
     } else if (type === 'VISUAL_STARTED') {
       const draft = draftFor(state, event.draftId); assert(draft.status === 'copy_running', 'Visual can start only after copy is running.');
       draft.status = 'visual_running'; draft.package = copy(event.package); state.active = { kind: 'visual', draftId: draft.id };
+      delete draft.companionJobId;
       state.status = 'visuals_running';
+    } else if (type === 'VISUAL_SUBMITTED') {
+      const draft = draftFor(state, event.draftId); assert(draft.status === 'visual_running', 'Only a running visual can be submitted.');
+      assert(event.jobId, 'Companion visual job id is required.');
+      draft.companionJobId = String(event.jobId); state.active = { kind: 'visual', draftId: draft.id, jobId: String(event.jobId) };
     } else if (type === 'ASSET_READY' || type === 'ASSET_REVIEW') {
       const draft = draftFor(state, event.draftId); assert(draft.status === 'visual_running', 'Only a running visual can finish.');
       draft.status = type === 'ASSET_READY' ? 'asset_ready' : 'asset_needs_review';

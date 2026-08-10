@@ -156,6 +156,7 @@ export function createCompanionServer({
   preflight = preflightFlow,
   companionVersion = COMPANION_VERSION,
   preflightTtlMs = 5000,
+  visualJobTimeoutMs = 20 * 60 * 1000,
   now = () => Date.now(),
 }) {
   if (!token || token.length < 16) throw new Error('Companion token must contain at least 16 characters.');
@@ -163,6 +164,11 @@ export function createCompanionServer({
     throw new Error('allowedOrigins must contain explicit chrome-extension origins.');
   }
   const usedNonces = new Set();
+  const visualJobs = new Map();
+  const retireVisualJob = (job) => {
+    const timer = setTimeout(() => { if (visualJobs.get(job.id) === job && job.status !== 'running') visualJobs.delete(job.id); }, 24 * 60 * 60 * 1000);
+    timer.unref?.();
+  };
   let cachedPreflight = null;
   let cachedPreflightAt = 0;
   const readiness = async () => {
@@ -171,6 +177,62 @@ export function createCompanionServer({
     cachedPreflight = await preflight({ flow });
     cachedPreflightAt = at;
     return cachedPreflight;
+  };
+
+  const visualJobId = (body) => 'visual-' + digest({
+    batchId: body && body.batchId,
+    draftId: body && body.draftId,
+    clientRef: body && body.visualJob && body.visualJob.clientRef,
+  }).slice(0, 24);
+
+  const publicVisualJob = (job) => ({
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    ...(job.status === 'done' ? { result: job.result } : {}),
+    ...(job.status === 'error' ? { error: job.error } : {}),
+  });
+
+  const executeVisual = async (body) => {
+    const result = await runVisual({ flow, visualJob: body.visualJob });
+    if (['asset_ready', 'asset_needs_review'].includes(result.status) && result.asset && archiveAsset) {
+      if (!body.batchId || !body.draftId) throw Object.assign(new Error('batchId and draftId are required to archive a visual asset.'), { code: 'ASSET_ARCHIVE_FAILED' });
+      let archived;
+      try { archived = await archiveAsset({ ...result, batchId: body.batchId, draftId: body.draftId }); } catch (cause) {
+        const error = new Error('Content Library could not archive the Flow asset.');
+        error.code = 'ASSET_ARCHIVE_FAILED'; error.cause = cause; throw error;
+      }
+      result.archive = portableLibraryRefs(archived);
+      result.receipt = archived.receipt;
+      delete result.asset.inline_data;
+    }
+    return result;
+  };
+
+  const startVisualJob = (body, existing) => {
+    const at = new Date(now()).toISOString();
+    const job = existing || { id: visualJobId(body), createdAt: at };
+    job.status = 'running'; job.updatedAt = at; delete job.result; delete job.error;
+    visualJobs.set(job.id, job);
+    const timer = setTimeout(() => {
+      if (job.status === 'running') {
+        job.status = 'error'; job.updatedAt = new Date(now()).toISOString();
+        job.error = { code: 'VISUAL_JOB_TIMEOUT', message: 'Visual job exceeded its Companion lease.', retryable: true };
+        retireVisualJob(job);
+      }
+    }, visualJobTimeoutMs);
+    timer.unref?.();
+    Promise.resolve().then(() => executeVisual(body)).then((result) => {
+      if (job.status !== 'running') return;
+      clearTimeout(timer); job.status = 'done'; job.result = result; job.updatedAt = new Date(now()).toISOString(); retireVisualJob(job);
+    }, (error) => {
+      if (job.status !== 'running') return;
+      clearTimeout(timer); job.status = 'error'; job.updatedAt = new Date(now()).toISOString();
+      job.error = { code: String(error && error.code || 'VISUAL_JOB_FAILED'), message: error instanceof Error ? error.message : 'Visual job failed.', retryable: error && error.retryable === true };
+      retireVisualJob(job);
+    });
+    return job;
   };
   return http.createServer(async (req, res) => {
     const requestOrigin = req.headers.origin || '';
@@ -196,17 +258,36 @@ export function createCompanionServer({
         if (!contextProvider) throw new Error('No OS context provider is configured.');
         return json(res, 200, await contextProvider(), auth.origin);
       }
+      if (req.method === 'POST' && req.url === '/v1/flow/jobs') {
+        const body = await requestBody(req);
+        if (!body.batchId || !body.draftId || !body.visualJob || !body.visualJob.clientRef) {
+          throw Object.assign(new Error('Visual job requires batchId, draftId, and visualJob.clientRef.'), { code: 'VALIDATION_ERROR' });
+        }
+        const id = visualJobId(body);
+        let job = visualJobs.get(id);
+        if (!job || (job.status === 'error' && body.restart === true)) job = startVisualJob(body, job);
+        return json(res, job.status === 'running' ? 202 : 200, publicVisualJob(job), auth.origin);
+      }
+      const visualJobMatch = req.url && req.url.match(/^\/v1\/flow\/jobs\/(visual-[a-f0-9]{24})$/);
+      if (req.method === 'GET' && visualJobMatch) {
+        const job = visualJobs.get(visualJobMatch[1]);
+        if (!job) return json(res, 404, errorEnvelope(Object.assign(new Error('Visual job was not found.'), { code: 'VISUAL_JOB_NOT_FOUND' })), auth.origin);
+        return json(res, 200, publicVisualJob(job), auth.origin);
+      }
+      const visualCancelMatch = req.url && req.url.match(/^\/v1\/flow\/jobs\/(visual-[a-f0-9]{24})\/cancel$/);
+      if (req.method === 'POST' && visualCancelMatch) {
+        await requestBody(req);
+        const job = visualJobs.get(visualCancelMatch[1]);
+        if (job && job.status === 'running') {
+          job.status = 'cancelled'; job.updatedAt = new Date(now()).toISOString();
+          if (flow && typeof flow.callTool === 'function') await flow.callTool('cancel_job', {}).catch(() => {});
+          retireVisualJob(job);
+        }
+        return json(res, 200, { jobId: visualCancelMatch[1], status: job && job.status || 'not_found' }, auth.origin);
+      }
       if (req.method === 'POST' && req.url === '/v1/flow/generate') {
         const body = await requestBody(req);
-        const result = await runVisual({ flow, visualJob: body.visualJob });
-        if (['asset_ready', 'asset_needs_review'].includes(result.status) && result.asset && archiveAsset) {
-          if (!body.batchId || !body.draftId) throw new Error('batchId and draftId are required to archive a ready asset.');
-          const archived = await archiveAsset({ ...result, batchId: body.batchId, draftId: body.draftId });
-          result.archive = portableLibraryRefs(archived);
-          result.receipt = archived.receipt;
-          delete result.asset.inline_data;
-        }
-        return json(res, 200, result, auth.origin);
+        return json(res, 200, await executeVisual(body), auth.origin);
       }
       if (req.method === 'POST' && req.url === '/v1/flow/cancel') {
         const body = await requestBody(req);
@@ -216,7 +297,13 @@ export function createCompanionServer({
       }
       if (req.method === 'POST' && req.url === '/v1/library/package') {
         if (!writePackage) throw Object.assign(new Error('No Content Library writer is configured.'), { code: 'LIBRARY_UNAVAILABLE' });
-        return json(res, 200, portableLibraryRefs(await writePackage(await requestBody(req))), auth.origin);
+        try {
+          return json(res, 200, portableLibraryRefs(await writePackage(await requestBody(req))), auth.origin);
+        } catch (cause) {
+          if (cause && cause.code) throw cause;
+          const error = new Error('Content Library package write failed.');
+          error.code = 'CONTENT_LIBRARY_FAILED'; error.cause = cause; throw error;
+        }
       }
       return json(res, 404, errorEnvelope(Object.assign(new Error('Unknown Companion endpoint.'), { code: 'ENDPOINT_NOT_FOUND' })), auth.origin);
     } catch (error) {

@@ -64,7 +64,7 @@
       'You are SEOSONA Content. Produce one Facebook Group draft package for Vietnamese SEO and marketing practitioners.',
       `Brand: ${snapshot.brand.name}. Voice: ${(snapshot.brand.voice || []).join(', ')}.`,
       `Group audience: ${snapshot.group.audience}. Language: Vietnamese. Topic: ${String(topic)}.`,
-      'Use only the evidence IDs below for factual claims. If evidence is insufficient, write an educational opinion without unsupported factual claims.',
+      'Use only the evidence IDs below for factual claims. In claims[].text, copy the exact supported claim from the evidence packet, and include that exact claim verbatim as its own sentence in copy; never paraphrase or reverse its meaning. If evidence is insufficient, write an explicitly framed educational opinion without unsupported factual claims.',
       'Return ONLY valid JSON, with no prose and no markdown fence.',
       'Required JSON schema: {"idea":"...","copy":"Vietnamese post body","cta":"...","claims":[{"text":"claim","evidenceId":"evidence-id"}],"creativeBrief":{"visualPrompt":"English image prompt, editorial, no text in image","ratio":"1:1","mode":"lightEditorial","component":"explain_light"}}.',
       `Evidence packet: ${JSON.stringify(evidence)}`,

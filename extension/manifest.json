@@ -16,7 +16,8 @@
     "scripting",
     "downloads",
     "notifications",
-    "contextMenus"
+    "contextMenus",
+    "alarms"
   ],
   "host_permissions": [
     "*://chatgpt.com/*",

@@ -29,9 +29,9 @@ Số lượng không khóa cứng ở 5. OS công bố `defaultBatchSize`, `minB
 5. Mỗi ý tưởng trở thành một `DraftJob` với `client_ref = batchId/postId/r1`.
 6. Content viết DraftPackage tiếng Việt, sau đó chạy claim/evidence, brand, cấu trúc và copy QA. Draft không đạt bị chặn trước khi gọi Flow.
 7. Companion bắt tay Flow theo thứ tự: `health` → kiểm `contract_version` → `list_capabilities` → `get_provider_status`.
-8. Companion gọi `gen_image` với capability hợp lệ, `client_ref` và `quality_gate`.
+8. Content gửi visual qua `POST /v1/flow/jobs`; Companion trả job ID ngay rồi gọi `gen_image`, quality retry, export và archive trong process local. Service worker chỉ dùng request ngắn và `chrome.alarms` để poll.
 9. Ảnh đạt được export và lưu vào Content Library. Ảnh `judged:false` chuyển `asset_needs_review`. Ảnh đã chấm và fail chỉ được sửa prompt/tạo lại tối đa policy retry limit; mỗi lần dùng revision mới.
-10. Content Library lưu batch manifest, context snapshot, từng DraftPackage, asset và receipt. Chrome storage chỉ giữ state nhỏ và logical refs, không giữ binary.
+10. Content Library lưu batch manifest, context snapshot, từng DraftPackage, asset và receipt. Chrome storage chỉ giữ state nhỏ, Companion job ID và logical refs, không giữ binary.
 
 ## 4. State machine
 

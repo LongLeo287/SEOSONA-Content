@@ -8,9 +8,10 @@
 
   if (!Factory || !Batch || !State) throw new Error('Facebook Factory, Batch, and State must load before the orchestrator.');
   const BATCH_HALTING_ERRORS = new Set([
-    'DAILY_QUOTA_EXCEEDED', 'PROVIDER_NOT_LOGGED_IN', 'PROVIDER_TAB_NOT_READY', 'PROJECT_NOT_FOUND',
+    'DAILY_QUOTA_EXCEEDED', 'PROVIDER_NOT_LOGGED_IN', 'PROVIDER_TAB_NOT_READY', 'PROJECT_NOT_FOUND', 'WRONG_PROJECT',
     'INCOMPATIBLE_FLOW_CONTRACT', 'FLOW_EXTENSION_DISCONNECTED', 'FLOW_UNAVAILABLE', 'VALIDATION_ERROR',
-    'CAPABILITIES_UNAVAILABLE', 'PROVIDER_STATUS_UNAVAILABLE',
+    'CAPABILITIES_UNAVAILABLE', 'PROVIDER_STATUS_UNAVAILABLE', 'LIBRARY_UNAVAILABLE', 'CONTENT_LIBRARY_FAILED',
+    'ASSET_ARCHIVE_FAILED', 'COMPANION_UNAVAILABLE',
   ]);
 
   function normalizeError(error, fallbackCode) {
@@ -115,13 +116,8 @@
       return dispatchCopy(draft, prompt);
     }
 
-    async function processVisual(draft) {
+    async function finalizeVisual(draft, visual) {
       try {
-        const visual = await deps.companion('/v1/flow/generate', {
-          batchId: current.id,
-          draftId: draft.id,
-          visualJob: draft.package.visualJob,
-        });
         if (current.status === 'cancelled') return current;
         if (!visual || !['asset_ready', 'asset_needs_review'].includes(visual.status)) throw new Error('Companion returned an unknown visual status.');
         let next = State.transition(current, {
@@ -150,6 +146,7 @@
           snapshot: current.contextSnapshot,
           draft: durableDraft,
         }));
+        if (current.status === 'cancelled') return current;
         const completedDraft = next.drafts.find((item) => item.id === draft.id);
         completedDraft.packageReceipt = packageReceipt;
         await commit(next);
@@ -163,6 +160,36 @@
       }
       if (['completed', 'needs_review', 'failed'].includes(current.status)) return current;
       return startNextDraft(false);
+    }
+
+    async function processVisual(draft) {
+      try {
+        const response = await deps.companion('/v1/flow/jobs', {
+          batchId: current.id,
+          draftId: draft.id,
+          visualJob: draft.package.visualJob,
+          restart: !draft.companionJobId,
+        });
+        if (current.status === 'cancelled') return current;
+        if (!response || !response.jobId || !['running', 'done', 'error', 'cancelled'].includes(response.status)) {
+          throw Object.assign(new Error('Companion returned an invalid asynchronous visual job.'), { code: 'COMPANION_JOB_INVALID' });
+        }
+        if (!draft.companionJobId) {
+          await commit(transition({ type: 'VISUAL_SUBMITTED', draftId: draft.id, jobId: response.jobId }));
+          if (current.status === 'cancelled') return current;
+          draft = current.drafts.find((item) => item.id === draft.id);
+        }
+        if (response.status === 'running') return current;
+        if (response.status === 'done') return finalizeVisual(draft, response.result);
+        const remote = response.error || { code: response.status === 'cancelled' ? 'VISUAL_JOB_CANCELLED' : 'VISUAL_JOB_FAILED', message: 'Companion visual job did not complete.' };
+        const error = new Error(remote.message); Object.assign(error, remote); throw error;
+      } catch (error) {
+        if (current.status === 'cancelled') return current;
+        const normalized = normalizeError(error, 'VISUAL_JOB_FAILED');
+        if (BATCH_HALTING_ERRORS.has(normalized.code)) return commit(transition({ type: 'BATCH_HALTED', draftId: draft.id, error: normalized }));
+        await commit(transition({ type: 'DRAFT_FAILED', draftId: draft.id, error: normalized }));
+        return startNextDraft(false);
+      }
     }
 
     async function start({ requestedCount, provider }) {
@@ -214,6 +241,7 @@
           expectedLanguage: current.contextSnapshot.policy.copyLanguage || current.contextSnapshot.group.language || null,
           contextRevision: current.contextRevision,
           brandProfile: current.contextSnapshot.brand,
+          requiredEvidence: current.contextSnapshot.policy.requiredEvidence === true,
         });
         if (!gate.ok) {
           await commit(transition({ type: 'COPY_BLOCKED', draftId, issues: gate.issues }));
@@ -271,7 +299,9 @@
         await deps.providerAbort({ jobId: active.jobId }).catch(() => {});
       }
       if (active && active.kind === 'visual') {
-        await deps.companion('/v1/flow/cancel', {}).catch(() => {});
+        const draft = current.drafts.find((item) => item.id === active.draftId);
+        const id = active.jobId || draft && draft.companionJobId;
+        if (id) await deps.companion('/v1/flow/jobs/' + encodeURIComponent(id) + '/cancel', {}).catch(() => {});
       }
       return current;
     }

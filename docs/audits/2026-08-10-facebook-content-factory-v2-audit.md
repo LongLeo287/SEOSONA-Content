@@ -12,15 +12,15 @@ The implementation is structurally ready for V1 use. All offline and simulated a
 
 There are no open P0 or P1 implementation issues. Two P2 gates remain: populate the OS evidence packet for factual content and run one authenticated local acceptance batch.
 
-Independent review found six P1 release blockers and two P2 hardening gaps. All were fixed before integration: factual sentences require a related claim and claim-to-evidence semantic match; review-required images are archived; final package manifests are written from final state; runtime paths are stripped; provider jobs are deduplicated across concurrent/service-worker resume; cancellation is persisted before remote cleanup; quota/auth/infrastructure failures halt the batch; Flow 1.1 is committed; image filenames cannot collide with package JSON; and release audit fails closed when Flow or BrandKit roots are absent.
+Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, portability, and release-gate defects. All in-scope P1/P2 findings were fixed before integration. Claim text must equal the canonical evidence claim and appear verbatim as its own sentence in copy; V1 does not authorize factual paraphrases through heuristic similarity. Visual work runs asynchronously in Companion and is polled by Chrome alarms. Provider leases refresh on each retry/ack and recover stale jobs. Cancellation is checked after long boundaries. Infrastructure/archive/library failures halt the batch. Brand voice has an independent copy-QA verdict. Review-required images remain archived, runtime paths remain stripped, filenames cannot collide, Flow 1.1 is committed, and release audit fails closed.
 
 ## Verified Architecture
 
 1. OS owns the versioned brand, group, policy, and evidence sources. Batch size defaults to 5 and is constrained to 1 through 20; publishing remains explicitly unsupported.
 2. Content owns idea generation, Vietnamese copy, evidence and brand gates, immutable context snapshots, state, retries, and final package indexing.
-3. The background service worker persists every transition and resumes idea, copy, and visual work after the UI closes or the worker restarts. It reconciles provider session status before dispatching and serializes concurrent resume/result operations.
+3. The background service worker persists every transition and resumes idea, copy, and visual work after the UI closes or the worker restarts. Long Flow work lives in an idempotent Companion job; the worker uses short submit/poll requests and `chrome.alarms`. Provider records have deadline/tab-liveness leases, and concurrent resume/result operations are serialized.
 4. Companion accepts only allowlisted extension origins with a bearer token and single-use nonce. It exposes health, context, visual, cancel, and package endpoints.
-5. Companion negotiates Flow contract 1.1.x through health, capabilities, and provider readiness. Transport retries keep the same client reference; only judged quality failures create revisions, at most twice.
+5. Companion negotiates Flow contract 1.1.x through health, capabilities, and provider readiness. Its stable visual job ID prevents duplicate generation across worker or Companion restart. Transport retries keep the same client reference; only judged quality failures create revisions, at most twice.
 6. Flow remains the pixel worker through its official local MCP process. Content does not access Flow's privileged executor bridge directly.
 7. Video remains the physical BrandKit owner. The canonical digest, version 1.0.0, Be Vietnam Pro typography, palette, components, negative rules, and 48 referenced assets validate against OS.
 8. Content Library stores portable batch/context/draft files, the archived image, and a provenance receipt. Chrome storage contains only copy, state, previews, and logical references, never image binary.
@@ -29,12 +29,12 @@ Independent review found six P1 release blockers and two P2 hardening gaps. All 
 
 | Gate | Result |
 |---|---|
-| Content tests | 59/59 passed, including contracts, claim/evidence relation, auth/replay, Flow handshake, quality retry, package traversal/collision, halt, cancel, concurrent resume, and simulated batches of 1, 5, and 20 |
+| Content tests | 75/75 passed, including canonical verbatim claim enforcement, brand QA, auth/replay, asynchronous Companion jobs, MV3 alarm resume, refreshed provider lease, Flow handshake, quality retry, package traversal/collision, halt, cancel race, and simulated batches of 1, 5, and 20 |
 | Content doctor | Connected; all checks passed |
 | Cross-project release audit | Strict mode passed 7/7 with explicit OS, Video, and Flow roots; missing roots fail release verification |
 | OS contracts | 6 passed; live BrandKit test skipped only in the standalone command because its environment variable was not set; the cross-project digest audit passed |
 | OS doctor | Exit 0; pre-existing warnings for missing `.clauderules` and `.cursorrules` |
-| Video BrandKit | Valid; 48 assets checked; canonical digest matched OS |
+| Video BrandKit | Valid; all 48 manifest assets checked and tracked in the release merge; canonical digest matched OS |
 | Video doctor | Connected; all checks passed |
 | Flow static | 541 JavaScript files, 22 JSON files, and all declared HTML/manifest resources passed |
 | Flow unit | 1,345 passed |

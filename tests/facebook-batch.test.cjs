@@ -18,6 +18,8 @@ test('builds a weekly batch prompt that requires JSON, Vietnamese copy, and evid
   assert.match(prompt, /evidence-1/);
   assert.match(prompt, /creativeBrief/);
   assert.match(prompt, /JSON/i);
+  assert.match(prompt, /exact supported claim/i);
+  assert.match(prompt, /verbatim.*own sentence/i);
 });
 
 test('builds and parses exactly the requested number of distinct ideas', () => {
