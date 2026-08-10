@@ -29,18 +29,18 @@
     {
       "id": "FCF-004",
       "severity": "P2",
-      "status": "open",
-      "evidence": "The OS evidence packet is currently empty. The claim gate correctly blocks unsupported factual claims, so output is limited to educational or opinion content until verified sources are added.",
+      "status": "closed",
+      "evidence": "SEOSONA OS now publishes 13 atomic canonical claims from current official Google Search documentation, with source metadata, verification date, revalidation date, and tests that enforce reviewable records and verbatim claim mapping.",
       "owner": "seosona-os",
-      "gate": "Add reviewed evidence entries before allowing factual claims."
+      "gate": "OS evidence packet tests 9/9 and Content strict cross-project audit 7/7."
     },
     {
       "id": "FCF-005",
       "severity": "P2",
       "status": "external_pending",
-      "evidence": "No Companion/Flow tokens, runtime paths, or listener were active in the audit shell, so a real provider image and five-package readback could not be executed.",
+      "evidence": "Live Flow contract 1.1.0, extension connection, project context, provider readiness, idempotency, and one real image were verified. The bridge still reports auth:none; quality backfill returned judged:false, and no authenticated Companion batch or five-package Content Library readback has completed.",
       "owner": "local-runtime",
-      "gate": "Start Companion with local secrets, load the Content extension, log in to Flow provider, then complete and read back one live batch."
+      "gate": "Configure the same non-empty local MCP token in Flow and Companion, then complete and read back one live batch through Content."
     },
     {
       "id": "FCF-006",
@@ -197,10 +197,18 @@
     {
       "id": "FCF-025",
       "severity": "P3",
-      "status": "open",
-      "evidence": "The Video dependency audit reports 13 transitive advisories (5 moderate and 8 high), primarily through HyperFrames 0.7.24. Video is not executed in the V1 runtime; Content reads only the validated static BrandKit assets.",
+      "status": "closed",
+      "evidence": "SEOSONA Video now uses HyperFrames 0.7.104 and compatible companion packages. The production dependency audit reports zero vulnerabilities; BrandKit validation, Video integration audit, doctor, HyperFrames check, and a strict ten-second MP4 render passed.",
       "owner": "seosona-video",
-      "gate": "Upgrade HyperFrames and affected transitive packages in an isolated compatibility workstream, then rerun the full Video test and render suite."
+      "gate": "npm audit --omit=dev, brand:validate, video:audit:integration, seosona:doctor, HyperFrames check, and strict render smoke."
+    },
+    {
+      "id": "FCF-026",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Live generation exposed that MCP incorrectly required the user-facing Pipeline Queue toggle. Flow commit d7e6161 now requires only the loaded PromptQueue implementation; its regression test passed and the same stable client_ref generated one real image without enabling the UI toggle.",
+      "owner": "seosona-flow",
+      "gate": "mcp-flow-queue-toggle.test.mjs plus live gen_image receipt."
     }
   ]
 }

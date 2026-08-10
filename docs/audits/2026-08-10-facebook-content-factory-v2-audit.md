@@ -8,13 +8,13 @@
 
 ## Verdict
 
-The implementation is structurally ready for V1 use. All offline and simulated acceptance gates pass. The remaining live gate is environmental: the audit shell had no Companion token, Flow MCP token, runtime paths, extension connection, or provider session, so a real image-provider batch was not fabricated or reported as passed.
+The implementation is structurally ready for V1 use. All offline and simulated acceptance gates pass. Live probing also confirmed the Flow 1.1 bridge, an attached extension, a ready Google Flow project, stable `client_ref` idempotency, and one real generated image. The remaining live gate is the authenticated Content-to-Companion path: no shared local MCP token is configured, the live quality backfill returned `judged:false`, and no five-package Content Library batch was fabricated or reported as passed.
 
-There are no open P0 or P1 implementation issues. Two P2 gates remain: populate the OS evidence packet for factual content and run one authenticated local acceptance batch.
+There are no open P0 or P1 implementation issues. One P2 gate remains: configure the shared local token and run one authenticated local acceptance batch through Content Companion.
 
-One non-blocking P3 dependency-hygiene issue remains outside the V1 runtime: SEOSONA Video's HyperFrames 0.7.24 dependency tree reports 13 transitive advisories. V1 reads only validated static BrandKit assets from Video, so this does not expose the Content Factory runtime. It should be handled as a separate compatibility upgrade instead of forcing a breaking package update during this integration.
+The former Video dependency-hygiene issue is closed. HyperFrames and its companion packages were upgraded from 0.7.24 to 0.7.104 without a forced major update; the production dependency audit now reports zero known vulnerabilities, the integration audit passes, and a strict draft render produced a valid ten-second MP4.
 
-Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, portability, and release-gate defects. All in-scope P1/P2 findings were fixed before integration. Claim text must equal the canonical evidence claim and appear verbatim as its own sentence in copy; V1 does not authorize factual paraphrases through heuristic similarity. Visual work runs asynchronously in Companion and is polled by Chrome alarms. Provider leases refresh on each retry/ack and recover stale jobs. Cancellation is checked after long boundaries. Infrastructure/archive/library failures halt the batch. Brand voice has an independent copy-QA verdict. Review-required images remain archived, runtime paths remain stripped, filenames cannot collide, Flow 1.1 is committed, and release audit fails closed.
+Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, portability, and release-gate defects. All in-scope P1/P2 findings were fixed before integration. Live acceptance then found that MCP image generation incorrectly depended on the user-facing Pipeline Queue toggle; Flow commit `d7e6161` removed that coupling, added a regression test, and the same live `client_ref` subsequently generated exactly one image. Claim text must equal the canonical evidence claim and appear verbatim as its own sentence in copy; V1 does not authorize factual paraphrases through heuristic similarity. Visual work runs asynchronously in Companion and is polled by Chrome alarms. Provider leases refresh on each retry/ack and recover stale jobs. Cancellation is checked after long boundaries. Infrastructure/archive/library failures halt the batch. Brand voice has an independent copy-QA verdict. Review-required images remain archived, runtime paths remain stripped, filenames cannot collide, Flow 1.1 is committed, and release audit fails closed.
 
 ## Verified Architecture
 
@@ -34,17 +34,17 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 | Content tests | 75/75 passed, including canonical verbatim claim enforcement, brand QA, auth/replay, asynchronous Companion jobs, MV3 alarm resume, refreshed provider lease, Flow handshake, quality retry, package traversal/collision, halt, cancel race, and simulated batches of 1, 5, and 20 |
 | Content doctor | Connected; all checks passed |
 | Cross-project release audit | Strict mode passed 7/7 with explicit OS, Video, and Flow roots; missing roots fail release verification |
-| OS contracts | 7/7 passed, including the live Video BrandKit digest and configurable batch policy |
+| OS contracts | 9/9 passed, including the live Video BrandKit digest, configurable batch policy, and 13-record verified evidence packet |
 | OS doctor | Healthy; connector, language, security (44 tests), capability bridge, and knowledge checks passed |
 | Video BrandKit | Valid; all 48 manifest assets checked and tracked in the release merge; canonical digest matched OS |
 | Video doctor | Connected; all checks passed |
-| Video dependency audit | 13 transitive advisories remain (5 moderate, 8 high); tracked as non-runtime P3 FCF-025 |
-| Flow static | 541 JavaScript files, 22 JSON files, and all declared HTML/manifest resources passed |
-| Flow unit | 1,345 passed |
+| Video dependency and render compatibility | HyperFrames 0.7.104; production audit reports 0 vulnerabilities; integration audit and strict ten-second draft MP4 render passed |
+| Flow static | JavaScript syntax, 22 JSON files, and all declared HTML/manifest resources passed |
+| Flow queue regression | 1/1 targeted test passed; a live image succeeded after the fix |
 | Flow MCP contracts | Normalization, validation, quality, integration, persistence/idempotency, and quality backfill passed |
-| Flow MCP source state | Contract 1.1.0 and its quality tests committed in `f5044ae` |
+| Flow MCP source state | Contract 1.1.0 and quality tests committed in `f5044ae`; UI-toggle independence committed in `d7e6161` |
 | Flow doctor | Connected; all checks passed |
-| Live provider acceptance | Pending external runtime configuration; not claimed as passed |
+| Live provider acceptance | Partial: extension connected, provider ready, project created, and image `83660185-216d-432c-bdde-6b1ed0459db8` generated once; bridge reported `auth:none`, quality remained unjudged, and Companion package readback is still pending |
 
 ## Security and Portability Review
 
@@ -57,8 +57,7 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 
 ## Remaining Actions
 
-1. Add reviewed evidence records to the OS evidence packet before expecting factual or numerical Facebook posts.
-2. Start the local Companion with the documented environment values, ensure the Flow extension/provider is ready, and complete one real batch with asset readback.
-3. Upgrade and compatibility-test the Video HyperFrames dependency tree separately; do not use a forced major update without render regression tests.
+1. Configure the same non-empty `SEOSONA_LOCAL_MCP_TOKEN` in the Flow extension and Content Companion runtime.
+2. Run one authenticated Content batch at the requested size, require judged visual results or explicit review state, and read every package back from Content Library.
 
 The machine-readable registry is `2026-08-10-facebook-content-factory-v2-issues.json` in this directory.
