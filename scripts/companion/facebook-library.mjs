@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve, relative, join, basename } from 'node:path';
 
 function inside(root, candidate) {
@@ -18,7 +18,23 @@ async function sha256(filePath) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export async function ingestExportedAsset({ downloadsRoot, libraryRoot, exportInfo, batchId, draftId, asset, quality = null, retryCount = 0, promptRevision = 1, brandKitRef = null }) {
+function logicalRef(...segments) {
+  return 'content-library://' + segments.map((segment) => String(segment).replace(/\\/g, '/')).join('/');
+}
+
+async function writeJsonAtomic(filePath, value) {
+  const temporary = filePath + '.tmp-' + randomUUID();
+  await writeFile(temporary, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  try {
+    await rename(temporary, filePath);
+  } catch (error) {
+    if (!['EEXIST', 'EPERM'].includes(error && error.code)) throw error;
+    await rm(filePath, { force: true });
+    await rename(temporary, filePath);
+  }
+}
+
+export async function ingestExportedAsset({ downloadsRoot, libraryRoot, exportInfo, batchId, draftId, asset, quality = null, retryCount = 0, promptRevision = 1, brandKitRef = null, flowContractVersion = null }) {
   if (!downloadsRoot || !libraryRoot) throw new Error('Both Flow download root and Content Library root are required.');
   if (!exportInfo || !exportInfo.folder || !exportInfo.file_name) throw new Error('Flow export info requires folder and file_name.');
   if (!asset || !asset.asset_id) throw new Error('Asset id is required.');
@@ -34,23 +50,56 @@ export async function ingestExportedAsset({ downloadsRoot, libraryRoot, exportIn
   if (fileName !== String(exportInfo.file_name) || !fileName) throw new Error('Asset file name is invalid.');
 
   await mkdir(targetDir, { recursive: true });
-  const fileRef = join(targetDir, fileName);
-  await copyFile(source, fileRef);
+  const runtimeFileRef = join(targetDir, fileName);
+  const fileRef = logicalRef(batchId, draftId, fileName);
+  await copyFile(source, runtimeFileRef);
   const receipt = {
     contractVersion: '1.0',
     id: `${batchId}/${draftId}/${asset.asset_id}`,
     assetId: asset.asset_id,
     kind: asset.kind || 'image',
     provider: asset.provider || 'flow',
-    sourceUrl: asset.url || null,
     fileRef,
-    sha256: await sha256(fileRef),
+    sha256: await sha256(runtimeFileRef),
     quality,
     retryCount,
     promptRevision,
     ...(brandKitRef ? { brandKitRef } : {}),
+    ...(flowContractVersion ? { flowContractVersion } : {}),
   };
-  const receiptRef = join(targetDir, `${fileName}.receipt.json`);
-  await writeFile(receiptRef, JSON.stringify(receipt, null, 2) + '\n', 'utf8');
-  return { fileRef, receiptRef, receipt };
+  const runtimeReceiptRef = join(targetDir, `${fileName}.receipt.json`);
+  const receiptRef = logicalRef(batchId, draftId, `${fileName}.receipt.json`);
+  await writeJsonAtomic(runtimeReceiptRef, receipt);
+  return { fileRef, receiptRef, runtimeFileRef, runtimeReceiptRef, receipt };
+}
+
+export async function writeBatchPackage({ libraryRoot, batch, snapshot, draft }) {
+  if (!libraryRoot) throw new Error('Content Library root is required.');
+  if (!batch || !snapshot || !draft) throw new Error('Batch, context snapshot, and draft are required.');
+  const batchId = safeSegment(batch.id, 'Batch id');
+  const draftId = safeSegment(draft.id, 'Draft id');
+  if (!batch.contextRevision || batch.contextRevision !== snapshot.contextRevision) {
+    throw new Error('Batch and context snapshot revisions must match.');
+  }
+  const root = resolve(libraryRoot);
+  const batchDir = resolve(root, batchId);
+  const draftDir = resolve(batchDir, draftId);
+  if (!inside(root, batchDir) || !inside(root, draftDir)) throw new Error('Content Library package must stay inside the library root.');
+  await mkdir(draftDir, { recursive: true });
+
+  const runtimeBatchRef = join(batchDir, 'batch.json');
+  const runtimeContextRef = join(batchDir, 'context.snapshot.json');
+  const runtimeDraftRef = join(draftDir, 'draft.json');
+  await writeJsonAtomic(runtimeBatchRef, batch);
+  await writeJsonAtomic(runtimeContextRef, snapshot);
+  await writeJsonAtomic(runtimeDraftRef, draft);
+
+  return {
+    batchRef: logicalRef(batchId, 'batch.json'),
+    contextRef: logicalRef(batchId, 'context.snapshot.json'),
+    draftRef: logicalRef(batchId, draftId, 'draft.json'),
+    runtimeBatchRef,
+    runtimeContextRef,
+    runtimeDraftRef,
+  };
 }

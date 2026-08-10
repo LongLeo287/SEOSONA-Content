@@ -154,7 +154,6 @@ test('normalizes an asset receipt without retaining image binary data', () => {
     kind: 'image',
     fileName: 'post-01.png',
     provider: 'flow',
-    sourceUrl: 'https://provider.example/asset-1',
     quality: { judged: true, pass: true, score: 8.5, verdict: 'good', action: 'accept', critical: [] },
     retryCount: 0,
     promptRevision: 1,

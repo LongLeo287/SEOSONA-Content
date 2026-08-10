@@ -155,7 +155,6 @@
       kind: asset.kind,
       fileName: asset.file_name,
       provider: asset.provider,
-      sourceUrl: asset.url,
       quality: canonicalize(quality || null),
       retryCount: Number.isInteger(retryCount) ? retryCount : 0,
       promptRevision: Number.isInteger(promptRevision) && promptRevision > 0 ? promptRevision : 1,

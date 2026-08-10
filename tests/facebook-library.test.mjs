@@ -25,15 +25,19 @@ test('copies a Flow export into the Content Library and writes a provenance rece
     brandKitRef: { ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json', version: '1.0.0', sha256: '4ecb0a7ac2d49c65d96739f2fa31492863c716b477868b130142c482d289a927' },
   });
 
-  assert.match(result.fileRef, /week-2026-33[\\/]post-01[\\/]post-01\.png$/);
-  assert.equal(await readFile(result.fileRef, 'utf8'), 'png-bytes');
-  const receipt = JSON.parse(await readFile(result.receiptRef, 'utf8'));
+  assert.equal(result.fileRef, 'content-library://week-2026-33/post-01/post-01.png');
+  assert.equal(result.receiptRef, 'content-library://week-2026-33/post-01/post-01.png.receipt.json');
+  assert.equal(await readFile(result.runtimeFileRef, 'utf8'), 'png-bytes');
+  const receipt = JSON.parse(await readFile(result.runtimeReceiptRef, 'utf8'));
   assert.equal(receipt.assetId, 'asset-1');
   assert.equal(receipt.retryCount, 1);
   assert.equal(receipt.promptRevision, 2);
   assert.equal(receipt.brandKitRef.version, '1.0.0');
   assert.match(receipt.brandKitRef.sha256, /^[a-f0-9]{64}$/);
   assert.match(receipt.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(receipt.fileRef, result.fileRef);
+  assert.equal('sourceUrl' in receipt, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /provider\.example|[A-Z]:\\\\/i);
 });
 
 test('rejects a path that escapes the Flow download root', async () => {
