@@ -54,20 +54,36 @@
     return freeze(snapshot);
   }
 
-  function createWeeklyBatch({ id, snapshot, topics }) {
+  function resolveBatchSize(policy, requestedCount) {
+    const configured = policy && policy.batchSize || {};
+    const fallback = Number.isInteger(policy && policy.cadencePerWeek) ? policy.cadencePerWeek : 5;
+    const minimum = Number.isInteger(configured.min) ? configured.min : 1;
+    const maximum = Number.isInteger(configured.max) ? configured.max : Math.max(fallback, 20);
+    const defaultSize = Number.isInteger(configured.default) ? configured.default : fallback;
+    const size = requestedCount == null || requestedCount === '' ? defaultSize : Number(requestedCount);
+    assert(Number.isInteger(size), 'Requested batch size must be an integer.');
+    assert(size >= minimum && size <= maximum, 'Requested batch size must be between ' + minimum + ' and ' + maximum + '.');
+    return size;
+  }
+
+  function createWeeklyBatch({ id, snapshot, topics, ideas }) {
     assert(id, 'Batch id is required.');
     assert(snapshot && snapshot.contextRevision, 'A context snapshot is required.');
-    assert(Array.isArray(topics) && topics.length === 5, 'Weekly batches require exactly five topics.');
+    const source = Array.isArray(ideas) ? ideas : Array.isArray(topics)
+      ? topics.map((topic) => ({ title: String(topic), angle: '' })) : [];
+    assert(source.length > 0, 'A batch requires at least one generated idea.');
     return freeze({
       contractVersion: '1.0',
       id,
       contextRevision: snapshot.contextRevision,
+      requestedCount: source.length,
       status: 'queued',
-      drafts: topics.map((topic, index) => {
+      drafts: source.map((idea, index) => {
         const postId = 'post-' + String(index + 1).padStart(2, '0');
         return freeze({
           id: postId,
-          topic: String(topic),
+          topic: String(idea && idea.title || ''),
+          angle: String(idea && idea.angle || ''),
           status: 'idea_queued',
           revision: 1,
           clientRef: id + '/' + postId + '/r1',
@@ -124,7 +140,9 @@
 
   function nextAssetAction(quality, retryCount) {
     const retries = Number.isInteger(retryCount) && retryCount >= 0 ? retryCount : 0;
-    if (!quality || quality.judged !== true || quality.pass !== false) return { type: 'asset_needs_review', retryCount: retries };
+    if (!quality || quality.judged !== true) return { type: 'asset_needs_review', retryCount: retries };
+    if (quality.pass === true) return { type: 'asset_ready', retryCount: retries };
+    if (quality.pass !== false) return { type: 'asset_needs_review', retryCount: retries };
     if (!['rewrite_prompt', 'regen_image'].includes(quality.action) || retries >= 2) return { type: 'asset_needs_review', retryCount: retries };
     return { type: 'retry', retryCount: retries + 1 };
   }
@@ -146,5 +164,5 @@
     return freeze(receipt);
   }
 
-  return { createContextSnapshot, createWeeklyBatch, validateDraftPackage, nextAssetAction, createAssetReceipt };
+  return { createContextSnapshot, resolveBatchSize, createWeeklyBatch, validateDraftPackage, nextAssetAction, createAssetReceipt };
 });

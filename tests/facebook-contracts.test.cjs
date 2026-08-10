@@ -8,7 +8,7 @@ const Factory = require('../extension/lib/facebook-factory.js');
 const BASE_CONTEXT = {
   brand: { id: 'seosona', name: 'SEOSONA', voice: ['practical', 'evidence-led'] },
   group: { id: 'seo-marketers-vn', language: 'vi', audience: 'SEO and marketing practitioners in Vietnam' },
-  policy: { requiredEvidence: true, cadencePerWeek: 5 },
+  policy: { requiredEvidence: true, cadencePerWeek: 5, batchSize: { default: 5, min: 1, max: 20 } },
   evidence: [{ id: 'e1', claim: 'Google Search Central documentation was reviewed.', source: 'https://developers.google.com/search' }],
   brandKitSnapshot: {
     ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json',
@@ -49,6 +49,28 @@ test('creates exactly five draft jobs for a weekly Facebook batch', () => {
     'week-2026-33/post-04/r1',
     'week-2026-33/post-05/r1',
   ]);
+});
+
+test('resolves a requested batch size against the OS policy', () => {
+  assert.equal(Factory.resolveBatchSize(BASE_CONTEXT.policy), 5);
+  assert.equal(Factory.resolveBatchSize(BASE_CONTEXT.policy, 1), 1);
+  assert.equal(Factory.resolveBatchSize(BASE_CONTEXT.policy, 20), 20);
+  assert.throws(() => Factory.resolveBatchSize(BASE_CONTEXT.policy, 0), /between 1 and 20/i);
+  assert.throws(() => Factory.resolveBatchSize(BASE_CONTEXT.policy, 21), /between 1 and 20/i);
+  assert.throws(() => Factory.resolveBatchSize(BASE_CONTEXT.policy, 1.5), /integer/i);
+});
+
+test('creates a variable-size batch from generated ideas', () => {
+  const snapshot = Factory.createContextSnapshot(BASE_CONTEXT);
+  const ideas = [
+    { title: 'SEO audit', angle: 'Evidence first' },
+    { title: 'Internal links', angle: 'Reader journey' },
+  ];
+  const batch = Factory.createWeeklyBatch({ id: 'week-flex', snapshot, ideas });
+
+  assert.equal(batch.requestedCount, 2);
+  assert.deepEqual(batch.drafts.map((draft) => draft.topic), ['SEO audit', 'Internal links']);
+  assert.deepEqual(batch.drafts.map((draft) => draft.angle), ['Evidence first', 'Reader journey']);
 });
 
 test('blocks a draft that makes a claim without an evidence reference', () => {
@@ -104,6 +126,7 @@ test('merges the verified BrandKit snapshot into VisualJob and the Flow-safe pro
 });
 
 test('retries a judged failed image at most twice and holds unjudged output for review', () => {
+  assert.deepEqual(Factory.nextAssetAction({ judged: true, pass: true, action: 'accept' }, 0), { type: 'asset_ready', retryCount: 0 });
   assert.deepEqual(Factory.nextAssetAction({ judged: true, pass: false, action: 'rewrite_prompt' }, 0), { type: 'retry', retryCount: 1 });
   assert.deepEqual(Factory.nextAssetAction({ judged: true, pass: false, action: 'regen_image' }, 1), { type: 'retry', retryCount: 2 });
   assert.deepEqual(Factory.nextAssetAction({ judged: true, pass: false, action: 'regen_image' }, 2), { type: 'asset_needs_review', retryCount: 2 });
