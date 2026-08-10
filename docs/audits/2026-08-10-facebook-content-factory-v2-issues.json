@@ -45,10 +45,10 @@
     {
       "id": "FCF-006",
       "severity": "P3",
-      "status": "pre_existing",
-      "evidence": "SEOSONA OS doctor exits successfully but reports missing .clauderules and .cursorrules connector files. Content, Flow, and Video doctors are connected.",
+      "status": "closed",
+      "evidence": "SEOSONA OS doctor now reports healthy; portable connector and security checks pass together with Content, Flow, and Video doctors.",
       "owner": "seosona-os",
-      "gate": "Restore portable connector files if full OS doctor parity is required."
+      "gate": "npm run seosona:doctor"
     },
     {
       "id": "FCF-007",
@@ -193,6 +193,14 @@
       "evidence": "Provider retry refreshes leaseUpdatedAt both when retry begins and after content-script acknowledgement; stale detection no longer uses only the first attempt timestamp.",
       "owner": "seosona-content",
       "gate": "background lease contract assertion"
+    },
+    {
+      "id": "FCF-025",
+      "severity": "P3",
+      "status": "open",
+      "evidence": "The Video dependency audit reports 13 transitive advisories (5 moderate and 8 high), primarily through HyperFrames 0.7.24. Video is not executed in the V1 runtime; Content reads only the validated static BrandKit assets.",
+      "owner": "seosona-video",
+      "gate": "Upgrade HyperFrames and affected transitive packages in an isolated compatibility workstream, then rerun the full Video test and render suite."
     }
   ]
 }

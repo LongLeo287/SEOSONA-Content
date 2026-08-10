@@ -12,6 +12,8 @@ The implementation is structurally ready for V1 use. All offline and simulated a
 
 There are no open P0 or P1 implementation issues. Two P2 gates remain: populate the OS evidence packet for factual content and run one authenticated local acceptance batch.
 
+One non-blocking P3 dependency-hygiene issue remains outside the V1 runtime: SEOSONA Video's HyperFrames 0.7.24 dependency tree reports 13 transitive advisories. V1 reads only validated static BrandKit assets from Video, so this does not expose the Content Factory runtime. It should be handled as a separate compatibility upgrade instead of forcing a breaking package update during this integration.
+
 Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, portability, and release-gate defects. All in-scope P1/P2 findings were fixed before integration. Claim text must equal the canonical evidence claim and appear verbatim as its own sentence in copy; V1 does not authorize factual paraphrases through heuristic similarity. Visual work runs asynchronously in Companion and is polled by Chrome alarms. Provider leases refresh on each retry/ack and recover stale jobs. Cancellation is checked after long boundaries. Infrastructure/archive/library failures halt the batch. Brand voice has an independent copy-QA verdict. Review-required images remain archived, runtime paths remain stripped, filenames cannot collide, Flow 1.1 is committed, and release audit fails closed.
 
 ## Verified Architecture
@@ -32,10 +34,11 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 | Content tests | 75/75 passed, including canonical verbatim claim enforcement, brand QA, auth/replay, asynchronous Companion jobs, MV3 alarm resume, refreshed provider lease, Flow handshake, quality retry, package traversal/collision, halt, cancel race, and simulated batches of 1, 5, and 20 |
 | Content doctor | Connected; all checks passed |
 | Cross-project release audit | Strict mode passed 7/7 with explicit OS, Video, and Flow roots; missing roots fail release verification |
-| OS contracts | 6 passed; live BrandKit test skipped only in the standalone command because its environment variable was not set; the cross-project digest audit passed |
-| OS doctor | Exit 0; pre-existing warnings for missing `.clauderules` and `.cursorrules` |
+| OS contracts | 7/7 passed, including the live Video BrandKit digest and configurable batch policy |
+| OS doctor | Healthy; connector, language, security (44 tests), capability bridge, and knowledge checks passed |
 | Video BrandKit | Valid; all 48 manifest assets checked and tracked in the release merge; canonical digest matched OS |
 | Video doctor | Connected; all checks passed |
+| Video dependency audit | 13 transitive advisories remain (5 moderate, 8 high); tracked as non-runtime P3 FCF-025 |
 | Flow static | 541 JavaScript files, 22 JSON files, and all declared HTML/manifest resources passed |
 | Flow unit | 1,345 passed |
 | Flow MCP contracts | Normalization, validation, quality, integration, persistence/idempotency, and quality backfill passed |
@@ -56,6 +59,6 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 
 1. Add reviewed evidence records to the OS evidence packet before expecting factual or numerical Facebook posts.
 2. Start the local Companion with the documented environment values, ensure the Flow extension/provider is ready, and complete one real batch with asset readback.
-3. Optionally restore the two missing OS connector files to remove doctor warnings.
+3. Upgrade and compatibility-test the Video HyperFrames dependency tree separately; do not use a forced major update without render regression tests.
 
 The machine-readable registry is `2026-08-10-facebook-content-factory-v2-issues.json` in this directory.
