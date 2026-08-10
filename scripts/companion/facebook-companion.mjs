@@ -147,12 +147,23 @@ export function createCompanionServer({
   writePackage = null,
   preflight = preflightFlow,
   companionVersion = COMPANION_VERSION,
+  preflightTtlMs = 5000,
+  now = () => Date.now(),
 }) {
   if (!token || token.length < 16) throw new Error('Companion token must contain at least 16 characters.');
   if (!Array.isArray(allowedOrigins) || !allowedOrigins.length || allowedOrigins.some((origin) => !/^chrome-extension:\/\/[a-z]{32}$/.test(origin))) {
     throw new Error('allowedOrigins must contain explicit chrome-extension origins.');
   }
   const usedNonces = new Set();
+  let cachedPreflight = null;
+  let cachedPreflightAt = 0;
+  const readiness = async () => {
+    const at = now();
+    if (cachedPreflight && at - cachedPreflightAt < preflightTtlMs) return cachedPreflight;
+    cachedPreflight = await preflight({ flow });
+    cachedPreflightAt = at;
+    return cachedPreflight;
+  };
   return http.createServer(async (req, res) => {
     const requestOrigin = req.headers.origin || '';
     if (req.method === 'OPTIONS') {
@@ -165,11 +176,11 @@ export function createCompanionServer({
     try {
       if (req.method === 'GET' && req.url === '/v1/health') {
         if (!contextProvider) throw Object.assign(new Error('No OS context provider is configured.'), { code: 'CONTEXT_UNAVAILABLE' });
-        const [context, readiness] = await Promise.all([contextProvider(), preflight({ flow })]);
+        const [context, flowReadiness] = await Promise.all([contextProvider(), readiness()]);
         return json(res, 200, {
           ok: true,
           companion: { version: companionVersion },
-          flow: { contractVersion: readiness.contractVersion, extensionConnected: true, provider: readiness.provider },
+          flow: { contractVersion: flowReadiness.contractVersion, extensionConnected: true, provider: flowReadiness.provider },
           context: { revision: contextRevision(context) },
         }, auth.origin);
       }
@@ -191,7 +202,7 @@ export function createCompanionServer({
       if (req.method === 'POST' && req.url === '/v1/flow/cancel') {
         const body = await requestBody(req);
         if (!flow || typeof flow.callTool !== 'function') throw new Error('Flow client is unavailable.');
-        const result = await flow.callTool('cancel_job', { job_id: body.jobId });
+        const result = await flow.callTool('cancel_job', body.jobId ? { job_id: body.jobId } : {});
         return json(res, 200, result, auth.origin);
       }
       if (req.method === 'POST' && req.url === '/v1/library/package') {

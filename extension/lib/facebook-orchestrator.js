@@ -85,6 +85,7 @@
           draftId: draft.id,
           visualJob: draft.package.visualJob,
         });
+        if (current.status === 'cancelled') return current;
         if (!visual || !['asset_ready', 'asset_needs_review'].includes(visual.status)) throw new Error('Companion returned an unknown visual status.');
         const durableDraft = {
           id: draft.id,
@@ -109,6 +110,7 @@
           packageReceipt,
         }));
       } catch (error) {
+        if (current.status === 'cancelled') return current;
         await commit(transition({ type: 'DRAFT_FAILED', draftId: draft.id, error: normalizeError(error, 'VISUAL_OR_PACKAGE_FAILED') }));
       }
       return startNextDraft(false);
@@ -198,6 +200,9 @@
       if (!current) throw new Error('No Facebook batch is available to cancel.');
       if (current.active && ['ideas', 'copy'].includes(current.active.kind) && typeof deps.providerAbort === 'function') {
         await deps.providerAbort({ jobId: current.active.jobId }).catch(() => {});
+      }
+      if (current.active && current.active.kind === 'visual') {
+        await deps.companion('/v1/flow/cancel', {}).catch(() => {});
       }
       return commit(transition({ type: 'BATCH_CANCELLED', reason: reason || 'user' }));
     }

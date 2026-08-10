@@ -88,6 +88,24 @@ test('reports Companion, Flow, provider, and OS context readiness', async (t) =>
   assert.match(result.context.revision, /^ctx-[a-f0-9]{8}$/);
 });
 
+test('caches the health preflight briefly without caching request authorization', async (t) => {
+  let checks = 0;
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    flow: { callTool: async () => ({ ok: true }) },
+    contextProvider: async () => ({ brand: {}, group: {}, policy: {}, evidence: [] }),
+    preflight: async () => { checks += 1; return { contractVersion: '1.1.0', provider: { provider: 'flow', ready: true } }; },
+    preflightTtlMs: 5000,
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const headers = (nonce) => ({ Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': nonce });
+  assert.equal((await fetch(`http://127.0.0.1:${port}/v1/health`, { headers: headers('nonce-cache-aaaaaaaa') })).status, 200);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/v1/health`, { headers: headers('nonce-cache-bbbbbbbb') })).status, 200);
+  assert.equal(checks, 1);
+});
+
 test('writes a complete draft package through the authenticated library endpoint', async (t) => {
   const writes = [];
   const server = createCompanionServer({
@@ -123,4 +141,22 @@ test('uses a stable error envelope for incompatible Flow contracts', async (t) =
   });
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: { code: 'INCOMPATIBLE_FLOW_CONTRACT', message: 'Wrong Flow version.', retryable: false } });
+});
+
+test('can cancel the Companion-owned active Flow generation without a leaked job id', async (t) => {
+  const calls = [];
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    flow: { callTool: async (name, args) => { calls.push({ name, args }); return { ok: true, data: { cancelled: ['active-job'] } }; } },
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const response = await fetch(`http://127.0.0.1:${port}/v1/flow/cancel`, {
+    method: 'POST',
+    headers: { Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': 'nonce-iiiiiiiiiiiiiiii', 'content-type': 'application/json' },
+    body: '{}',
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [{ name: 'cancel_job', args: {} }]);
 });

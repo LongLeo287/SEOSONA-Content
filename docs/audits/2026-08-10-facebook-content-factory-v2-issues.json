@@ -1,0 +1,54 @@
+{
+  "contractVersion": "1.0",
+  "reviewedAt": "2026-08-10",
+  "issues": [
+    {
+      "id": "FCF-001",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Content now negotiates Flow health, contract 1.1.x, capabilities, and the providers[] readiness response before generation.",
+      "owner": "seosona-content",
+      "gate": "facebook-flow-contract.test.mjs"
+    },
+    {
+      "id": "FCF-002",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "The background service worker persists every batch transition and owns start, resume, cancel, provider result, visual, and package progression.",
+      "owner": "seosona-content",
+      "gate": "facebook-orchestrator.test.cjs"
+    },
+    {
+      "id": "FCF-003",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Content Library receipts use content-library:// references; machine paths, provider session URLs, tokens, and image binary are excluded from durable JSON.",
+      "owner": "seosona-content",
+      "gate": "facebook-library.test.mjs and facebook-library-package.test.mjs"
+    },
+    {
+      "id": "FCF-004",
+      "severity": "P2",
+      "status": "open",
+      "evidence": "The OS evidence packet is currently empty. The claim gate correctly blocks unsupported factual claims, so output is limited to educational or opinion content until verified sources are added.",
+      "owner": "seosona-os",
+      "gate": "Add reviewed evidence entries before allowing factual claims."
+    },
+    {
+      "id": "FCF-005",
+      "severity": "P2",
+      "status": "external_pending",
+      "evidence": "No Companion/Flow tokens, runtime paths, or listener were active in the audit shell, so a real provider image and five-package readback could not be executed.",
+      "owner": "local-runtime",
+      "gate": "Start Companion with local secrets, load the Content extension, log in to Flow provider, then complete and read back one live batch."
+    },
+    {
+      "id": "FCF-006",
+      "severity": "P3",
+      "status": "pre_existing",
+      "evidence": "SEOSONA OS doctor exits successfully but reports missing .clauderules and .cursorrules connector files. Content, Flow, and Video doctors are connected.",
+      "owner": "seosona-os",
+      "gate": "Restore portable connector files if full OS doctor parity is required."
+    }
+  ]
+}

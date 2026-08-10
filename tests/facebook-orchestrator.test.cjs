@@ -120,3 +120,34 @@ test('resumes a persisted visual with the same client reference', async () => {
   assert.equal(resumed.status, 'completed');
   assert.equal(h.calls.find((call) => call.path === '/v1/flow/generate').body.visualJob.clientRef, 'batch-resume/post-01/r1');
 });
+
+test('cancels a Companion-owned visual job and leaves the batch terminal', async () => {
+  const snapshot = global.FacebookFactory.createContextSnapshot(CONTEXT);
+  let state = global.FacebookState.create({ id: 'batch-cancel-visual', requestedCount: 1, contextRevision: snapshot.contextRevision, provider: 'gemini' });
+  state.contextSnapshot = snapshot;
+  state = global.FacebookState.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas' });
+  state = global.FacebookState.transition(state, { type: 'IDEAS_CREATED', drafts: global.FacebookFactory.createWeeklyBatch({ id: state.id, snapshot, ideas: [{ title: 'Cancel', angle: 'Safe' }] }).drafts });
+  state = global.FacebookState.transition(state, { type: 'COPY_STARTED', draftId: 'post-01', jobId: 'copy' });
+  state = global.FacebookState.transition(state, { type: 'VISUAL_STARTED', draftId: 'post-01', package: { parsed: JSON.parse(draftJson()), visualJob: { clientRef: `${state.id}/post-01/r1`, prompt: 'SEO image', ratio: '1:1' } } });
+  const h = harness({ initial: state });
+  const cancelled = await h.orchestrator.cancel('user');
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.drafts[0].status, 'cancelled');
+  assert.equal(h.calls.some((call) => call.path === '/v1/flow/cancel'), true);
+});
+
+for (const requestedCount of [1, 5, 20]) {
+  test(`completes a simulated end-to-end batch of ${requestedCount} drafts`, async () => {
+    const h = harness();
+    await h.orchestrator.start({ requestedCount, provider: 'gemini' });
+    const ideas = Array.from({ length: requestedCount }, (_, index) => ({ title: `Idea ${index + 1}`, angle: `Angle ${index + 1}` }));
+    let state = await h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: JSON.stringify({ ideas }) });
+    for (let index = 0; index < requestedCount; index += 1) {
+      state = await h.orchestrator.handleProviderResult({ jobId: h.jobs[index + 1].jobId, success: true, text: draftJson({ idea: `Idea ${index + 1}` }) });
+    }
+    assert.equal(state.status, 'completed');
+    assert.equal(state.drafts.length, requestedCount);
+    assert.equal(h.packages.length, requestedCount);
+    assert.equal(state.drafts.every((draft) => draft.status === 'asset_ready'), true);
+  });
+}
