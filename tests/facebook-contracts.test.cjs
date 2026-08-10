@@ -177,3 +177,14 @@ test('background owns the resumable factory and the sidepanel exposes variable b
   assert.match(html, /id="fbRequestedCount"[\s\S]*min="1"[\s\S]*max="20"/);
   assert.doesNotMatch(html, /id="fbTopics"/);
 });
+
+test('blocks factual claim signals that are omitted from the claim map', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-unmapped',
+    copy: 'Google guarantees rankings in seven days.',
+    claims: [],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, BASE_CONTEXT.evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
+});

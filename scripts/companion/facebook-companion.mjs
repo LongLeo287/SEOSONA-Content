@@ -110,6 +110,14 @@ function errorEnvelope(error, fallbackCode = 'COMPANION_REQUEST_FAILED') {
   };
 }
 
+function portableLibraryRefs(value) {
+  const output = {};
+  for (const key of ['fileRef', 'receiptRef', 'batchRef', 'contextRef', 'draftRef']) {
+    if (typeof (value && value[key]) === 'string' && value[key].startsWith('content-library://')) output[key] = value[key];
+  }
+  return output;
+}
+
 function requestBody(req) {
   return new Promise((resolve, reject) => {
     let bytes = 0;
@@ -191,10 +199,11 @@ export function createCompanionServer({
       if (req.method === 'POST' && req.url === '/v1/flow/generate') {
         const body = await requestBody(req);
         const result = await runVisual({ flow, visualJob: body.visualJob });
-        if (result.status === 'asset_ready' && archiveAsset) {
+        if (['asset_ready', 'asset_needs_review'].includes(result.status) && result.asset && archiveAsset) {
           if (!body.batchId || !body.draftId) throw new Error('batchId and draftId are required to archive a ready asset.');
-          result.archive = await archiveAsset({ ...result, batchId: body.batchId, draftId: body.draftId });
-          result.receipt = result.archive.receipt;
+          const archived = await archiveAsset({ ...result, batchId: body.batchId, draftId: body.draftId });
+          result.archive = portableLibraryRefs(archived);
+          result.receipt = archived.receipt;
           delete result.asset.inline_data;
         }
         return json(res, 200, result, auth.origin);
@@ -207,7 +216,7 @@ export function createCompanionServer({
       }
       if (req.method === 'POST' && req.url === '/v1/library/package') {
         if (!writePackage) throw Object.assign(new Error('No Content Library writer is configured.'), { code: 'LIBRARY_UNAVAILABLE' });
-        return json(res, 200, await writePackage(await requestBody(req)), auth.origin);
+        return json(res, 200, portableLibraryRefs(await writePackage(await requestBody(req))), auth.origin);
       }
       return json(res, 404, errorEnvelope(Object.assign(new Error('Unknown Companion endpoint.'), { code: 'ENDPOINT_NOT_FOUND' })), auth.origin);
     } catch (error) {

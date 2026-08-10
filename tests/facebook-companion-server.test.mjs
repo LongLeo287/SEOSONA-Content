@@ -50,6 +50,30 @@ test('returns a local receipt when a ready Flow asset is archived', async (t) =>
   assert.equal(archived[0].batchId, 'week-1');
 });
 
+test('archives an unjudged asset for manual review instead of losing it', async (t) => {
+  let archived = 0;
+  const server = createCompanionServer({
+    token: 'local-test-token',
+    allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+    runVisual: async () => ({ status: 'asset_needs_review', retryCount: 0, asset: { asset_id: 'asset-review', inline_data: 'do-not-store' }, quality: { judged: false } }),
+    archiveAsset: async () => { archived += 1; return { fileRef: 'content-library://batch/post/review.png', receiptRef: 'content-library://batch/post/review.receipt.json', runtimeFileRef: 'machine-path', receipt: { assetId: 'asset-review', fileRef: 'content-library://batch/post/review.png' } }; },
+  });
+  const port = await start(server);
+  t.after(() => server.close());
+  const response = await fetch(`http://127.0.0.1:${port}/v1/flow/generate`, {
+    method: 'POST',
+    headers: { Origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', Authorization: 'Bearer local-test-token', 'x-seosona-nonce': 'nonce-review-aaaaaaaa', 'content-type': 'application/json' },
+    body: JSON.stringify({ batchId: 'batch', draftId: 'post', visualJob: { clientRef: 'batch/post/r1', prompt: 'SEO desk', ratio: '1:1' } }),
+  });
+  const result = await response.json();
+  assert.equal(archived, 1);
+  assert.equal(result.status, 'asset_needs_review');
+  assert.equal(result.receipt.assetId, 'asset-review');
+  assert.equal(result.asset.inline_data, undefined);
+  assert.deepEqual(result.archive, { fileRef: 'content-library://batch/post/review.png', receiptRef: 'content-library://batch/post/review.receipt.json' });
+  assert.equal(JSON.stringify(result).includes('machine-path'), false);
+});
+
 test('serves the current OS context only to the authenticated extension', async (t) => {
   const server = createCompanionServer({
     token: 'local-test-token',
@@ -111,7 +135,7 @@ test('writes a complete draft package through the authenticated library endpoint
   const server = createCompanionServer({
     token: 'local-test-token',
     allowedOrigins: ['chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
-    writePackage: async (value) => { writes.push(value); return { draftRef: 'content-library://batch-1/post-01/draft.json' }; },
+    writePackage: async (value) => { writes.push(value); return { draftRef: 'content-library://batch-1/post-01/draft.json', runtimeDraftRef: 'machine-path' }; },
   });
   const port = await start(server);
   t.after(() => server.close());
@@ -122,7 +146,9 @@ test('writes a complete draft package through the authenticated library endpoint
     body: JSON.stringify(body),
   });
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).draftRef, 'content-library://batch-1/post-01/draft.json');
+  const receipt = await response.json();
+  assert.equal(receipt.draftRef, 'content-library://batch-1/post-01/draft.json');
+  assert.equal(receipt.runtimeDraftRef, undefined);
   assert.deepEqual(writes, [body]);
 });
 

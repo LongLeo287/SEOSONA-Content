@@ -31,7 +31,7 @@ function harness(options = {}) {
     if (path === '/v1/health') return { ok: true, flow: { contractVersion: '1.1.0', provider: { ready: true } }, context: { revision: 'ctx-health' } };
     if (path === '/v1/context') return CONTEXT;
     if (path === '/v1/flow/generate') return options.visual || { status: 'asset_ready', receipt: { assetId: 'asset-1', fileRef: 'content-library://batch/post/image.png' } };
-    if (path === '/v1/library/package') { packages.push(body); return { draftRef: `content-library://${body.batch.id}/${body.draft.id}/draft.json` }; }
+    if (path === '/v1/library/package') { packages.push(body); return { draftRef: `content-library://${body.batch.id}/${body.draft.id}/draft.json`, runtimeDraftRef: 'machine-path' }; }
     if (path === '/v1/flow/cancel') return { ok: true };
     throw new Error('Unexpected Companion path: ' + path);
   };
@@ -58,6 +58,7 @@ test('runs start through ideas, copy, QA, visual, package, and completion', asyn
 
   assert.equal(state.status, 'completed');
   assert.equal(state.drafts[0].status, 'asset_ready');
+  assert.deepEqual(state.drafts[0].packageReceipt, { draftRef: `content-library://${state.id}/post-01/draft.json` });
   assert.equal(h.packages.length, 1);
   assert.equal(h.packages[0].draft.assetReceipt.assetId, 'asset-1');
   assert.equal(h.current().status, 'completed');

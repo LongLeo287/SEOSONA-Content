@@ -49,6 +49,38 @@
       "evidence": "SEOSONA OS doctor exits successfully but reports missing .clauderules and .cursorrules connector files. Content, Flow, and Video doctors are connected.",
       "owner": "seosona-os",
       "gate": "Restore portable connector files if full OS doctor parity is required."
+    },
+    {
+      "id": "FCF-007",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Independent review found that factual copy could omit claims[]. A deterministic factual-signal gate now emits UNMAPPED_CLAIM, with a regression test for unsupported ranking guarantees.",
+      "owner": "seosona-content",
+      "gate": "facebook-contracts.test.cjs"
+    },
+    {
+      "id": "FCF-008",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Assets marked asset_needs_review are now archived with a receipt and stripped of inline binary instead of being discarded.",
+      "owner": "seosona-content",
+      "gate": "facebook-companion-server.test.mjs"
+    },
+    {
+      "id": "FCF-009",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Companion responses and the orchestrator now whitelist only content-library:// package references, preventing runtime absolute paths from reaching Chrome storage or later batch.json files.",
+      "owner": "seosona-content",
+      "gate": "facebook-companion-server.test.mjs and facebook-orchestrator.test.cjs"
+    },
+    {
+      "id": "FCF-010",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Flow MCP contract 1.1.0, quality normalization, quality backfill, persistence, and tests are committed in Flow commit f5044ae rather than remaining only in a dirty worktree.",
+      "owner": "seosona-flow",
+      "gate": "Flow MCP contract suite"
     }
   ]
 }

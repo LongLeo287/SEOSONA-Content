@@ -98,6 +98,10 @@
     (draft && draft.claims || []).forEach((claim, claimIndex) => {
       if (!claim || !claim.evidenceId || !knownEvidence.has(claim.evidenceId)) issues.push({ code: 'MISSING_EVIDENCE', claimIndex });
     });
+    const claimSignals = /\b(?:guarantee(?:s|d)?|official|according to|research shows|studies? show|reports? show|data shows|percent)\b|(?:\d+(?:[.,]\d+)?)\s*(?:%|percent|days?|weeks?|months?|ngày|tuần|tháng)|(?:cam kết|đảm bảo|chính thức|theo nghiên cứu|theo báo cáo|số liệu cho thấy)/iu;
+    if (!(draft && draft.claims || []).length && claimSignals.test(String(draft && draft.copy || ''))) {
+      issues.push({ code: 'UNMAPPED_CLAIM' });
+    }
     if (!draft || !String(draft.copy || '').trim()) issues.push({ code: 'MISSING_COPY' });
     const brief = draft && draft.creativeBrief;
     if (!brief || !String(brief.visualPrompt || '').trim() || !String(brief.ratio || '').trim()) issues.push({ code: 'MISSING_CREATIVE_BRIEF' });

@@ -15,6 +15,14 @@
   }
 
   function safeJobPart(value) { return String(value).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+  function portablePackageReceipt(receipt) {
+    const output = {};
+    ['batchRef', 'contextRef', 'draftRef'].forEach((key) => {
+      if (typeof (receipt && receipt[key]) === 'string' && receipt[key].startsWith('content-library://')) output[key] = receipt[key];
+    });
+    if (!output.draftRef) throw new Error('Content Library did not return a portable draft reference.');
+    return output;
+  }
 
   function createOrchestrator(deps) {
     if (!deps || typeof deps.load !== 'function' || typeof deps.persist !== 'function') throw new Error('Orchestrator requires load and persist functions.');
@@ -95,14 +103,14 @@
           status: visual.status,
           assetReceipt: visual.receipt || null,
         };
-        const packageReceipt = await deps.companion('/v1/library/package', {
+        const packageReceipt = portablePackageReceipt(await deps.companion('/v1/library/package', {
           batch: Object.keys(current).reduce((value, key) => {
             if (key !== 'contextSnapshot') value[key] = current[key];
             return value;
           }, {}),
           snapshot: current.contextSnapshot,
           draft: durableDraft,
-        });
+        }));
         await commit(transition({
           type: visual.status === 'asset_ready' ? 'ASSET_READY' : 'ASSET_REVIEW',
           draftId: draft.id,

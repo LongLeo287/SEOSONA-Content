@@ -12,6 +12,8 @@ The implementation is structurally ready for V1 use. All offline and simulated a
 
 There are no open P0 or P1 implementation issues. Two P2 gates remain: populate the OS evidence packet for factual content and run one authenticated local acceptance batch.
 
+Independent review initially found four P1 release blockers. All four were fixed before integration: unmapped factual claim signals are blocked, review-required images are archived, runtime paths are stripped from Companion/orchestrator receipts, and the required Flow 1.1 contract is committed rather than existing only as working-tree state.
+
 ## Verified Architecture
 
 1. OS owns the versioned brand, group, policy, and evidence sources. Batch size defaults to 5 and is constrained to 1 through 20; publishing remains explicitly unsupported.
@@ -37,6 +39,7 @@ There are no open P0 or P1 implementation issues. Two P2 gates remain: populate 
 | Flow static | 541 JavaScript files, 22 JSON files, and all declared HTML/manifest resources passed |
 | Flow unit | 1,345 passed |
 | Flow MCP contracts | Normalization, validation, quality, integration, persistence/idempotency, and quality backfill passed |
+| Flow MCP source state | Contract 1.1.0 and its quality tests committed in `f5044ae` |
 | Flow doctor | Connected; all checks passed |
 | Live provider acceptance | Pending external runtime configuration; not claimed as passed |
 
