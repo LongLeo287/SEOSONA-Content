@@ -22,6 +22,15 @@ test('resolves an OS context manifest from its four versioned sources', async ()
 
 const BRAND_KIT_REF = 'seosona-brand://video/SEOSONA/brand-kit.v1.json';
 
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') return Object.keys(value).sort().reduce((output, key) => {
+    output[key] = canonicalize(value[key]);
+    return output;
+  }, {});
+  return value;
+}
+
 function brandKitFixture(overrides = {}) {
   return {
     version: '1.0.0',
@@ -43,7 +52,7 @@ async function createBrandContext({ kit = brandKitFixture(), referenceOverrides 
   const root = await mkdtemp(join(tmpdir(), 'seosona-os-brand-context-'));
   const brandKitFile = join(root, 'brand-kit.v1.json');
   const brandKitText = `${JSON.stringify(kit, null, 2)}\n`;
-  const sha256 = createHash('sha256').update(brandKitText).digest('hex');
+  const sha256 = createHash('sha256').update(JSON.stringify(canonicalize(kit))).digest('hex');
   const brandKit = { ref: BRAND_KIT_REF, version: '1.0.0', sha256, ...referenceOverrides };
   await Promise.all([
     writeFile(brandKitFile, brandKitText),

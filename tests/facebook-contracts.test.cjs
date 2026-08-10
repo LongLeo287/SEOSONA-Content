@@ -13,7 +13,7 @@ const BASE_CONTEXT = {
   brandKitSnapshot: {
     ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json',
     version: '1.0.0',
-    sha256: '4a678f77b800dcbc5509ce15786d2a3cf426ce6297691f05ed7bd2bd90654f14',
+    sha256: '4ecb0a7ac2d49c65d96739f2fa31492863c716b477868b130142c482d289a927',
     palette: { identityBlue: '#003CA6', heroBlueStart: '#182FB3', heroBlueEnd: '#1F31B7', identityGreen: '#00FF00' },
     typography: { family: 'Be Vietnam Pro' },
     visualModes: { lightEditorial: { default: true }, cobaltHero: { default: false } },

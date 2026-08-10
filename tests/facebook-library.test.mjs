@@ -22,7 +22,7 @@ test('copies a Flow export into the Content Library and writes a provenance rece
     quality: { judged: true, pass: true, verdict: 'good', action: 'accept', critical: [] },
     retryCount: 1,
     promptRevision: 2,
-    brandKitRef: { ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json', version: '1.0.0', sha256: '4a678f77b800dcbc5509ce15786d2a3cf426ce6297691f05ed7bd2bd90654f14' },
+    brandKitRef: { ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json', version: '1.0.0', sha256: '4ecb0a7ac2d49c65d96739f2fa31492863c716b477868b130142c482d289a927' },
   });
 
   assert.match(result.fileRef, /week-2026-33[\\/]post-01[\\/]post-01\.png$/);

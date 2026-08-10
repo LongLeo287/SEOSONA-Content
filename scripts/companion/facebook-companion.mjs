@@ -13,8 +13,17 @@ function contextFileInside(root, candidate) {
   return rel && !rel.startsWith('..') && !rel.startsWith('/') && !rel.startsWith('\\') && !rel.includes(':');
 }
 
-function digest(buffer) {
-  return createHash('sha256').update(buffer).digest('hex');
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') return Object.keys(value).sort().reduce((output, key) => {
+    output[key] = canonicalize(value[key]);
+    return output;
+  }, {});
+  return value;
+}
+
+function digest(value) {
+  return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
 }
 
 async function attachBrandKitSnapshot(context, brandKitFile) {
@@ -25,8 +34,8 @@ async function attachBrandKitSnapshot(context, brandKitFile) {
   }
   if (!brandKitFile) throw new Error('SEOSONA_BRAND_KIT_FILE is required when OS declares a BrandKit reference.');
   const bytes = await readFile(resolve(brandKitFile));
-  if (digest(bytes) !== reference.sha256) throw new Error('BrandKit digest mismatch.');
   const brandKit = JSON.parse(bytes.toString('utf8'));
+  if (digest(brandKit) !== reference.sha256) throw new Error('BrandKit digest mismatch.');
   if (brandKit.version !== reference.version) throw new Error('BrandKit version mismatch.');
   if (!brandKit.palette || brandKit.typography?.family !== 'Be Vietnam Pro' || !brandKit.visualModes || !Array.isArray(brandKit.components) || !Array.isArray(brandKit.negativeRules)) {
     throw new Error('BrandKit is missing required visual contract fields.');
