@@ -30,6 +30,60 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function renderMarkdown(md) {
+  if (!md) return '';
+  let text = escapeHtml(md);
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => `<pre><code class="${lang ? 'language-' + lang : ''}">${code}</code></pre>`);
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/(\d{2}:\d{2}:\d{2}[,\.]\d{3}\s*(?:--&gt;|-&gt;|-)\s*\d{2}:\d{2}:\d{2}[,\.]\d{3})/g, '<mark class="tc-badge">$1</mark>');
+  text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  text = text.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+  text = text.replace(/^&gt;\s?(.*$)/gim, '<blockquote>$1</blockquote>');
+
+  // Table Parser
+  const lines = text.split('\n');
+  let inTable = false;
+  let tableHtml = '';
+  const outLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      if (!inTable) { inTable = true; tableHtml = '<table class="pro-table">'; }
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      if (cells.every(c => /^:?-+:?$/.test(c))) continue;
+      const tag = tableHtml === '<table class="pro-table">' ? 'th' : 'td';
+      tableHtml += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+    } else {
+      if (inTable) { inTable = false; tableHtml += '</table>'; outLines.push(tableHtml); tableHtml = ''; }
+      outLines.push(line);
+    }
+  }
+  if (inTable) { tableHtml += '</table>'; outLines.push(tableHtml); }
+  text = outLines.join('\n');
+
+  text = text.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li>$1</li>');
+  const blocks = text.split(/\n\n+/);
+  return blocks.map((b) => {
+    const trimmed = b.trim();
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<pre') || trimmed.startsWith('<table') || trimmed.startsWith('<li') || trimmed.startsWith('<blockquote')) {
+      return trimmed.startsWith('<li') ? `<ul>${trimmed}</ul>` : trimmed;
+    }
+    return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 function setStatus(msg) {
   const el = document.getElementById('statusText');
   if (el) el.textContent = msg;
@@ -621,6 +675,7 @@ function renderResults() {
     link.addEventListener('click', () => openChatFor(state.activeProvider, cur.chatUrl));
     tabs.appendChild(link);
   }
+  if ($('#rawResponseMd')) $('#rawResponseMd').innerHTML = renderMarkdown(cur.text || '');
   $('#rawResponse').textContent = cur.text || '';
 }
 
@@ -873,14 +928,28 @@ function handleRepurposeUpdate(status, result) {
     $('#btnRepurpose').disabled = false;
     if (status === 'done' && result && result.text) {
       state.repurpose = { ...(state.repurpose || {}), text: result.text };
-      const view = $('#repurposeView');
-      view.hidden = false; view.textContent = result.text;
-      $('#btnRepurposeDownload').hidden = false;
+      renderRepurpose();
       saveProject();
       libAdd({ type: 'Repurpose', task: (state.repurpose.format || '').replace('repurpose_', ''), title: (state.repurpose.name || 'Repurpose') + ' — ' + state.srtName, text: result.text });
       toast('Đã tạo nội dung tái sử dụng', 'success');
     } else if (status === 'error') toast('Tạo nội dung lỗi', 'error');
   }
+}
+
+function renderRepurpose() {
+  const r = state.repurpose;
+  const view = $('#repurposeView');
+  const viewMd = $('#repurposeViewMd');
+  const dl = $('#btnRepurposeDownload');
+  if (!r || !r.text) {
+    if (view) view.hidden = true;
+    if (viewMd) viewMd.hidden = true;
+    if (dl) dl.hidden = true;
+    return;
+  }
+  if (viewMd) { viewMd.hidden = false; viewMd.innerHTML = renderMarkdown(r.text); }
+  if (view) view.textContent = r.text;
+  if (dl) dl.hidden = false;
 }
 
 // ---------------------------------------------------------------- CHAPTERS + MÔ TẢ (tách riêng)
@@ -1046,6 +1115,7 @@ function renderContent() {
   if (!card) return;
   if (!c.result) { card.hidden = true; $('#contentScoreCard').hidden = true; $('#btnContentApply').hidden = true; return; }
   card.hidden = false;
+  if ($('#contentResultMd')) $('#contentResultMd').innerHTML = renderMarkdown(c.result || '');
   $('#contentResult').textContent = c.result;
   const chatBtn = $('#btnContentChat');
   chatBtn.hidden = !c.chatUrl;
@@ -1074,13 +1144,19 @@ function renderContentScores(text) {
   box.hidden = false;
   const rows = scores.criteria.map((cr) => ({ name: cr.name, avg: cr.score / cr.max * 10, suggest: cr.suggest || cr.comment || '' }));
   const overall = scores.average != null ? scores.average : (rows.reduce((s, x) => s + x.avg, 0) / (rows.length || 1));
+  const badgeClass = overall >= 8 ? 'ok' : overall >= 6 ? 'warn' : 'err';
   const barColor = (v) => v >= 8 ? 'var(--ok)' : v >= 6 ? 'var(--warn)' : 'var(--err)';
-  let html = `<div class="overall">Điểm tổng: <b>${overall.toFixed(1)}/10</b>${scores.verdict ? ' · ' + escapeHtml(scores.verdict) : ''}</div>`;
+
+  let html = `<div class="score-head-row"><span>Điểm đánh giá bài viết</span><span class="score-badge ${badgeClass}">${overall.toFixed(1)} / 10</span></div>`;
+  if (scores.verdict) html += `<div class="hint"><b>Nhận xét:</b> ${escapeHtml(scores.verdict)}</div>`;
+
   for (const row of rows) {
-    html += `<div class="score">
-      <div class="score-head"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}</b></div>
-      <div class="bar"><i style="width:${Math.max(0, Math.min(100, row.avg * 10))}%;background:${barColor(row.avg)}"></i></div>
-      ${row.suggest ? `<div class="hint">${escapeHtml(row.suggest)}</div>` : ''}</div>`;
+    const pct = Math.max(0, Math.min(100, row.avg * 10));
+    html += `<div class="score" style="margin-top:6px;">
+      <div class="score-head-row" style="font-size:11px;font-weight:600;"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}/10</b></div>
+      <div class="score-bar-wrap"><div class="score-fill" style="width:${pct}%;background:${barColor(row.avg)}"></div></div>
+      ${row.suggest ? `<div class="hint" style="font-size:10.5px;margin-top:2px;">${escapeHtml(row.suggest)}</div>` : ''}
+    </div>`;
   }
   box.innerHTML = html;
 }
@@ -1244,18 +1320,22 @@ function renderReviewScores() {
   const [provider, r] = done[0];
   const rows = r.scores.criteria.map((c) => ({ name: c.name, avg: c.score / c.max * 10, comment: c.comment || '', suggest: c.suggest || '' }));
   const overall = r.scores.average != null ? r.scores.average : (rows.length ? rows.reduce((s, x) => s + x.avg, 0) / rows.length : 0);
+  const badgeClass = overall >= 8 ? 'ok' : overall >= 6 ? 'warn' : 'err';
   const barColor = (v) => v >= 8 ? 'var(--ok)' : v >= 6 ? 'var(--warn)' : 'var(--err)';
 
-  let html = `<div class="overall">Điểm tổng: <b>${overall.toFixed(1)}/10</b> · ${PROVIDER_LABEL[provider] || provider}`;
-  if (r.scores.verdict) html += ` · ${escapeHtml(r.scores.verdict)}`;
-  html += '</div>';
+  let html = `<div class="score-head-row"><span>Đánh giá kịch bản (${PROVIDER_LABEL[provider] || provider})</span><span class="score-badge ${badgeClass}">${overall.toFixed(1)} / 10</span></div>`;
+  if (r.scores.verdict) html += `<div class="hint" style="margin-top:2px;"><b>Nhận xét:</b> ${escapeHtml(r.scores.verdict)}</div>`;
+
   for (const row of rows) {
-    html += `<div class="score">
-      <div class="score-head"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}</b></div>
-      <div class="bar"><i style="width:${row.avg * 10}%;background:${barColor(row.avg)}"></i></div>
-      ${row.suggest ? `<div class="hint">${escapeHtml(row.suggest)}</div>` : ''}</div>`;
+    const pct = Math.max(0, Math.min(100, row.avg * 10));
+    html += `<div class="score" style="margin-top:6px;">
+      <div class="score-head-row" style="font-size:11px;font-weight:600;"><span>${escapeHtml(row.name)}</span><b>${row.avg.toFixed(1)}/10</b></div>
+      <div class="score-bar-wrap"><div class="score-fill" style="width:${pct}%;background:${barColor(row.avg)}"></div></div>
+      ${row.suggest ? `<div class="hint" style="font-size:10.5px;margin-top:2px;">${escapeHtml(row.suggest)}</div>` : ''}
+    </div>`;
   }
   $('#reviewScores').innerHTML = html;
+  if ($('#reviewResultMd')) $('#reviewResultMd').innerHTML = renderMarkdown(r.text || '');
   $('#reviewResult').textContent = r.text;
   setStageDone('review', `${overall.toFixed(1)}/10 · ${PROVIDER_LABEL[provider] || provider}`);
 }
@@ -1940,6 +2020,7 @@ function renderResearch() {
   if (!card) return;
   if (!r.result) { card.hidden = true; return; }
   card.hidden = false;
+  if ($('#researchResultMd')) $('#researchResultMd').innerHTML = renderMarkdown(r.result || '');
   $('#researchResult').textContent = r.result;
   const chatBtn = $('#btnResearchChat');
   chatBtn.hidden = !r.chatUrl;
@@ -1982,10 +2063,10 @@ async function restoreResearch() {
 // ---------------------------------------------------------------- HOME (landing)
 const HOME_QUICK = [
   { task: 'write', label: '✍️ Viết mới' },
-  { task: 'audit', label: '🔧 Audit & sửa' },
+  { task: 'audit', label: '🔧 Audit & Sửa' },
   { task: 'review', label: '⭐ Chấm điểm' },
-  { task: 'seo', label: '🔎 SEO on-page' },
-  { task: 'abtest', label: '🔀 A/B' },
+  { task: 'seo', label: '🔎 SEO On-Page' },
+  { task: 'abtest', label: '🔀 A/B Variant' },
 ];
 function gotoContentTask(task) { showView('content'); setContentTask(task); const el = $('#contentInput'); if (el) el.focus(); }
 function renderHome() {
@@ -1998,10 +2079,10 @@ function renderHome() {
   if (q) {
     q.innerHTML = '';
     HOME_QUICK.forEach((it) => {
-      const b = document.createElement('button'); b.className = 'quick-chip'; b.textContent = it.label;
+      const b = document.createElement('button'); b.className = 'quick-chip'; b.innerHTML = `<span>${it.label}</span>`;
       b.addEventListener('click', () => gotoContentTask(it.task)); q.appendChild(b);
     });
-    const s = document.createElement('button'); s.className = 'quick-chip'; s.textContent = '🎬 Nạp SRT';
+    const s = document.createElement('button'); s.className = 'quick-chip'; s.innerHTML = '<span>🎬 Nạp SRT</span>';
     s.addEventListener('click', () => { showView('studio'); openStage('srt'); }); q.appendChild(s);
   }
   renderHomeSessions();
@@ -2011,7 +2092,7 @@ async function renderHomeSessions() {
   let sessions = {};
   try { const r = await chrome.storage.local.get('srtSessions'); sessions = r.srtSessions || {}; } catch (_) {}
   const list = Object.values(sessions).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
-  if (!list.length) { box.innerHTML = '<p class="hint">Chưa có phiên SRT nào.</p>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="subcard" style="text-align:center;padding:12px;"><p class="hint">Chưa có phiên SRT nào. Hãy bấm "＋ Phiên mới" để bắt đầu.</p></div>'; return; }
   box.innerHTML = '';
   list.forEach((s) => {
     const row = document.createElement('button'); row.className = 'home-sess';
@@ -2019,8 +2100,9 @@ async function renderHomeSessions() {
     const p = (n) => String(n).padStart(2, '0');
     const w = d ? `${p(d.getHours())}:${p(d.getMinutes())} ${d.getDate()}/${d.getMonth() + 1}` : '';
     const seg = (s.angles && s.angles[0] && s.angles[0].segments) ? s.angles[0].segments.filter((x) => x.valid).length : 0;
-    row.innerHTML = `<span class="hs-name">${escapeHtml(s.name || s.srtName || 'Phiên')}</span>`
-      + `<span class="hint">${escapeHtml(s.srtName || '')}${seg ? ' · ' + seg + ' đoạn' : ''}${w ? ' · ' + w : ''}</span>`;
+    row.innerHTML = `<div class="hs-left"><span class="hs-name">📄 ${escapeHtml(s.name || s.srtName || 'Phiên')}</span>`
+      + `<span class="hs-meta">${escapeHtml(s.srtName || '')}${seg ? ' · ' + seg + ' đoạn cắt' : ''}</span></div>`
+      + `<span class="hint">${w}</span>`;
     row.addEventListener('click', () => switchSession(s.id));
     box.appendChild(row);
   });
@@ -2070,27 +2152,112 @@ async function runHomeSearch() {
   });
 }
 
+function switchContentSub(sub) {
+  const isWriter = sub === 'writer';
+  const pWriter = $('#contentPanelWriter');
+  const pResearch = $('#contentPanelResearch');
+  if (pWriter) pWriter.hidden = !isWriter;
+  if (pResearch) pResearch.hidden = isWriter;
+  $$('#contentSubTabs .sub-chip').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  if (!isWriter) { $('#researchProvider').value = state.provider; renderResearch(); }
+  else { $('#contentProvider').value = state.provider; renderContent(); }
+}
+
+function switchFlowSub(sub) {
+  const isFlow = sub === 'flow';
+  const pBuilder = $('#flowPanelBuilder');
+  const pBatch = $('#flowPanelBatch');
+  if (pBuilder) pBuilder.hidden = !isFlow;
+  if (pBatch) pBatch.hidden = isFlow;
+  $$('#flowSubTabs .sub-chip').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  if (!isFlow) openBatch();
+}
+
+function switchHubSub(sub) {
+  const pLib = $('#hubPanelLibrary');
+  const pPrompts = $('#hubPanelPrompts');
+  const pHistory = $('#hubPanelHistory');
+  if (pLib) pLib.hidden = sub !== 'library';
+  if (pPrompts) pPrompts.hidden = sub !== 'prompts';
+  if (pHistory) pHistory.hidden = sub !== 'history';
+  $$('#hubSubTabs .sub-chip').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  if (sub === 'library') openLibrary();
+  if (sub === 'prompts') openPrompts();
+  if (sub === 'history') openHistory();
+}
+
 function showView(name) {
+  // Alias mappings cho backward compatibility
+  if (name === 'prompts') { showView('hub'); switchHubSub('prompts'); return; }
+  if (name === 'batch') { showView('flow'); switchFlowSub('batch'); return; }
+  if (name === 'history') { showView('hub'); switchHubSub('history'); return; }
+  if (name === 'library') { showView('hub'); switchHubSub('library'); return; }
+  if (name === 'research') { showView('content'); switchContentSub('research'); return; }
+
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
   $$('#sectionNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  if (name === 'prompts') openPrompts();
-  else if (name === 'batch') openBatch();
-  else if (name === 'history') openHistory();
-  else if (name === 'content') { $('#contentProvider').value = state.provider; renderContent(); }
-  else if (name === 'research') { $('#researchProvider').value = state.provider; renderResearch(); }
-  else if (name === 'flow') { $('#flowProvider').value = state.provider; }
-  else if (name === 'library') openLibrary();
+
+  if (name === 'hub') switchHubSub('library');
+  else if (name === 'content') switchContentSub('writer');
+  else if (name === 'flow') switchFlowSub('flow');
   else if (name === 'home') renderHome();
-  // session bar chỉ liên quan nhánh SRT
-  const sb = $('.sessionbar'); if (sb) sb.style.display = (name === 'studio') ? '' : 'none';
+
   const c = $('.content'); if (c) c.scrollTop = 0;
 }
+
+// Attach subtab click listeners
+$$('#contentSubTabs .sub-chip').forEach(b => b.addEventListener('click', () => switchContentSub(b.dataset.sub)));
+$$('#flowSubTabs .sub-chip').forEach(b => b.addEventListener('click', () => switchFlowSub(b.dataset.sub)));
+$$('#hubSubTabs .sub-chip').forEach(b => b.addEventListener('click', () => switchHubSub(b.dataset.sub)));
+
 $$('#sectionNav button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 $$('#view-home [data-go]').forEach((b) => b.addEventListener('click', () => {
   const t = b.dataset.go; showView(t);
   if (t === 'studio') openStage(state.cues.length ? 'run' : 'srt');
 }));
 $('#homeNewSrt').addEventListener('click', () => newSession());
+
+// Expand Textarea Modal
+let activeExpandTarget = null;
+function initExpandModal() {
+  $$('.btn-expand-ta').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const taId = btn.dataset.ta;
+      const target = document.getElementById(taId);
+      if (!target) return;
+      activeExpandTarget = target;
+      const modal = $('#expandModal');
+      const text = $('#expandModalText');
+      text.value = target.value;
+      updateExpandStats();
+      modal.hidden = false;
+      text.focus();
+    });
+  });
+
+  const closeBtn = $('#expandModalClose'); if (closeBtn) closeBtn.addEventListener('click', () => $('#expandModal').hidden = true);
+  const clearBtn = $('#expandModalClear'); if (clearBtn) clearBtn.addEventListener('click', () => { $('#expandModalText').value = ''; updateExpandStats(); });
+  const copyBtn = $('#expandModalCopy'); if (copyBtn) copyBtn.addEventListener('click', async () => {
+    const val = $('#expandModalText').value;
+    if (!val) return;
+    try { await navigator.clipboard.writeText(val); toast('Đã copy', 'success'); } catch (_) {}
+  });
+  const applyBtn = $('#expandModalApply'); if (applyBtn) applyBtn.addEventListener('click', () => {
+    if (activeExpandTarget) {
+      activeExpandTarget.value = $('#expandModalText').value;
+      activeExpandTarget.dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Đã áp dụng nội dung', 'success');
+    }
+    $('#expandModal').hidden = true;
+  });
+  const taModal = $('#expandModalText'); if (taModal) taModal.addEventListener('input', updateExpandStats);
+}
+
+function updateExpandStats() {
+  const val = $('#expandModalText').value || '';
+  const words = val.trim() ? val.trim().split(/\s+/).length : 0;
+  const stats = $('#expandModalStats'); if (stats) stats.textContent = `${words} từ · ${val.length} ký tự`;
+}
 
 // ---------------------------------------------------------------- điều khiển phiên
 document.getElementById('hdrNewSession').addEventListener('click', newSession);
@@ -2124,7 +2291,7 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
   document.addEventListener('click', () => { if (tip) tip.classList.remove('show'); });
 })();
 
-// ---------------------------------------------------------------- init
+// ---------------------------------------------------------------- Facebook Group Content Factory
 let facebookBatch = null;
 
 function fbConfig() {
@@ -2202,6 +2369,7 @@ async function initFacebookBatch() {
   $('#btnFbCancelBatch').addEventListener('click', async () => { try { await fbCancelBatch(); } catch (error) { fbRender(error.message, 'error'); } });
 }
 
+// ---------------------------------------------------------------- init
 initKnowledge();
 initTemplates();
 initRepurpose();
@@ -2212,6 +2380,7 @@ restoreResearch();
 initHomeSearch();
 initLibrary();
 initFlow();
+initExpandModal();
 initFacebookBatch();
 updateLocks();
 restoreProject();
