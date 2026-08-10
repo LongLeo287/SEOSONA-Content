@@ -57,4 +57,26 @@ test('records an idea-generation failure so the same batch can be resumed', () =
   assert.equal(state.error.code, 'PROVIDER_ERROR');
   state = State.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas-1', prompt: 'ideas' });
   assert.equal(state.status, 'ideas_running');
+  assert.equal(state.error, undefined);
+});
+
+test('halts on infrastructure errors and clears the halt reason when the failed draft is resumed', () => {
+  let state = initial();
+  state = State.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas-1' });
+  state = State.transition(state, {
+    type: 'IDEAS_CREATED',
+    drafts: [{ id: 'post-01', topic: 'SEO audit', status: 'idea_queued', clientRef: 'batch-1/post-01/r1' }],
+  });
+  state = State.transition(state, { type: 'COPY_STARTED', draftId: 'post-01', jobId: 'copy-1' });
+  state = State.transition(state, { type: 'VISUAL_STARTED', draftId: 'post-01', package: { idea: 'SEO audit' } });
+  state = State.transition(state, {
+    type: 'BATCH_HALTED', draftId: 'post-01', error: { code: 'DAILY_QUOTA_EXCEEDED', message: 'Quota reached.' },
+  });
+  assert.equal(state.status, 'failed');
+  assert.equal(state.haltReason.code, 'DAILY_QUOTA_EXCEEDED');
+
+  state = State.transition(state, { type: 'COPY_STARTED', draftId: 'post-01', jobId: 'copy-2' });
+  assert.equal(state.status, 'drafts_running');
+  assert.equal(state.haltReason, undefined);
+  assert.equal(state.drafts[0].error, undefined);
 });

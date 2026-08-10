@@ -46,6 +46,7 @@
     if (type === 'IDEAS_STARTED') {
       assert(['queued', 'failed'].includes(state.status), 'Ideas can start only from queued or failed.');
       state.status = 'ideas_running'; state.active = { kind: 'ideas', jobId: event.jobId, prompt: event.prompt || '' };
+      delete state.error; delete state.haltReason;
     } else if (type === 'IDEAS_FAILED') {
       assert(state.status === 'ideas_running', 'Ideas can fail only while ideas are running.');
       state.status = 'failed'; state.active = null; state.error = copy(event.error || { code: 'IDEAS_FAILED', message: 'Idea generation failed.' });
@@ -58,6 +59,7 @@
       assert(['idea_queued', 'failed'].includes(draft.status), 'Copy can start only for a queued or failed draft.');
       draft.status = 'copy_running'; draft.jobId = event.jobId; state.status = 'drafts_running';
       state.active = { kind: 'copy', draftId: draft.id, jobId: event.jobId, prompt: event.prompt || '' };
+      delete draft.error; delete state.haltReason;
     } else if (type === 'COPY_BLOCKED') {
       const draft = draftFor(state, event.draftId); assert(draft.status === 'copy_running', 'Only running copy can be blocked.');
       draft.status = 'copy_blocked'; draft.issues = copy(event.issues || []); state.active = null; state.status = 'drafts_running';
@@ -73,6 +75,10 @@
       const draft = draftFor(state, event.draftId); assertDraftOpen(draft);
       draft.status = 'failed'; draft.error = copy(event.error || { code: 'UNKNOWN', message: 'Draft failed.' });
       state.active = null; state.status = 'drafts_running';
+    } else if (type === 'BATCH_HALTED') {
+      const draft = draftFor(state, event.draftId); assertDraftOpen(draft);
+      draft.status = 'failed'; draft.error = copy(event.error || { code: 'BATCH_HALTED', message: 'Batch halted.' });
+      state.status = 'failed'; state.active = null; state.haltReason = copy(draft.error);
     } else if (type === 'BATCH_FINALIZED') {
       assert(state.drafts.length === state.requestedCount, 'Cannot finalize an incomplete batch.');
       assert(state.drafts.every((draft) => TERMINAL_DRAFT.has(draft.status) || draft.status === 'failed'), 'Cannot finalize while a draft is still running.');

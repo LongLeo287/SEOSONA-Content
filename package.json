@@ -6,7 +6,9 @@
     "test": "node --test tests/facebook-*.test.*",
     "facebook:companion": "node scripts/companion/facebook-companion.mjs",
     "facebook:audit": "node scripts/audit/facebook-factory-audit.mjs",
+    "facebook:audit:strict": "node scripts/audit/facebook-factory-audit.mjs --strict",
     "facebook:verify": "npm test && npm run seosona:doctor && npm run facebook:audit",
+    "facebook:verify:release": "npm test && npm run seosona:doctor && npm run facebook:audit:strict",
     "seosona:doctor": "node scripts/seosona-project.mjs doctor",
     "seosona:log": "node scripts/seosona-project.mjs log"
   },

@@ -30,7 +30,10 @@ function harness(options = {}) {
     calls.push({ path, body });
     if (path === '/v1/health') return { ok: true, flow: { contractVersion: '1.1.0', provider: { ready: true } }, context: { revision: 'ctx-health' } };
     if (path === '/v1/context') return CONTEXT;
-    if (path === '/v1/flow/generate') return options.visual || { status: 'asset_ready', receipt: { assetId: 'asset-1', fileRef: 'content-library://batch/post/image.png' } };
+    if (path === '/v1/flow/generate') {
+      if (options.visualError) throw Object.assign(new Error(options.visualError.message), options.visualError);
+      return options.visual || { status: 'asset_ready', receipt: { assetId: 'asset-1', fileRef: 'content-library://batch/post/image.png' } };
+    }
     if (path === '/v1/library/package') { packages.push(body); return { draftRef: `content-library://${body.batch.id}/${body.draft.id}/draft.json`, runtimeDraftRef: 'machine-path' }; }
     if (path === '/v1/flow/cancel') return { ok: true };
     throw new Error('Unexpected Companion path: ' + path);
@@ -39,6 +42,7 @@ function harness(options = {}) {
     load: async () => saved,
     persist: async (state) => { saved = JSON.parse(JSON.stringify(state)); },
     providerStart: async (job) => { jobs.push(job); return { ok: true }; },
+    providerStatus: async (jobId) => jobs.some((job) => job.jobId === jobId) ? { status: 'running' } : null,
     providerAbort: async () => ({ ok: true }),
     companion,
     now: () => '2026-08-10T00:00:00.000Z',
@@ -61,6 +65,8 @@ test('runs start through ideas, copy, QA, visual, package, and completion', asyn
   assert.deepEqual(state.drafts[0].packageReceipt, { draftRef: `content-library://${state.id}/post-01/draft.json` });
   assert.equal(h.packages.length, 1);
   assert.equal(h.packages[0].draft.assetReceipt.assetId, 'asset-1');
+  assert.equal(h.packages[0].batch.status, 'completed');
+  assert.equal(h.packages[0].batch.drafts[0].status, 'asset_ready');
   assert.equal(h.current().status, 'completed');
 });
 
@@ -92,6 +98,26 @@ test('cancels an active batch and ignores later provider completion', async () =
   const state = await h.orchestrator.cancel('user');
   assert.equal(state.status, 'cancelled');
   await assert.rejects(() => h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: '{}' }), /active batch/i);
+});
+
+test('deduplicates concurrent resume requests for the same provider job', async () => {
+  const h = harness();
+  await h.orchestrator.start({ requestedCount: 1, provider: 'gemini' });
+  await Promise.all([h.orchestrator.resume(), h.orchestrator.resume()]);
+  assert.equal(h.jobs.length, 1);
+});
+
+test('halts the batch on quota errors without spending later draft work', async () => {
+  const h = harness({ visualError: { code: 'DAILY_QUOTA_EXCEEDED', message: 'Quota exhausted.', retryable: false } });
+  await h.orchestrator.start({ requestedCount: 2, provider: 'gemini' });
+  await h.orchestrator.handleProviderResult({ jobId: h.jobs[0].jobId, success: true, text: JSON.stringify({ ideas: [
+    { title: 'First', angle: 'One' }, { title: 'Second', angle: 'Two' },
+  ] }) });
+  const state = await h.orchestrator.handleProviderResult({ jobId: h.jobs[1].jobId, success: true, text: draftJson() });
+  assert.equal(state.status, 'failed');
+  assert.equal(state.haltReason.code, 'DAILY_QUOTA_EXCEEDED');
+  assert.deepEqual(state.drafts.map((draft) => draft.status), ['failed', 'idea_queued']);
+  assert.equal(h.jobs.length, 2);
 });
 
 test('continues after one draft fails and preserves the successful draft', async () => {

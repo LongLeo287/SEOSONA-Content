@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const results = [];
+const strict = process.argv.includes('--strict');
 
 function record(id, status, evidence) { results.push({ id, status, evidence }); }
 async function exists(file) { try { await access(file); return true; } catch { return false; } }
@@ -62,7 +63,7 @@ async function auditOsAndBrand() {
   const kitFile = process.env.SEOSONA_BRAND_KIT_FILE || (process.env.SEOSONA_VIDEO_ROOT
     ? join(resolve(process.env.SEOSONA_VIDEO_ROOT), '7_ASSETS', 'brand', 'SEOSONA', 'brand-kit.v1.json') : '');
   if (!kitFile) {
-    record('VIDEO_BRAND_KIT', 'warn', 'Set SEOSONA_BRAND_KIT_FILE or SEOSONA_VIDEO_ROOT for physical BrandKit verification.');
+    record('VIDEO_BRAND_KIT', strict ? 'fail' : 'warn', 'Set SEOSONA_BRAND_KIT_FILE or SEOSONA_VIDEO_ROOT for physical BrandKit verification.');
     return;
   }
   const bytes = await readFile(resolve(kitFile));
@@ -76,7 +77,7 @@ async function auditOsAndBrand() {
 async function auditFlow() {
   const flowRoot = process.env.SEOSONA_FLOW_ROOT;
   if (!flowRoot) {
-    record('FLOW_CONTRACT', 'warn', 'Set SEOSONA_FLOW_ROOT for local Flow contract verification.');
+    record('FLOW_CONTRACT', strict ? 'fail' : 'warn', 'Set SEOSONA_FLOW_ROOT for local Flow contract verification.');
     return;
   }
   const serverFile = join(resolve(flowRoot), 'mcp-local', 'server.mjs');
@@ -97,6 +98,7 @@ await auditFlow();
 
 const summary = {
   contractVersion: '1.0',
+  mode: strict ? 'strict' : 'development',
   generatedAt: new Date().toISOString(),
   status: results.some((item) => item.status === 'fail') ? 'fail' : results.some((item) => item.status === 'warn') ? 'pass_with_warnings' : 'pass',
   counts: results.reduce((out, item) => ({ ...out, [item.status]: (out[item.status] || 0) + 1 }), {}),

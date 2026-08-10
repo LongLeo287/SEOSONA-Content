@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { resolve, relative, join, basename } from 'node:path';
+import { resolve, relative, join, basename, extname } from 'node:path';
 
 function inside(root, candidate) {
   const rel = relative(root, candidate);
@@ -48,10 +48,13 @@ export async function ingestExportedAsset({ downloadsRoot, libraryRoot, exportIn
   if (!inside(targetRoot, targetDir)) throw new Error('Content Library destination must stay inside the library root.');
   const fileName = basename(String(exportInfo.file_name));
   if (fileName !== String(exportInfo.file_name) || !fileName) throw new Error('Asset file name is invalid.');
+  const extension = extname(fileName).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'].includes(extension)) throw new Error('Exported asset must use a supported image extension.');
+  const targetFileName = safeSegment(asset.asset_id, 'Asset id') + extension;
 
   await mkdir(targetDir, { recursive: true });
-  const runtimeFileRef = join(targetDir, fileName);
-  const fileRef = logicalRef(batchId, draftId, fileName);
+  const runtimeFileRef = join(targetDir, targetFileName);
+  const fileRef = logicalRef(batchId, draftId, targetFileName);
   await copyFile(source, runtimeFileRef);
   const receipt = {
     contractVersion: '1.0',
@@ -67,8 +70,8 @@ export async function ingestExportedAsset({ downloadsRoot, libraryRoot, exportIn
     ...(brandKitRef ? { brandKitRef } : {}),
     ...(flowContractVersion ? { flowContractVersion } : {}),
   };
-  const runtimeReceiptRef = join(targetDir, `${fileName}.receipt.json`);
-  const receiptRef = logicalRef(batchId, draftId, `${fileName}.receipt.json`);
+  const runtimeReceiptRef = join(targetDir, `${targetFileName}.receipt.json`);
+  const receiptRef = logicalRef(batchId, draftId, `${targetFileName}.receipt.json`);
   await writeJsonAtomic(runtimeReceiptRef, receipt);
   return { fileRef, receiptRef, runtimeFileRef, runtimeReceiptRef, receipt };
 }

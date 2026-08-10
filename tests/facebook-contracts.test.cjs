@@ -188,3 +188,14 @@ test('blocks factual claim signals that are omitted from the claim map', () => {
   assert.equal(result.ok, false);
   assert.equal(result.issues.some((issue) => issue.code === 'UNMAPPED_CLAIM'), true);
 });
+
+test('blocks a claim mapped to semantically unrelated evidence', () => {
+  const result = Factory.validateDraftPackage({
+    id: 'draft-mismatch',
+    copy: 'Google guarantees rankings in seven days.',
+    claims: [{ text: 'Google guarantees rankings in seven days.', evidenceId: 'e1' }],
+    creativeBrief: { visualPrompt: 'Editorial SEO desk, no text in image.', ratio: '1:1' },
+  }, BASE_CONTEXT.evidence);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.some((issue) => issue.code === 'EVIDENCE_MISMATCH'), true);
+});

@@ -81,6 +81,54 @@
       "evidence": "Flow MCP contract 1.1.0, quality normalization, quality backfill, persistence, and tests are committed in Flow commit f5044ae rather than remaining only in a dirty worktree.",
       "owner": "seosona-flow",
       "gate": "Flow MCP contract suite"
+    },
+    {
+      "id": "FCF-011",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Claim QA now requires semantic relation between each claim and its evidence record, and independently scans factual sentences for missing claim-map coverage.",
+      "owner": "seosona-content",
+      "gate": "facebook-contracts.test.cjs"
+    },
+    {
+      "id": "FCF-012",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Provider status is read from Chrome session storage before redispatch. Resume and result handling are serialized, concurrent resumes are deduplicated, and cancellation becomes durable before remote cleanup.",
+      "owner": "seosona-content",
+      "gate": "facebook-orchestrator.test.cjs"
+    },
+    {
+      "id": "FCF-013",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Quota, authentication, contract, provider-readiness, and Flow availability failures halt the batch without spending later draft work. The failed draft can be explicitly resumed after recovery.",
+      "owner": "seosona-content",
+      "gate": "facebook-orchestrator.test.cjs and facebook-state.test.cjs"
+    },
+    {
+      "id": "FCF-014",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "The library package is written from the projected final state so batch.json contains the completed or needs_review result instead of a stale visual_running manifest.",
+      "owner": "seosona-content",
+      "gate": "facebook-orchestrator.test.cjs"
+    },
+    {
+      "id": "FCF-015",
+      "severity": "P2",
+      "status": "closed",
+      "evidence": "Archived Flow exports require an approved image extension and are renamed from the validated asset id, preventing collision with draft.json or other package metadata.",
+      "owner": "seosona-content",
+      "gate": "facebook-library.test.mjs"
+    },
+    {
+      "id": "FCF-016",
+      "severity": "P2",
+      "status": "closed",
+      "evidence": "facebook:verify:release invokes strict cross-project audit mode, which fails when the physical Video BrandKit or Flow MCP root is not supplied.",
+      "owner": "seosona-content",
+      "gate": "facebook:audit:strict"
     }
   ]
 }

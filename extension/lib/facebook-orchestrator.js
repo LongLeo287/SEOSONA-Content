@@ -7,6 +7,11 @@
   'use strict';
 
   if (!Factory || !Batch || !State) throw new Error('Facebook Factory, Batch, and State must load before the orchestrator.');
+  const BATCH_HALTING_ERRORS = new Set([
+    'DAILY_QUOTA_EXCEEDED', 'PROVIDER_NOT_LOGGED_IN', 'PROVIDER_TAB_NOT_READY', 'PROJECT_NOT_FOUND',
+    'INCOMPATIBLE_FLOW_CONTRACT', 'FLOW_EXTENSION_DISCONNECTED', 'FLOW_UNAVAILABLE', 'VALIDATION_ERROR',
+    'CAPABILITIES_UNAVAILABLE', 'PROVIDER_STATUS_UNAVAILABLE',
+  ]);
 
   function normalizeError(error, fallbackCode) {
     if (error && error.code && error.message) return { code: String(error.code), message: String(error.message) };
@@ -30,6 +35,14 @@
     const clock = typeof deps.now === 'function' ? deps.now : () => new Date().toISOString();
     const emit = typeof deps.emit === 'function' ? deps.emit : () => {};
     let current = null;
+    let serial = Promise.resolve();
+    const dispatchedJobs = new Set();
+
+    function enqueue(operation) {
+      const run = serial.then(operation, operation);
+      serial = run.catch(() => {});
+      return run;
+    }
 
     async function load() {
       if (!current) current = await deps.load() || null;
@@ -48,13 +61,26 @@
       return 'facebook_' + safeJobPart(current.id) + '_' + (kind === 'ideas' ? 'ideas' : safeJobPart(draftId));
     }
 
+    async function providerState(id) {
+      return typeof deps.providerStatus === 'function' ? deps.providerStatus(id) : null;
+    }
+
+    async function shouldDispatch(id) {
+      if (dispatchedJobs.has(id)) return false;
+      const saved = await providerState(id);
+      return !(saved && ['preparing', 'running'].includes(saved.status));
+    }
+
     async function dispatchIdeas(prompt, existingJobId) {
       const id = existingJobId || jobId('ideas');
       if (current.status !== 'ideas_running') await commit(transition({ type: 'IDEAS_STARTED', jobId: id, prompt }));
+      if (!await shouldDispatch(id)) return current;
       try {
         const result = await deps.providerStart({ jobId: id, provider: current.provider, text: prompt, timeout: 300000, freshChat: true });
         if (!result || result.ok !== true) throw new Error(result && result.error || 'Provider rejected the idea job.');
+        dispatchedJobs.add(id);
       } catch (error) {
+        dispatchedJobs.delete(id);
         await commit(transition({ type: 'IDEAS_FAILED', error: normalizeError(error, 'IDEA_PROVIDER_FAILED') }));
       }
       return current;
@@ -63,10 +89,13 @@
     async function dispatchCopy(draft, prompt, existingJobId) {
       const id = existingJobId || jobId('copy', draft.id);
       if (draft.status !== 'copy_running') await commit(transition({ type: 'COPY_STARTED', draftId: draft.id, jobId: id, prompt }));
+      if (!await shouldDispatch(id)) return current;
       try {
         const result = await deps.providerStart({ jobId: id, provider: current.provider, text: prompt, timeout: 300000, freshChat: true });
         if (!result || result.ok !== true) throw new Error(result && result.error || 'Provider rejected the copy job.');
+        dispatchedJobs.add(id);
       } catch (error) {
+        dispatchedJobs.delete(id);
         await commit(transition({ type: 'DRAFT_FAILED', draftId: draft.id, error: normalizeError(error, 'COPY_PROVIDER_FAILED') }));
         return startNextDraft(false);
       }
@@ -95,6 +124,16 @@
         });
         if (current.status === 'cancelled') return current;
         if (!visual || !['asset_ready', 'asset_needs_review'].includes(visual.status)) throw new Error('Companion returned an unknown visual status.');
+        let next = State.transition(current, {
+          type: visual.status === 'asset_ready' ? 'ASSET_READY' : 'ASSET_REVIEW',
+          draftId: draft.id,
+          receipt: visual.receipt || null,
+          at: clock(),
+        });
+        const hasOpenDraft = next.drafts.some((item) => ['idea_queued', 'copy_running', 'visual_running'].includes(item.status));
+        if (!hasOpenDraft && next.drafts.length === next.requestedCount) {
+          next = State.transition(next, { type: 'BATCH_FINALIZED', at: clock() });
+        }
         const durableDraft = {
           id: draft.id,
           topic: draft.topic,
@@ -104,23 +143,25 @@
           assetReceipt: visual.receipt || null,
         };
         const packageReceipt = portablePackageReceipt(await deps.companion('/v1/library/package', {
-          batch: Object.keys(current).reduce((value, key) => {
-            if (key !== 'contextSnapshot') value[key] = current[key];
+          batch: Object.keys(next).reduce((value, key) => {
+            if (key !== 'contextSnapshot') value[key] = next[key];
             return value;
           }, {}),
           snapshot: current.contextSnapshot,
           draft: durableDraft,
         }));
-        await commit(transition({
-          type: visual.status === 'asset_ready' ? 'ASSET_READY' : 'ASSET_REVIEW',
-          draftId: draft.id,
-          receipt: visual.receipt || null,
-          packageReceipt,
-        }));
+        const completedDraft = next.drafts.find((item) => item.id === draft.id);
+        completedDraft.packageReceipt = packageReceipt;
+        await commit(next);
       } catch (error) {
         if (current.status === 'cancelled') return current;
-        await commit(transition({ type: 'DRAFT_FAILED', draftId: draft.id, error: normalizeError(error, 'VISUAL_OR_PACKAGE_FAILED') }));
+        const normalized = normalizeError(error, 'VISUAL_OR_PACKAGE_FAILED');
+        if (BATCH_HALTING_ERRORS.has(normalized.code)) {
+          return commit(transition({ type: 'BATCH_HALTED', draftId: draft.id, error: normalized }));
+        }
+        await commit(transition({ type: 'DRAFT_FAILED', draftId: draft.id, error: normalized }));
       }
+      if (['completed', 'needs_review', 'failed'].includes(current.status)) return current;
       return startNextDraft(false);
     }
 
@@ -147,6 +188,7 @@
       await load();
       if (!current || ['cancelled', 'completed'].includes(current.status) || !current.active) throw new Error('No active batch is waiting for this provider result.');
       if (current.active.jobId !== completedJobId) throw new Error('Provider result does not match the active Facebook job.');
+      dispatchedJobs.delete(completedJobId);
       if (current.active.kind === 'ideas') {
         if (!success) return commit(transition({ type: 'IDEAS_FAILED', error: normalizeError(error, 'IDEA_PROVIDER_FAILED') }));
         try {
@@ -169,12 +211,15 @@
         const gate = Factory.validateDraftPackage({ ...parsed, id: draftId }, current.contextSnapshot.evidence, {
           clientRef: current.drafts.find((draft) => draft.id === draftId).clientRef,
           brandKitSnapshot: current.contextSnapshot.brandKitSnapshot,
+          expectedLanguage: current.contextSnapshot.policy.copyLanguage || current.contextSnapshot.group.language || null,
+          contextRevision: current.contextRevision,
+          brandProfile: current.contextSnapshot.brand,
         });
         if (!gate.ok) {
           await commit(transition({ type: 'COPY_BLOCKED', draftId, issues: gate.issues }));
           return startNextDraft(false);
         }
-        await commit(transition({ type: 'VISUAL_STARTED', draftId, package: { parsed, visualJob: gate.visualJob } }));
+        await commit(transition({ type: 'VISUAL_STARTED', draftId, package: { parsed: { ...parsed, copyQa: gate.copyQa }, visualJob: gate.visualJob } }));
         return processVisual(current.drafts.find((draft) => draft.id === draftId));
       } catch (caught) {
         await commit(transition({ type: 'DRAFT_FAILED', draftId, error: normalizeError(caught, 'COPY_PARSE_FAILED') }));
@@ -187,13 +232,25 @@
       if (!current) throw new Error('No Facebook batch is available to resume.');
       if (current.status === 'cancelled') throw new Error('A cancelled batch cannot be resumed.');
       if (current.status === 'completed') return current;
-      if (current.status === 'queued' || current.status === 'failed') {
+      if (current.status === 'queued' || (current.status === 'failed' && !current.drafts.length)) {
         const prompt = Batch.buildIdeaPrompt({ count: current.requestedCount, snapshot: current.contextSnapshot });
         return dispatchIdeas(prompt);
       }
-      if (current.active && current.active.kind === 'ideas') return dispatchIdeas(current.active.prompt, current.active.jobId);
+      if (current.active && current.active.kind === 'ideas') {
+        const saved = await providerState(current.active.jobId);
+        if (saved && ['done', 'error'].includes(saved.status) && saved.result) {
+          return handleProviderResult({ jobId: current.active.jobId, success: saved.status === 'done', text: saved.result.text || '', error: saved.result });
+        }
+        if (saved && ['preparing', 'running'].includes(saved.status)) return current;
+        return dispatchIdeas(current.active.prompt, current.active.jobId);
+      }
       if (current.active && current.active.kind === 'copy') {
         const draft = current.drafts.find((item) => item.id === current.active.draftId);
+        const saved = await providerState(current.active.jobId);
+        if (saved && ['done', 'error'].includes(saved.status) && saved.result) {
+          return handleProviderResult({ jobId: current.active.jobId, success: saved.status === 'done', text: saved.result.text || '', error: saved.result });
+        }
+        if (saved && ['preparing', 'running'].includes(saved.status)) return current;
         return dispatchCopy(draft, current.active.prompt, current.active.jobId);
       }
       if (current.active && current.active.kind === 'visual') {
@@ -206,18 +263,28 @@
     async function cancel(reason) {
       await load();
       if (!current) throw new Error('No Facebook batch is available to cancel.');
-      if (current.active && ['ideas', 'copy'].includes(current.active.kind) && typeof deps.providerAbort === 'function') {
-        await deps.providerAbort({ jobId: current.active.jobId }).catch(() => {});
+      if (current.status === 'cancelled') return current;
+      const active = current.active;
+      await commit(transition({ type: 'BATCH_CANCELLED', reason: reason || 'user' }));
+      if (active && ['ideas', 'copy'].includes(active.kind) && typeof deps.providerAbort === 'function') {
+        dispatchedJobs.delete(active.jobId);
+        await deps.providerAbort({ jobId: active.jobId }).catch(() => {});
       }
-      if (current.active && current.active.kind === 'visual') {
+      if (active && active.kind === 'visual') {
         await deps.companion('/v1/flow/cancel', {}).catch(() => {});
       }
-      return commit(transition({ type: 'BATCH_CANCELLED', reason: reason || 'user' }));
+      return current;
     }
 
     async function getState() { return load(); }
 
-    return { start, handleProviderResult, resume, cancel, getState };
+    return {
+      start: (input) => enqueue(() => start(input)),
+      handleProviderResult: (input) => enqueue(() => handleProviderResult(input)),
+      resume: () => enqueue(() => resume()),
+      cancel,
+      getState,
+    };
   }
 
   return { createOrchestrator };

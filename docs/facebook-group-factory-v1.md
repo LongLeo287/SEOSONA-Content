@@ -56,3 +56,4 @@ For each draft, the Content Library receives `batch.json`, `context.snapshot.jso
 - `npm test` runs the contract, security boundary, state, Companion, library, and orchestration tests.
 - `npm run facebook:audit` checks the Content runtime, OS batch/no-publish policy, optional physical Video BrandKit, and optional Flow 1.1 contract.
 - `npm run facebook:verify` runs Content tests, project doctor, and the audit in sequence.
+- `npm run facebook:verify:release` is the fail-closed release gate; provide `SEOSONA_ROOT`, `SEOSONA_VIDEO_ROOT` (or `SEOSONA_BRAND_KIT_FILE`), and `SEOSONA_FLOW_ROOT` so the physical cross-project contracts are mandatory.

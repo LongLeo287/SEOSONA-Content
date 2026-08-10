@@ -92,20 +92,51 @@
     });
   }
 
+  function semanticTokens(text) {
+    const stop = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'was', 'were', 'được', 'của', 'cho', 'với', 'trong', 'một', 'những']);
+    return new Set(String(text || '').toLocaleLowerCase('vi').match(/[\p{L}\p{N}]+/gu)?.filter((token) => token.length >= 3 && !stop.has(token)) || []);
+  }
+
+  function semanticOverlap(left, right) {
+    const a = semanticTokens(left); const b = semanticTokens(right);
+    if (!a.size || !b.size) return 0;
+    let shared = 0;
+    a.forEach((token) => { if (b.has(token)) shared += 1; });
+    return shared / Math.min(a.size, b.size);
+  }
+
   function validateDraftPackage(draft, evidence, options) {
-    const knownEvidence = new Set((evidence || []).map((item) => item && item.id).filter(Boolean));
+    const evidenceById = new Map((evidence || []).map((item) => [item && item.id, item]).filter((item) => item[0]));
+    const knownEvidence = new Set(evidenceById.keys());
     const issues = [];
     (draft && draft.claims || []).forEach((claim, claimIndex) => {
-      if (!claim || !claim.evidenceId || !knownEvidence.has(claim.evidenceId)) issues.push({ code: 'MISSING_EVIDENCE', claimIndex });
+      if (!claim || !claim.evidenceId || !knownEvidence.has(claim.evidenceId)) {
+        issues.push({ code: 'MISSING_EVIDENCE', claimIndex });
+      } else if (semanticOverlap(claim.text, evidenceById.get(claim.evidenceId).claim) < 0.35) {
+        issues.push({ code: 'EVIDENCE_MISMATCH', claimIndex, evidenceId: claim.evidenceId });
+      }
     });
     const claimSignals = /\b(?:guarantee(?:s|d)?|official|according to|research shows|studies? show|reports? show|data shows|percent)\b|(?:\d+(?:[.,]\d+)?)\s*(?:%|percent|days?|weeks?|months?|ngày|tuần|tháng)|(?:cam kết|đảm bảo|chính thức|theo nghiên cứu|theo báo cáo|số liệu cho thấy)/iu;
-    if (!(draft && draft.claims || []).length && claimSignals.test(String(draft && draft.copy || ''))) {
-      issues.push({ code: 'UNMAPPED_CLAIM' });
-    }
+    String(draft && draft.copy || '').split(/[.!?\n]+/).map((sentence) => sentence.trim()).filter(Boolean).forEach((sentence, sentenceIndex) => {
+      if (claimSignals.test(sentence) && !(draft && draft.claims || []).some((claim) => semanticOverlap(sentence, claim && claim.text) >= 0.35)) {
+        issues.push({ code: 'UNMAPPED_CLAIM', sentenceIndex });
+      }
+    });
     if (!draft || !String(draft.copy || '').trim()) issues.push({ code: 'MISSING_COPY' });
+    const expectedLanguage = options && options.expectedLanguage;
+    const looksVietnamese = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]|\b(?:bạn|mình|chúng ta|không|đang|và|của|cho|với)\b/iu.test(String(draft && draft.copy || ''));
+    if (expectedLanguage === 'vi' && !looksVietnamese) issues.push({ code: 'LANGUAGE_MISMATCH', expected: 'vi' });
     const brief = draft && draft.creativeBrief;
     if (!brief || !String(brief.visualPrompt || '').trim() || !String(brief.ratio || '').trim()) issues.push({ code: 'MISSING_CREATIVE_BRIEF' });
-    if (issues.length) return { ok: false, issues };
+    const copyQa = {
+      verdict: issues.length ? 'blocked' : 'pass',
+      language: expectedLanguage || null,
+      claimCount: (draft && draft.claims || []).length,
+      evidenceRevision: options && options.contextRevision || null,
+      brandProfileId: options && options.brandProfile && options.brandProfile.id || null,
+      issues: canonicalize(issues),
+    };
+    if (issues.length) return { ok: false, issues, copyQa };
     const brandKit = options && options.brandKitSnapshot;
     const mode = String(brief.mode || 'lightEditorial');
     const component = String(brief.component || 'explain_light');
@@ -138,6 +169,7 @@
     return {
       ok: true,
       issues: [],
+      copyQa,
       visualJob: visualJob,
     };
   }

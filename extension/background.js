@@ -351,6 +351,10 @@ const facebookOrchestrator = FacebookOrchestrator.createOrchestrator({
   persist: async (batch) => chrome.storage.local.set({ srtFacebookBatchLast: batch }),
   emit: async (batch) => { await indexFacebookLibrary(batch); broadcast({ action: 'facebook:batchUpdate', batch }); },
   providerStart: handleRunJob,
+  providerStatus: async (jobId) => {
+    const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
+    return srtJobs[jobId] || null;
+  },
   providerAbort: handleAbort,
   companion: facebookCompanion,
 });

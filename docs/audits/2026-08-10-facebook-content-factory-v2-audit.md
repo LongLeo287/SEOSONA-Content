@@ -12,13 +12,13 @@ The implementation is structurally ready for V1 use. All offline and simulated a
 
 There are no open P0 or P1 implementation issues. Two P2 gates remain: populate the OS evidence packet for factual content and run one authenticated local acceptance batch.
 
-Independent review initially found four P1 release blockers. All four were fixed before integration: unmapped factual claim signals are blocked, review-required images are archived, runtime paths are stripped from Companion/orchestrator receipts, and the required Flow 1.1 contract is committed rather than existing only as working-tree state.
+Independent review found six P1 release blockers and two P2 hardening gaps. All were fixed before integration: factual sentences require a related claim and claim-to-evidence semantic match; review-required images are archived; final package manifests are written from final state; runtime paths are stripped; provider jobs are deduplicated across concurrent/service-worker resume; cancellation is persisted before remote cleanup; quota/auth/infrastructure failures halt the batch; Flow 1.1 is committed; image filenames cannot collide with package JSON; and release audit fails closed when Flow or BrandKit roots are absent.
 
 ## Verified Architecture
 
 1. OS owns the versioned brand, group, policy, and evidence sources. Batch size defaults to 5 and is constrained to 1 through 20; publishing remains explicitly unsupported.
 2. Content owns idea generation, Vietnamese copy, evidence and brand gates, immutable context snapshots, state, retries, and final package indexing.
-3. The background service worker persists every transition and resumes idea, copy, and visual work after the UI closes or the worker restarts.
+3. The background service worker persists every transition and resumes idea, copy, and visual work after the UI closes or the worker restarts. It reconciles provider session status before dispatching and serializes concurrent resume/result operations.
 4. Companion accepts only allowlisted extension origins with a bearer token and single-use nonce. It exposes health, context, visual, cancel, and package endpoints.
 5. Companion negotiates Flow contract 1.1.x through health, capabilities, and provider readiness. Transport retries keep the same client reference; only judged quality failures create revisions, at most twice.
 6. Flow remains the pixel worker through its official local MCP process. Content does not access Flow's privileged executor bridge directly.
@@ -29,9 +29,9 @@ Independent review initially found four P1 release blockers. All four were fixed
 
 | Gate | Result |
 |---|---|
-| Content tests | Passed, including contracts, auth/replay, Flow handshake, quality retry, package traversal, state, cancel, resume, and simulated batches of 1, 5, and 20 |
+| Content tests | 59/59 passed, including contracts, claim/evidence relation, auth/replay, Flow handshake, quality retry, package traversal/collision, halt, cancel, concurrent resume, and simulated batches of 1, 5, and 20 |
 | Content doctor | Connected; all checks passed |
-| Cross-project audit | 7/7 passed with explicit OS, Video, and Flow roots |
+| Cross-project release audit | Strict mode passed 7/7 with explicit OS, Video, and Flow roots; missing roots fail release verification |
 | OS contracts | 6 passed; live BrandKit test skipped only in the standalone command because its environment variable was not set; the cross-project digest audit passed |
 | OS doctor | Exit 0; pre-existing warnings for missing `.clauderules` and `.cursorrules` |
 | Video BrandKit | Valid; 48 assets checked; canonical digest matched OS |
@@ -50,7 +50,7 @@ Independent review initially found four P1 release blockers. All four were fixed
 - Secrets stay in runtime environment or Chrome session storage and are absent from durable receipts.
 - Durable references use `seosona-brand://` and `content-library://`; physical paths are injected through environment variables.
 - Flow visual cancellation uses the Companion-owned MCP process and can cancel its active pending job without exposing an internal Flow job ID.
-- Asset and package writers reject path traversal and use atomic JSON writes.
+- Asset and package writers reject path traversal and non-image extensions, generate collision-safe asset names, and use atomic JSON writes.
 
 ## Remaining Actions
 

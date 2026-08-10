@@ -25,8 +25,8 @@ test('copies a Flow export into the Content Library and writes a provenance rece
     brandKitRef: { ref: 'seosona-brand://video/SEOSONA/brand-kit.v1.json', version: '1.0.0', sha256: '4ecb0a7ac2d49c65d96739f2fa31492863c716b477868b130142c482d289a927' },
   });
 
-  assert.equal(result.fileRef, 'content-library://week-2026-33/post-01/post-01.png');
-  assert.equal(result.receiptRef, 'content-library://week-2026-33/post-01/post-01.png.receipt.json');
+  assert.equal(result.fileRef, 'content-library://week-2026-33/post-01/asset-1.png');
+  assert.equal(result.receiptRef, 'content-library://week-2026-33/post-01/asset-1.png.receipt.json');
   assert.equal(await readFile(result.runtimeFileRef, 'utf8'), 'png-bytes');
   const receipt = JSON.parse(await readFile(result.runtimeReceiptRef, 'utf8'));
   assert.equal(receipt.assetId, 'asset-1');
@@ -51,4 +51,15 @@ test('rejects a path that escapes the Flow download root', async () => {
     }),
     /inside the Flow download root/i,
   );
+});
+
+test('rejects a non-image export name before it can collide with package JSON', async () => {
+  const downloads = await mkdtemp(join(tmpdir(), 'seosona-flow-downloads-'));
+  const library = await mkdtemp(join(tmpdir(), 'seosona-content-library-'));
+  await writeFile(join(downloads, 'draft.json'), '{}');
+  await assert.rejects(ingestExportedAsset({
+    downloadsRoot: downloads, libraryRoot: library,
+    exportInfo: { folder: '.', file_name: 'draft.json' },
+    batchId: 'week-2026-33', draftId: 'post-01', asset: { asset_id: 'asset-1', kind: 'image' },
+  }), /image extension/i);
 });
