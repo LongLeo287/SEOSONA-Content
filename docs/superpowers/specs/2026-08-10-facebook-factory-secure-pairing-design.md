@@ -1,7 +1,7 @@
 # Facebook Factory Secure Pairing Design
 
-**Date:** 2026-08-10  
-**Status:** Approved  
+**Date:** 2026-08-10
+**Status:** Approved
 **Scope:** Local authentication and automatic reconnection between SEOSONA Content Companion and SEOSONA Flow.
 
 ## 1. Objective
