@@ -38,9 +38,9 @@
       "id": "FCF-005",
       "severity": "P2",
       "status": "external_pending",
-      "evidence": "Live Flow contract 1.1.0, extension connection, project context, provider readiness, idempotency, and one real image were verified. The bridge still reports auth:none; quality backfill returned judged:false, and no authenticated Companion batch or five-package Content Library readback has completed.",
+      "evidence": "Atomic token activation, rotation reconnect, Content auth rejection, and an authenticated loopback MCP integration passed. The earlier live provider run verified Flow contract 1.1.0, extension connection, project context, provider readiness, idempotency, and one real image. The current automation environment blocked loading the worktree extensions into the signed-in Chrome profile, so no authenticated Companion batch or Content Library readback was claimed.",
       "owner": "local-runtime",
-      "gate": "Configure the same non-empty local MCP token in Flow and Companion, then complete and read back one live batch through Content."
+      "gate": "Perform the one-time Flow token creation, start Companion with the copied runtime token, then complete and read back one live batch through Content in a browser environment that permits release-extension loading."
     },
     {
       "id": "FCF-006",
@@ -217,6 +217,14 @@
       "evidence": "The owner's current dirty Flow worktree passes 1,376 of 1,380 unit tests. The four failures are repository-inventory, build-generated, inventory-reconciliation, and package-manifest reconciliation drift caused by the unmerged local file set; the Content Factory commits did not overwrite or absorb those changes.",
       "owner": "seosona-flow-worktree",
       "gate": "After the current Flow changes are intentionally integrated, regenerate and review the tracked inventory/package artifacts, then rerun npm run test:unit."
+    },
+    {
+      "id": "FCF-028",
+      "severity": "P1",
+      "status": "closed",
+      "evidence": "Flow Settings previously wrote local_mcp_tokens while the runtime bridge read seosonaLocalMcp. The generated token now activates both records in one storage write; the bridge watches only seosonaLocalMcp, invalidates old trust, closes the stale socket, validates loopback configuration, and reconnects exactly once. Content rejects auth:none before generation.",
+      "owner": "seosona-flow-and-content",
+      "gate": "Flow focused pairing tests 5/5, authenticated MCP integration, Content tests 76/76, static checks, secret scan, dependency audit, doctors, and strict cross-project audit."
     }
   ]
 }

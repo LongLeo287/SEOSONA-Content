@@ -8,9 +8,9 @@
 
 ## Verdict
 
-The implementation is structurally ready for V1 use. All offline and simulated acceptance gates pass. Live probing also confirmed the Flow 1.1 bridge, an attached extension, a ready Google Flow project, stable `client_ref` idempotency, and one real generated image. The remaining live gate is the authenticated Content-to-Companion path: no shared local MCP token is configured, the live quality backfill returned `judged:false`, and no five-package Content Library batch was fabricated or reported as passed.
+The implementation is structurally ready for V1 use. All offline and simulated acceptance gates pass. Flow token creation now activates the exact bridge configuration atomically, token rotation invalidates old trust and reconnects once, and Content rejects `auth:none` before capabilities or generation. An authenticated loopback MCP contract passed with mutual token enforcement. Earlier live probing confirmed the Flow 1.1 bridge, an attached extension, a ready Google Flow project, stable `client_ref` idempotency, and one real generated image. The remaining live gate is an authenticated Content-to-Companion browser run: the automation environment blocked loading the worktree extensions into the signed-in Chrome profile, so no authenticated Content Library batch was fabricated or reported as passed.
 
-There are no open P0 or P1 implementation issues. Two P2 gates remain: configure the shared local token and run one authenticated local acceptance batch through Content Companion, then reconcile Flow's generated inventory artifacts after the owner's current unmerged Flow work is finalized.
+There are no open P0 or P1 implementation issues. Two P2 gates remain: perform the one-time runtime token pairing and run one authenticated local acceptance batch through Content Companion, then reconcile Flow's generated inventory artifacts after the owner's current unmerged Flow work is finalized.
 
 The former Video dependency-hygiene issue is closed. HyperFrames and its companion packages were upgraded from 0.7.24 to 0.7.104 without a forced major update; the production dependency audit now reports zero known vulnerabilities, the integration audit passes, and a strict draft render produced a valid ten-second MP4.
 
@@ -31,7 +31,7 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 
 | Gate | Result |
 |---|---|
-| Content tests | 75/75 passed, including canonical verbatim claim enforcement, brand QA, auth/replay, asynchronous Companion jobs, MV3 alarm resume, refreshed provider lease, Flow handshake, quality retry, package traversal/collision, halt, cancel race, and simulated batches of 1, 5, and 20 |
+| Content tests | 76/76 passed, including rejection of `auth:none`, canonical verbatim claim enforcement, brand QA, auth/replay, asynchronous Companion jobs, MV3 alarm resume, refreshed provider lease, Flow handshake, quality retry, package traversal/collision, halt, cancel race, and simulated batches of 1, 5, and 20 |
 | Content doctor | Connected; all checks passed |
 | Cross-project release audit | Strict mode passed 7/7 with explicit OS, Video, and Flow roots; missing roots fail release verification |
 | OS contracts | 9/9 passed, including the live Video BrandKit digest, configurable batch policy, and 13-record verified evidence packet |
@@ -41,11 +41,12 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 | Video dependency and render compatibility | HyperFrames 0.7.104; production audit reports 0 vulnerabilities; integration audit and strict ten-second draft MP4 render passed |
 | Flow static | JavaScript syntax, 22 JSON files, and all declared HTML/manifest resources passed |
 | Flow queue regression | 1/1 targeted test passed; a live image succeeded after the fix |
+| Flow secure pairing | 5/5 focused tests passed for atomic activation, validation, token rotation, single reconnect, unrelated storage changes, and queue independence |
 | Flow full unit suite on the owner's dirty worktree | 1,376/1,380 passed; four failures are generated inventory/package-manifest drift caused by the current unmerged Flow file set, tracked as FCF-027 rather than rewritten by this integration |
-| Flow MCP contracts | Normalization, validation, quality, integration, persistence/idempotency, and quality backfill passed |
+| Flow MCP contracts | Normalization, validation, quality, authenticated integration, persistence/idempotency, and quality backfill passed; production dependency audit reports 0 vulnerabilities |
 | Flow MCP source state | Contract 1.1.0 and quality tests committed in `f5044ae`; UI-toggle independence committed in `d7e6161` |
 | Flow doctor | Connected; all checks passed |
-| Live provider acceptance | Partial: extension connected, provider ready, project created, and image `83660185-216d-432c-bdde-6b1ed0459db8` generated once; bridge reported `auth:none`, quality remained unjudged, and Companion package readback is still pending |
+| Live provider acceptance | Partial: the earlier run connected the extension, confirmed provider readiness, created a project, and generated image `83660185-216d-432c-bdde-6b1ed0459db8` once. The new authenticated browser run was withheld because the environment blocked loading worktree extensions into the signed-in Chrome profile; authenticated Companion package readback remains pending |
 
 ## Security and Portability Review
 
@@ -58,8 +59,8 @@ Independent review passes found concurrency, evidence, MV3 lifecycle, taxonomy, 
 
 ## Remaining Actions
 
-1. Configure the same non-empty `SEOSONA_LOCAL_MCP_TOKEN` in the Flow extension and Content Companion runtime.
-2. Run one authenticated Content batch at the requested size, require judged visual results or explicit review state, and read every package back from Content Library.
+1. In Flow Settings, create the local MCP token once and copy its one-time value into the Companion runtime `SEOSONA_LOCAL_MCP_TOKEN`; Flow now activates and reconnects the bridge automatically.
+2. Run one authenticated Content batch at the requested size, require judged visual results or explicit review state, and read every package back from Content Library in a browser environment that permits loading the release extension.
 3. After the current Flow worktree changes are intentionally integrated, regenerate and review the repository inventory/package artifacts so the full Flow unit suite returns to green.
 
 The machine-readable registry is `2026-08-10-facebook-content-factory-v2-issues.json` in this directory.
