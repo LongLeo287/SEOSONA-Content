@@ -209,6 +209,14 @@
       "evidence": "Live generation exposed that MCP incorrectly required the user-facing Pipeline Queue toggle. Flow commit d7e6161 now requires only the loaded PromptQueue implementation; its regression test passed and the same stable client_ref generated one real image without enabling the UI toggle.",
       "owner": "seosona-flow",
       "gate": "mcp-flow-queue-toggle.test.mjs plus live gen_image receipt."
+    },
+    {
+      "id": "FCF-027",
+      "severity": "P2",
+      "status": "open",
+      "evidence": "The owner's current dirty Flow worktree passes 1,376 of 1,380 unit tests. The four failures are repository-inventory, build-generated, inventory-reconciliation, and package-manifest reconciliation drift caused by the unmerged local file set; the Content Factory commits did not overwrite or absorb those changes.",
+      "owner": "seosona-flow-worktree",
+      "gate": "After the current Flow changes are intentionally integrated, regenerate and review the tracked inventory/package artifacts, then rerun npm run test:unit."
     }
   ]
 }
