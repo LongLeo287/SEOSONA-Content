@@ -3,7 +3,12 @@
   "private": true,
   "description": "SEOSONA Content — bound to SEOSONA OS via seosona.project.json",
   "scripts": {
+    "test": "node --test tests/facebook-*.test.*",
+    "facebook:companion": "node scripts/companion/facebook-companion.mjs",
     "seosona:doctor": "node scripts/seosona-project.mjs doctor",
     "seosona:log": "node scripts/seosona-project.mjs log"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
   }
 }

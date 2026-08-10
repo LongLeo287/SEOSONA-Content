@@ -359,6 +359,24 @@
         </div>
 
         <button id="btnContentRun" class="btn-cta">🚀 Chạy Content</button>
+        <details class="subcard acc-card" id="facebookBatchCard">
+          <summary class="card-sum">Facebook Group Batch — 5 bài/tuần</summary>
+          <div class="acc-body">
+            <p class="hint">Bản nháp tiếng Việt cho cộng đồng SEO/marketing. Context, brand và evidence được đọc từ SEOSONA OS qua Companion cục bộ; Content không đăng Facebook.</p>
+            <div class="row"><div class="field grow"><label>Companion URL</label><input id="fbCompanionUrl" value="http://127.0.0.1:43117" autocomplete="off"></div></div>
+            <div class="row">
+              <div class="field grow"><label>Companion token</label><input id="fbCompanionToken" type="password" autocomplete="off" placeholder="Token Companion cục bộ"></div>
+              <button id="btnFbLoadContext" type="button">Nạp context OS</button>
+            </div>
+            <div id="fbContextStatus" class="hint">Chưa nạp context OS.</div>
+            <div class="sec">
+              <div class="sec-head">5 chủ đề tuần này — mỗi dòng một chủ đề</div>
+              <textarea id="fbTopics" rows="6" placeholder="SEO technical audit&#10;Content brief theo search intent&#10;Internal linking&#10;Schema thực dụng&#10;E-E-A-T bằng evidence"></textarea>
+            </div>
+            <button id="btnFbCreateBatch" class="btn-cta" type="button">Tạo 5 draft package</button>
+            <div id="fbBatchStatus"></div>
+          </div>
+        </details>
         <div id="contentStatus"></div>
 
         <div id="contentResultCard" hidden>
@@ -615,6 +633,8 @@
 <script src="../lib/prompts-longform.js"></script>
 <script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/prompts-content.js"></script>
+<script src="../lib/facebook-factory.js"></script>
+<script src="../lib/facebook-batch.js"></script>
 <script src="../lib/prompts-flows.js"></script>
 <script src="../lib/prompts-research.js"></script>
 <script src="../lib/templates.js"></script>

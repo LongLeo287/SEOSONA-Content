@@ -555,6 +555,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
+    if (jobId.startsWith('facebook_')) return handleFacebookUpdate(jobId, status, result);
     if (jobId.startsWith('content_')) return handleContentUpdate(status, result);
     if (jobId.startsWith('research_')) return handleResearchUpdate(status, result);
     if (jobId.startsWith('flow_')) return handleFlowUpdate(jobId, status, result);
@@ -2122,6 +2123,110 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
 })();
 
 // ---------------------------------------------------------------- init
+const facebookProviderWaiters = new Map();
+let facebookContext = null;
+let facebookBatch = null;
+
+function fbConfig() {
+  return {
+    url: ($('#fbCompanionUrl').value || '').trim().replace(/\/$/, ''),
+    token: ($('#fbCompanionToken').value || '').trim(),
+  };
+}
+function fbRender(message, kind) {
+  const el = $('#fbBatchStatus'); if (!el) return;
+  el.className = kind ? `job ${kind}` : '';
+  el.textContent = message || '';
+}
+async function fbFetch(path, options) {
+  const config = fbConfig();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/.test(config.url)) throw new Error('Companion URL phải là loopback localhost.');
+  if (!config.token) throw new Error('Nhập Companion token trước.');
+  const response = await fetch(config.url + path, {
+    ...options,
+    headers: { Authorization: `Bearer ${config.token}`, 'x-seosona-nonce': crypto.randomUUID().replace(/-/g, ''), 'content-type': 'application/json', ...(options && options.headers || {}) },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Companion lỗi ${response.status}.`);
+  return body;
+}
+async function saveFacebookConfig() {
+  const config = fbConfig();
+  await chrome.storage.local.set({ srtFacebookCompanion: { url: config.url } });
+  await chrome.storage.session.set({ srtFacebookCompanionToken: config.token });
+}
+async function loadFacebookContext() {
+  await saveFacebookConfig();
+  const status = $('#fbContextStatus'); status.textContent = 'Đang nạp context từ SEOSONA OS…';
+  facebookContext = await fbFetch('/v1/context', { method: 'GET' });
+  const snapshot = FacebookFactory.createContextSnapshot(facebookContext);
+  status.textContent = `Đã nạp ${snapshot.group.id} · ${snapshot.contextRevision} · ${snapshot.evidence.length} evidence refs.`;
+  return snapshot;
+}
+function fbTopics() {
+  return ($('#fbTopics').value || '').split('\n').map((line) => line.trim()).filter(Boolean);
+}
+function handleFacebookUpdate(jobId, status, result) {
+  const waiter = facebookProviderWaiters.get(jobId);
+  if (!waiter) return;
+  if (status === 'done') { facebookProviderWaiters.delete(jobId); waiter.resolve(result && result.text || ''); }
+  if (status === 'error') { facebookProviderWaiters.delete(jobId); waiter.reject(new Error(result && (result.error || result.message) || 'AI provider error.')); }
+}
+async function fbRunProvider(provider, prompt, clientRef) {
+  const jobId = `facebook_${provider}_${clientRef.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}`;
+  const answer = new Promise((resolve, reject) => facebookProviderWaiters.set(jobId, { resolve, reject }));
+  const started = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text: prompt, timeout: 300000, freshChat: true });
+  if (!started || !started.ok) { facebookProviderWaiters.delete(jobId); throw new Error(started && started.error || 'Không thể gửi yêu cầu tới AI provider.'); }
+  return answer;
+}
+function fbRenderBatch() {
+  if (!facebookBatch) return;
+  const summary = facebookBatch.drafts.map((draft) => `${draft.id}: ${draft.status}`).join(' · ');
+  fbRender(summary, 'running');
+}
+async function fbCreateBatch() {
+  const topics = fbTopics();
+  if (topics.length !== 5) throw new Error('Cần đúng 5 chủ đề, mỗi dòng một chủ đề.');
+  const snapshot = facebookContext ? FacebookFactory.createContextSnapshot(facebookContext) : await loadFacebookContext();
+  const provider = $('#contentProvider').value || state.provider;
+  const batchId = `facebook-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
+  facebookBatch = FacebookFactory.createWeeklyBatch({ id: batchId, snapshot, topics });
+  facebookBatch = { ...facebookBatch, status: 'running', drafts: facebookBatch.drafts.map((draft) => ({ ...draft })) };
+  await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch });
+  for (const draft of facebookBatch.drafts) {
+    try {
+      draft.status = 'copy_running'; fbRenderBatch();
+      const providerText = await fbRunProvider(provider, FacebookBatch.buildDraftPrompt({ topic: draft.topic, snapshot }), draft.clientRef);
+      const packageDraft = FacebookBatch.parseDraftResponse(providerText);
+      const gate = FacebookFactory.validateDraftPackage({ ...packageDraft, id: draft.id }, snapshot.evidence, { clientRef: draft.clientRef, brandKitSnapshot: snapshot.brandKitSnapshot });
+      if (!gate.ok) { draft.status = 'claim_blocked'; draft.issues = gate.issues; continue; }
+      draft.status = 'visual_running'; fbRenderBatch();
+      const visual = await fbFetch('/v1/flow/generate', { method: 'POST', body: JSON.stringify({ batchId, draftId: draft.id, visualJob: gate.visualJob }) });
+      draft.status = visual.status;
+      draft.package = packageDraft;
+      draft.receipt = visual.receipt || null;
+      await libAdd({ type: 'Facebook', task: 'group-batch', title: `Facebook ${draft.id} — ${packageDraft.idea}`, text: `${packageDraft.copy}\n\nCTA: ${packageDraft.cta}\n\nAsset: ${draft.receipt && draft.receipt.fileRef || visual.status}` });
+    } catch (error) { draft.status = 'error'; draft.error = error instanceof Error ? error.message : 'Facebook batch failed.'; }
+    finally { await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch }); fbRenderBatch(); }
+  }
+  facebookBatch.status = facebookBatch.drafts.every((draft) => draft.status === 'asset_ready') ? 'completed' : 'needs_review';
+  await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch });
+  fbRender(`Batch ${facebookBatch.status}: ${facebookBatch.drafts.map((draft) => `${draft.id}=${draft.status}`).join(' · ')}`, facebookBatch.status === 'completed' ? 'done' : 'error');
+}
+async function initFacebookBatch() {
+  const { srtFacebookCompanion, srtFacebookBatchLast } = await chrome.storage.local.get(['srtFacebookCompanion', 'srtFacebookBatchLast']);
+  const { srtFacebookCompanionToken } = await chrome.storage.session.get('srtFacebookCompanionToken');
+  if (srtFacebookCompanion) { $('#fbCompanionUrl').value = srtFacebookCompanion.url || 'http://127.0.0.1:43117'; $('#fbCompanionToken').value = srtFacebookCompanionToken || ''; }
+  facebookBatch = srtFacebookBatchLast || null;
+  if (facebookBatch) fbRenderBatch();
+  $('#btnFbLoadContext').addEventListener('click', async () => { try { await loadFacebookContext(); } catch (error) { $('#fbContextStatus').textContent = error.message; } });
+  $('#btnFbCreateBatch').addEventListener('click', async () => {
+    const button = $('#btnFbCreateBatch'); button.disabled = true;
+    try { await fbCreateBatch(); toast('Facebook batch đã xử lý xong', 'success'); } catch (error) { fbRender(error.message, 'error'); toast(error.message, 'error'); }
+    finally { button.disabled = false; }
+  });
+}
+
 initKnowledge();
 initTemplates();
 initRepurpose();
@@ -2132,6 +2237,7 @@ restoreResearch();
 initHomeSearch();
 initLibrary();
 initFlow();
+initFacebookBatch();
 updateLocks();
 restoreProject();
 syncKnowledgeUI();
