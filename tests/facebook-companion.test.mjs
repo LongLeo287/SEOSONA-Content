@@ -10,7 +10,7 @@ const asset = (quality) => ({
 test('checks Flow readiness then retries a rejected image with a new client revision', async () => {
   const calls = [];
   const responses = [
-    { ok: true, data: { extension_connected: true, contract_version: '1.1.0' } },
+    { ok: true, data: { extension_connected: true, contract_version: '1.1.0', auth: 'token' } },
     { ok: true, data: { provider: 'flow', ratios: ['1:1', '9:16'], image_models: [] } },
     { ok: true, data: { providers: [{ provider: 'flow', ready: true, reason: 'ok' }] } },
     asset({ judged: true, pass: false, score: 4.5, verdict: 'poor', action: 'rewrite_prompt', critical: [] }),
@@ -35,7 +35,7 @@ test('holds an unjudged image for review without re-spending quota', async () =>
   const calls = [];
   const flow = { callTool: async (name, args) => {
     calls.push({ name, args });
-    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0' } };
+    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0', auth: 'token' } };
     if (name === 'list_capabilities') return { ok: true, data: { provider: 'flow', ratios: ['1:1'] } };
     if (name === 'get_provider_status') return { ok: true, data: { providers: [{ provider: 'flow', ready: true, reason: 'ok' }] } };
     return asset({ judged: false, pass: null, score: null, verdict: 'unjudged', action: 'review_manually', critical: [] });
@@ -55,7 +55,7 @@ test('does not submit an image request when Flow is not ready', async () => {
   const calls = [];
   const flow = { callTool: async (name, args) => {
     calls.push({ name, args });
-    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0' } };
+    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0', auth: 'token' } };
     if (name === 'list_capabilities') return { ok: true, data: { provider: 'flow', ratios: ['1:1'] } };
     return { ok: true, data: { providers: [{ provider: 'flow', ready: false, reason: 'tab_or_project_not_ready' }] } };
   } };
@@ -71,7 +71,7 @@ test('retries EXTENSION_BUSY without changing client_ref', async () => {
   const refs = [];
   let generationCalls = 0;
   const flow = { callTool: async (name, args) => {
-    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0' } };
+    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0', auth: 'token' } };
     if (name === 'list_capabilities') return { ok: true, data: { provider: 'flow', ratios: ['1:1'] } };
     if (name === 'get_provider_status') return { ok: true, data: { providers: [{ provider: 'flow', ready: true, reason: 'ok' }] } };
     refs.push(args.client_ref); generationCalls += 1;
@@ -93,7 +93,7 @@ test('retries EXTENSION_BUSY without changing client_ref', async () => {
 test('does not retry quota errors', async () => {
   let generationCalls = 0;
   const flow = { callTool: async (name) => {
-    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0' } };
+    if (name === 'health') return { ok: true, data: { extension_connected: true, contract_version: '1.1.0', auth: 'token' } };
     if (name === 'list_capabilities') return { ok: true, data: { provider: 'flow', ratios: ['1:1'] } };
     if (name === 'get_provider_status') return { ok: true, data: { providers: [{ provider: 'flow', ready: true, reason: 'ok' }] } };
     generationCalls += 1;

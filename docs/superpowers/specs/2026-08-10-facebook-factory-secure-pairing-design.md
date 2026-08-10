@@ -40,7 +40,7 @@ This keeps the trust boundary explicit: the Flow token protects Flow MCP; the Co
   "enabled": true,
   "host": "127.0.0.1",
   "port": 8765,
-  "token": "<runtime-secret>"
+  "token": "(redacted)"
 }
 ```
 

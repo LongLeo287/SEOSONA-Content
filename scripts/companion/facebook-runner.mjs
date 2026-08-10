@@ -53,6 +53,10 @@ export async function preflightFlow({ flow, ratio }) {
   if (health.data.extension_connected !== true) {
     throw new FlowMcpError('FLOW_EXTENSION_DISCONNECTED', 'SEOSONA Flow extension is not connected.');
   }
+  const auth = String(health.data && health.data.auth || 'none');
+  if (auth !== 'token') {
+    throw new FlowMcpError('FLOW_AUTH_REQUIRED', 'SEOSONA Flow must use an authenticated local MCP bridge.');
+  }
   const capabilities = requireOk(await flow.callTool('list_capabilities', { provider: 'flow' }), 'CAPABILITIES_UNAVAILABLE', 'Flow capabilities are unavailable.');
   const ratios = capabilities.data && capabilities.data.ratios;
   if (ratio && Array.isArray(ratios) && !ratios.includes(ratio)) {
@@ -65,7 +69,7 @@ export async function preflightFlow({ flow, ratio }) {
     const code = /login|logged/i.test(reason) ? 'PROVIDER_NOT_LOGGED_IN' : 'PROVIDER_TAB_NOT_READY';
     throw new FlowMcpError(code, 'Flow provider is not ready: ' + reason + '.', { details: provider });
   }
-  return { contractVersion, capabilities: capabilities.data || {}, provider };
+  return { contractVersion, capabilities: capabilities.data || {}, provider, auth };
 }
 
 function retryPrompt(prompt, quality) {

@@ -32,6 +32,15 @@ version/hash differs from the OS reference. The physical path remains local and
 is never written to OS policy, Content source, Chrome storage, or an asset
 receipt.
 
+Pair Flow once before starting the Companion:
+
+1. Open SEOSONA Flow Settings, go to MCP Tokens, and create a local token for Content Companion.
+2. Copy the token from its one-time display into the runtime-only `SEOSONA_LOCAL_MCP_TOKEN` value above.
+3. Start the Content Companion. Flow observes the activated bridge configuration and reconnects automatically; rotating the token closes the old trusted socket before the new handshake.
+4. In SEOSONA Content, enter the separate Companion token and select **Kiá»ƒm tra káº¿t ná»‘i**.
+
+The connection check is ready only when Flow health reports `auth:token`, contract 1.1.x, a connected extension, and a ready provider. A no-auth bridge is rejected before capabilities or image generation. Do not reuse the Companion bearer token as the Flow MCP token.
+
 Run `npm run facebook:companion`, open the extension, enter its loopback URL and Companion token, then select **Kiểm tra kết nối**. Choose the requested number of posts and select **Bắt đầu tự động**. Content generates the ideas itself; a manual five-topic list is no longer required.
 
 The extension keeps the Companion URL locally but retains the Companion token only for the current browser session.
@@ -40,7 +49,7 @@ Every state transition is written to `srtFacebookBatchLast`. If Chrome or the si
 
 Factual `claims[].text` must copy the exact canonical claim from the OS evidence packet, and that claim must appear verbatim as its own sentence in the post copy. V1 does not authorize paraphrased facts through heuristic similarity. Brand QA records deterministic verdicts for the configured practical, evidence-led, clear, and respectful criteria.
 
-The Flow extension must already be connected to a logged-in image provider and configured with `SEOSONA_LOCAL_MCP_TOKEN`. A visual that is judged failed is retried with a new `client_ref` revision no more than twice. An unjudged visual is always returned as `asset_needs_review`.
+The Flow extension must already be connected to a logged-in image provider and configured with `SEOSONA_LOCAL_MCP_TOKEN`. A visual that is judged failed is retried with a new `client_ref` revision no more than twice. An unjudged visual is archived and returned as `asset_needs_review`; this is a valid fail-closed result, never `asset_ready`.
 
 Every `VisualJob` carries the verified BrandKit reference, one approved mode,
 one approved component, an explicit empty Flow asset allowlist, and all negative
