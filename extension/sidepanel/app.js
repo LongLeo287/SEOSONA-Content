@@ -549,13 +549,15 @@ function setChainUI(on) {
 // ---------------------------------------------------------------- message hub
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.action === 'facebook:batchUpdate') { facebookBatch = msg.batch; fbRenderBatch(); return; }
+    if (msg && msg.action === 'facebook:batchError') { fbRender(msg.error && msg.error.message || 'Content Factory gặp lỗi.', 'error'); return; }
     if (!msg || msg.action !== 'srt:jobUpdate') return;
     const { jobId, provider, status, result } = msg;
     if (!jobId) return;
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
-    if (jobId.startsWith('facebook_')) return handleFacebookUpdate(jobId, status, result);
+    if (jobId.startsWith('facebook_')) return;
     if (jobId.startsWith('content_')) return handleContentUpdate(status, result);
     if (jobId.startsWith('research_')) return handleResearchUpdate(status, result);
     if (jobId.startsWith('flow_')) return handleFlowUpdate(jobId, status, result);
@@ -2123,8 +2125,6 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
 })();
 
 // ---------------------------------------------------------------- init
-const facebookProviderWaiters = new Map();
-let facebookContext = null;
 let facebookBatch = null;
 
 function fbConfig() {
@@ -2138,80 +2138,53 @@ function fbRender(message, kind) {
   el.className = kind ? `job ${kind}` : '';
   el.textContent = message || '';
 }
-async function fbFetch(path, options) {
+async function saveFacebookConfig() {
   const config = fbConfig();
   if (!/^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/.test(config.url)) throw new Error('Companion URL phải là loopback localhost.');
   if (!config.token) throw new Error('Nhập Companion token trước.');
-  const response = await fetch(config.url + path, {
-    ...options,
-    headers: { Authorization: `Bearer ${config.token}`, 'x-seosona-nonce': crypto.randomUUID().replace(/-/g, ''), 'content-type': 'application/json', ...(options && options.headers || {}) },
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Companion lỗi ${response.status}.`);
-  return body;
-}
-async function saveFacebookConfig() {
-  const config = fbConfig();
   await chrome.storage.local.set({ srtFacebookCompanion: { url: config.url } });
   await chrome.storage.session.set({ srtFacebookCompanionToken: config.token });
 }
 async function loadFacebookContext() {
   await saveFacebookConfig();
-  const status = $('#fbContextStatus'); status.textContent = 'Đang nạp context từ SEOSONA OS…';
-  facebookContext = await fbFetch('/v1/context', { method: 'GET' });
-  const snapshot = FacebookFactory.createContextSnapshot(facebookContext);
-  status.textContent = `Đã nạp ${snapshot.group.id} · ${snapshot.contextRevision} · ${snapshot.evidence.length} evidence refs.`;
-  return snapshot;
-}
-function fbTopics() {
-  return ($('#fbTopics').value || '').split('\n').map((line) => line.trim()).filter(Boolean);
-}
-function handleFacebookUpdate(jobId, status, result) {
-  const waiter = facebookProviderWaiters.get(jobId);
-  if (!waiter) return;
-  if (status === 'done') { facebookProviderWaiters.delete(jobId); waiter.resolve(result && result.text || ''); }
-  if (status === 'error') { facebookProviderWaiters.delete(jobId); waiter.reject(new Error(result && (result.error || result.message) || 'AI provider error.')); }
-}
-async function fbRunProvider(provider, prompt, clientRef) {
-  const jobId = `facebook_${provider}_${clientRef.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}`;
-  const answer = new Promise((resolve, reject) => facebookProviderWaiters.set(jobId, { resolve, reject }));
-  const started = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text: prompt, timeout: 300000, freshChat: true });
-  if (!started || !started.ok) { facebookProviderWaiters.delete(jobId); throw new Error(started && started.error || 'Không thể gửi yêu cầu tới AI provider.'); }
-  return answer;
+  const status = $('#fbContextStatus'); status.textContent = 'Đang kiểm tra OS, Companion và Flow…';
+  const result = await chrome.runtime.sendMessage({ action: 'facebook:getHealth' });
+  if (!result || !result.ok) throw new Error(result && result.error && result.error.message || 'Không thể kiểm tra hệ thống.');
+  const health = result.health;
+  status.textContent = `Sẵn sàng · Flow ${health.flow.contractVersion} · ${health.context.revision}`;
+  return health;
 }
 function fbRenderBatch() {
   if (!facebookBatch) return;
-  const summary = facebookBatch.drafts.map((draft) => `${draft.id}: ${draft.status}`).join(' · ');
-  fbRender(summary, 'running');
+  const labels = {
+    queued: 'đang chờ', ideas_running: 'đang lên ý tưởng', drafts_running: 'đang viết', visuals_running: 'đang tạo ảnh',
+    asset_ready: 'sẵn sàng', asset_needs_review: 'cần xem ảnh', copy_blocked: 'thiếu bằng chứng', failed: 'có lỗi',
+    completed: 'hoàn tất', needs_review: 'cần xem lại', cancelled: 'đã dừng', copy_running: 'đang viết', visual_running: 'đang tạo ảnh', idea_queued: 'đang chờ',
+  };
+  const summary = facebookBatch.drafts.length
+    ? facebookBatch.drafts.map((draft) => `${draft.id}: ${labels[draft.status] || draft.status}`).join(' · ')
+    : labels[facebookBatch.status] || facebookBatch.status;
+  const kind = facebookBatch.status === 'completed' ? 'done' : ['needs_review', 'cancelled', 'failed'].includes(facebookBatch.status) ? 'error' : 'running';
+  fbRender(`${labels[facebookBatch.status] || facebookBatch.status} · ${summary}`, kind);
 }
 async function fbCreateBatch() {
-  const topics = fbTopics();
-  if (topics.length !== 5) throw new Error('Cần đúng 5 chủ đề, mỗi dòng một chủ đề.');
-  const snapshot = facebookContext ? FacebookFactory.createContextSnapshot(facebookContext) : await loadFacebookContext();
+  await saveFacebookConfig();
+  const requestedCount = Number($('#fbRequestedCount').value);
   const provider = $('#contentProvider').value || state.provider;
-  const batchId = `facebook-${new Date().toISOString().slice(0, 10)}-${Date.now()}`;
-  facebookBatch = FacebookFactory.createWeeklyBatch({ id: batchId, snapshot, topics });
-  facebookBatch = { ...facebookBatch, status: 'running', drafts: facebookBatch.drafts.map((draft) => ({ ...draft })) };
-  await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch });
-  for (const draft of facebookBatch.drafts) {
-    try {
-      draft.status = 'copy_running'; fbRenderBatch();
-      const providerText = await fbRunProvider(provider, FacebookBatch.buildDraftPrompt({ topic: draft.topic, snapshot }), draft.clientRef);
-      const packageDraft = FacebookBatch.parseDraftResponse(providerText);
-      const gate = FacebookFactory.validateDraftPackage({ ...packageDraft, id: draft.id }, snapshot.evidence, { clientRef: draft.clientRef, brandKitSnapshot: snapshot.brandKitSnapshot });
-      if (!gate.ok) { draft.status = 'claim_blocked'; draft.issues = gate.issues; continue; }
-      draft.status = 'visual_running'; fbRenderBatch();
-      const visual = await fbFetch('/v1/flow/generate', { method: 'POST', body: JSON.stringify({ batchId, draftId: draft.id, visualJob: gate.visualJob }) });
-      draft.status = visual.status;
-      draft.package = packageDraft;
-      draft.receipt = visual.receipt || null;
-      await libAdd({ type: 'Facebook', task: 'group-batch', title: `Facebook ${draft.id} — ${packageDraft.idea}`, text: `${packageDraft.copy}\n\nCTA: ${packageDraft.cta}\n\nAsset: ${draft.receipt && draft.receipt.fileRef || visual.status}` });
-    } catch (error) { draft.status = 'error'; draft.error = error instanceof Error ? error.message : 'Facebook batch failed.'; }
-    finally { await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch }); fbRenderBatch(); }
-  }
-  facebookBatch.status = facebookBatch.drafts.every((draft) => draft.status === 'asset_ready') ? 'completed' : 'needs_review';
-  await chrome.storage.local.set({ srtFacebookBatchLast: facebookBatch });
-  fbRender(`Batch ${facebookBatch.status}: ${facebookBatch.drafts.map((draft) => `${draft.id}=${draft.status}`).join(' · ')}`, facebookBatch.status === 'completed' ? 'done' : 'error');
+  const result = await chrome.runtime.sendMessage({ action: 'facebook:startBatch', requestedCount, provider });
+  if (!result || !result.ok) throw new Error(result && result.error && result.error.message || 'Không thể bắt đầu batch.');
+  facebookBatch = result.batch;
+  fbRenderBatch();
+}
+async function fbResumeBatch() {
+  const result = await chrome.runtime.sendMessage({ action: 'facebook:resumeBatch' });
+  if (!result || !result.ok) throw new Error(result && result.error && result.error.message || 'Không thể chạy tiếp batch.');
+  facebookBatch = result.batch; fbRenderBatch();
+}
+async function fbCancelBatch() {
+  const result = await chrome.runtime.sendMessage({ action: 'facebook:cancelBatch' });
+  if (!result || !result.ok) throw new Error(result && result.error && result.error.message || 'Không thể dừng batch.');
+  facebookBatch = result.batch; fbRenderBatch();
 }
 async function initFacebookBatch() {
   const { srtFacebookCompanion, srtFacebookBatchLast } = await chrome.storage.local.get(['srtFacebookCompanion', 'srtFacebookBatchLast']);
@@ -2222,9 +2195,11 @@ async function initFacebookBatch() {
   $('#btnFbLoadContext').addEventListener('click', async () => { try { await loadFacebookContext(); } catch (error) { $('#fbContextStatus').textContent = error.message; } });
   $('#btnFbCreateBatch').addEventListener('click', async () => {
     const button = $('#btnFbCreateBatch'); button.disabled = true;
-    try { await fbCreateBatch(); toast('Facebook batch đã xử lý xong', 'success'); } catch (error) { fbRender(error.message, 'error'); toast(error.message, 'error'); }
+    try { await fbCreateBatch(); toast('Đã bắt đầu Content Factory', 'success'); } catch (error) { fbRender(error.message, 'error'); toast(error.message, 'error'); }
     finally { button.disabled = false; }
   });
+  $('#btnFbResumeBatch').addEventListener('click', async () => { try { await fbResumeBatch(); } catch (error) { fbRender(error.message, 'error'); } });
+  $('#btnFbCancelBatch').addEventListener('click', async () => { try { await fbCancelBatch(); } catch (error) { fbRender(error.message, 'error'); } });
 }
 
 initKnowledge();

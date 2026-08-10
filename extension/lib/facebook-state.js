@@ -45,7 +45,10 @@
 
     if (type === 'IDEAS_STARTED') {
       assert(['queued', 'failed'].includes(state.status), 'Ideas can start only from queued or failed.');
-      state.status = 'ideas_running'; state.active = { kind: 'ideas', jobId: event.jobId };
+      state.status = 'ideas_running'; state.active = { kind: 'ideas', jobId: event.jobId, prompt: event.prompt || '' };
+    } else if (type === 'IDEAS_FAILED') {
+      assert(state.status === 'ideas_running', 'Ideas can fail only while ideas are running.');
+      state.status = 'failed'; state.active = null; state.error = copy(event.error || { code: 'IDEAS_FAILED', message: 'Idea generation failed.' });
     } else if (type === 'IDEAS_CREATED') {
       assert(state.status === 'ideas_running', 'Ideas can be accepted only while ideas are running.');
       assert(Array.isArray(event.drafts) && event.drafts.length === state.requestedCount, 'Ideas must create exactly the requested number of drafts.');
@@ -54,7 +57,7 @@
       const draft = draftFor(state, event.draftId); assertDraftOpen(draft);
       assert(['idea_queued', 'failed'].includes(draft.status), 'Copy can start only for a queued or failed draft.');
       draft.status = 'copy_running'; draft.jobId = event.jobId; state.status = 'drafts_running';
-      state.active = { kind: 'copy', draftId: draft.id, jobId: event.jobId };
+      state.active = { kind: 'copy', draftId: draft.id, jobId: event.jobId, prompt: event.prompt || '' };
     } else if (type === 'COPY_BLOCKED') {
       const draft = draftFor(state, event.draftId); assert(draft.status === 'copy_running', 'Only running copy can be blocked.');
       draft.status = 'copy_blocked'; draft.issues = copy(event.issues || []); state.active = null; state.status = 'drafts_running';
@@ -65,7 +68,7 @@
     } else if (type === 'ASSET_READY' || type === 'ASSET_REVIEW') {
       const draft = draftFor(state, event.draftId); assert(draft.status === 'visual_running', 'Only a running visual can finish.');
       draft.status = type === 'ASSET_READY' ? 'asset_ready' : 'asset_needs_review';
-      draft.receipt = copy(event.receipt || null); state.active = null; state.status = 'drafts_running';
+      draft.receipt = copy(event.receipt || null); draft.packageReceipt = copy(event.packageReceipt || null); state.active = null; state.status = 'drafts_running';
     } else if (type === 'DRAFT_FAILED') {
       const draft = draftFor(state, event.draftId); assertDraftOpen(draft);
       draft.status = 'failed'; draft.error = copy(event.error || { code: 'UNKNOWN', message: 'Draft failed.' });

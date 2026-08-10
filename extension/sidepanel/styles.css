@@ -651,6 +651,9 @@ code { background: var(--bg-0); border: 1px solid var(--border); border-radius: 
 .batch-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batch-stat { color: var(--muted); font-size: 11px; flex: none; }
 .batch-row button { padding: 3px 8px; font-size: 11px; flex: none; }
+.fb-actions { align-items: stretch; }
+.fb-actions .grow { flex: 1; }
+.fb-actions .danger { border-color: rgba(255, 82, 82, .55); color: var(--err); }
 
 /* history rows */
 .hist-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--bg-2); }

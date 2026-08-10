@@ -48,3 +48,13 @@ test('marks unfinished drafts cancelled and never resumes a cancelled batch', ()
   assert.equal(state.status, 'cancelled');
   assert.throws(() => State.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas-2' }), /terminal/i);
 });
+
+test('records an idea-generation failure so the same batch can be resumed', () => {
+  let state = initial();
+  state = State.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas-1', prompt: 'ideas' });
+  state = State.transition(state, { type: 'IDEAS_FAILED', error: { code: 'PROVIDER_ERROR', message: 'Try again.' } });
+  assert.equal(state.status, 'failed');
+  assert.equal(state.error.code, 'PROVIDER_ERROR');
+  state = State.transition(state, { type: 'IDEAS_STARTED', jobId: 'ideas-1', prompt: 'ideas' });
+  assert.equal(state.status, 'ideas_running');
+});

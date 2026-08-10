@@ -360,20 +360,26 @@
 
         <button id="btnContentRun" class="btn-cta">🚀 Chạy Content</button>
         <details class="subcard acc-card" id="facebookBatchCard">
-          <summary class="card-sum">Facebook Group Batch — 5 bài/tuần</summary>
+          <summary class="card-sum">Facebook Group Content Factory</summary>
           <div class="acc-body">
             <p class="hint">Bản nháp tiếng Việt cho cộng đồng SEO/marketing. Context, brand và evidence được đọc từ SEOSONA OS qua Companion cục bộ; Content không đăng Facebook.</p>
             <div class="row"><div class="field grow"><label>Companion URL</label><input id="fbCompanionUrl" value="http://127.0.0.1:43117" autocomplete="off"></div></div>
             <div class="row">
               <div class="field grow"><label>Companion token</label><input id="fbCompanionToken" type="password" autocomplete="off" placeholder="Token Companion cục bộ"></div>
-              <button id="btnFbLoadContext" type="button">Nạp context OS</button>
+              <button id="btnFbLoadContext" type="button">Kiểm tra kết nối</button>
             </div>
-            <div id="fbContextStatus" class="hint">Chưa nạp context OS.</div>
-            <div class="sec">
-              <div class="sec-head">5 chủ đề tuần này — mỗi dòng một chủ đề</div>
-              <textarea id="fbTopics" rows="6" placeholder="SEO technical audit&#10;Content brief theo search intent&#10;Internal linking&#10;Schema thực dụng&#10;E-E-A-T bằng evidence"></textarea>
+            <div id="fbContextStatus" class="hint">Chưa kiểm tra kết nối.</div>
+            <div class="row">
+              <div class="field grow">
+                <label>Số bài cần tạo</label>
+                <input id="fbRequestedCount" type="number" value="5" min="1" max="20" step="1" inputmode="numeric">
+              </div>
             </div>
-            <button id="btnFbCreateBatch" class="btn-cta" type="button">Tạo 5 draft package</button>
+            <div class="row fb-actions">
+              <button id="btnFbCreateBatch" class="btn-cta grow" type="button">Bắt đầu tự động</button>
+              <button id="btnFbResumeBatch" type="button">Chạy tiếp</button>
+              <button id="btnFbCancelBatch" class="danger" type="button">Dừng</button>
+            </div>
             <div id="fbBatchStatus"></div>
           </div>
         </details>

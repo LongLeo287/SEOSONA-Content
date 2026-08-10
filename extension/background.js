@@ -2,6 +2,8 @@
 // Vai trò: điều phối tab provider, chuyển job từ side panel -> content script,
 // nhận kết quả từ content script -> lưu storage.session + broadcast cho UI.
 
+importScripts('lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js', 'lib/facebook-orchestrator.js');
+
 const PROVIDERS = {
   chatgpt: {
     label: 'ChatGPT',
@@ -222,12 +224,13 @@ async function handleJobResult({ jobId, provider, result }) {
   const success = result && result.success;
   if (!success && jobId) {
     const retried = await maybeRetry(jobId, provider, result);
-    if (retried) return; // đang thử lại, chưa chốt kết quả
+    if (retried) return { finalized: false }; // đang thử lại, chưa chốt kết quả
   }
   const status = success ? 'done' : 'error';
   await setJob(jobId, { status, result, finishedAt: Date.now() });
   broadcast({ action: 'srt:jobUpdate', jobId, provider, status, result });
   notifyDone(jobId, provider, status, result);
+  return { finalized: true, status };
 }
 
 // Thông báo hệ thống khi job xong — hữu ích khi user đang ở tab khác.
@@ -278,6 +281,93 @@ async function handleAbort({ jobId }) {
   return { ok: true };
 }
 
+function facebookError(error) {
+  const source = error && error.error || error || {};
+  return {
+    code: String(source.code || 'FACEBOOK_FACTORY_FAILED'),
+    message: String(source.message || error && error.message || 'Facebook Content Factory failed.'),
+    retryable: source.retryable === true,
+  };
+}
+
+async function facebookConfig() {
+  const [{ srtFacebookCompanion }, { srtFacebookCompanionToken }] = await Promise.all([
+    chrome.storage.local.get('srtFacebookCompanion'),
+    chrome.storage.session.get('srtFacebookCompanionToken'),
+  ]);
+  const url = String(srtFacebookCompanion && srtFacebookCompanion.url || '').replace(/\/$/, '');
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/.test(url)) throw new Error('Companion URL must use local loopback.');
+  if (!srtFacebookCompanionToken) throw new Error('Companion token is missing.');
+  return { url, token: srtFacebookCompanionToken };
+}
+
+async function facebookCompanion(path, body) {
+  const config = await facebookConfig();
+  const response = await fetch(config.url + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      Authorization: 'Bearer ' + config.token,
+      'x-seosona-nonce': crypto.randomUUID().replace(/-/g, ''),
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const value = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const normalized = facebookError(value);
+    const error = new Error(normalized.message);
+    Object.assign(error, normalized);
+    throw error;
+  }
+  return value;
+}
+
+async function indexFacebookLibrary(batch) {
+  const ready = (batch && batch.drafts || []).filter((draft) => draft.packageReceipt && draft.package && draft.package.parsed);
+  if (!ready.length) return;
+  const { srtLibrary = [] } = await chrome.storage.local.get('srtLibrary');
+  for (const draft of ready) {
+    const id = 'facebook:' + batch.id + '/' + draft.id;
+    const parsed = draft.package.parsed;
+    const assetRef = draft.receipt && draft.receipt.fileRef || draft.status;
+    const packageRef = draft.packageReceipt.draftRef || '';
+    const entry = {
+      id,
+      ts: Date.now(),
+      type: 'Facebook',
+      task: 'group-batch',
+      title: 'Facebook ' + draft.id + ' — ' + parsed.idea,
+      text: parsed.copy + '\n\nCTA: ' + parsed.cta + '\n\nAsset: ' + assetRef + '\nPackage: ' + packageRef,
+    };
+    const index = srtLibrary.findIndex((item) => item.id === id);
+    if (index >= 0) srtLibrary[index] = entry; else srtLibrary.unshift(entry);
+  }
+  if (srtLibrary.length > 200) srtLibrary.length = 200;
+  await chrome.storage.local.set({ srtLibrary });
+}
+
+const facebookOrchestrator = FacebookOrchestrator.createOrchestrator({
+  load: async () => (await chrome.storage.local.get('srtFacebookBatchLast')).srtFacebookBatchLast || null,
+  persist: async (batch) => chrome.storage.local.set({ srtFacebookBatchLast: batch }),
+  emit: async (batch) => { await indexFacebookLibrary(batch); broadcast({ action: 'facebook:batchUpdate', batch }); },
+  providerStart: handleRunJob,
+  providerAbort: handleAbort,
+  companion: facebookCompanion,
+});
+
+async function handleFacebookAction(action, msg) {
+  try {
+    if (action === 'facebook:startBatch') return { ok: true, batch: await facebookOrchestrator.start({ requestedCount: msg.requestedCount, provider: msg.provider }) };
+    if (action === 'facebook:getBatch') return { ok: true, batch: await facebookOrchestrator.getState() };
+    if (action === 'facebook:resumeBatch') return { ok: true, batch: await facebookOrchestrator.resume() };
+    if (action === 'facebook:cancelBatch') return { ok: true, batch: await facebookOrchestrator.cancel('user') };
+    if (action === 'facebook:getHealth') return { ok: true, health: await facebookCompanion('/v1/health') };
+    throw new Error('Unknown Facebook background action.');
+  } catch (error) {
+    return { ok: false, error: facebookError(error) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.action) return;
   if (msg.action === 'srt:runJob') {
@@ -285,9 +375,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.action === 'srt:jobResult') {
-    handleJobResult(msg);
-    sendResponse({ ok: true });
-    return;
+    handleJobResult(msg).then(async (outcome) => {
+      if (outcome && outcome.finalized && msg.jobId && msg.jobId.startsWith('facebook_')) {
+        try {
+          await facebookOrchestrator.handleProviderResult({
+            jobId: msg.jobId,
+            success: msg.result && msg.result.success === true,
+            text: msg.result && msg.result.text || '',
+            error: msg.result && { code: msg.result.error || 'PROVIDER_ERROR', message: msg.result.message || msg.result.error || 'Provider failed.' },
+          });
+        } catch (error) {
+          broadcast({ action: 'facebook:batchError', error: facebookError(error) });
+        }
+      }
+      sendResponse({ ok: true });
+    });
+    return true;
   }
   if (msg.action === 'srt:abortJob') {
     handleAbort(msg).then(sendResponse);
@@ -300,5 +403,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'srt:listProviders') {
     sendResponse(Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.label])));
     return;
+  }
+  if (msg.action.startsWith('facebook:')) {
+    handleFacebookAction(msg.action, msg).then(sendResponse);
+    return true;
   }
 });

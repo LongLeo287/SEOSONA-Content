@@ -165,7 +165,15 @@ test('normalizes an asset receipt without retaining image binary data', () => {
   });
 });
 
-test('sidepanel passes the verified BrandKit snapshot into every visual gate', () => {
+test('background owns the resumable factory and the sidepanel exposes variable batch controls', () => {
   const app = readFileSync(join(__dirname, '../extension/sidepanel/app.js'), 'utf8');
-  assert.match(app, /brandKitSnapshot:\s*snapshot\.brandKitSnapshot/);
+  const html = readFileSync(join(__dirname, '../extension/sidepanel/index.html'), 'utf8');
+  const background = readFileSync(join(__dirname, '../extension/background.js'), 'utf8');
+  assert.match(background, /FacebookOrchestrator\.createOrchestrator/);
+  assert.match(background, /facebook:startBatch/);
+  assert.match(background, /facebook:resumeBatch/);
+  assert.match(background, /facebook:cancelBatch/);
+  assert.match(app, /requestedCount/);
+  assert.match(html, /id="fbRequestedCount"[\s\S]*min="1"[\s\S]*max="20"/);
+  assert.doesNotMatch(html, /id="fbTopics"/);
 });
