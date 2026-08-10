@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEOSONA Content</title>
+<title>SEOSONA Content Studio</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,36 +13,44 @@
   <header class="app-header">
     <div class="brand">
       <img class="logo-img" src="../icons/icon-48.png" alt="SEOSONA">
-      <span class="brand-name">SEOSONA</span>
-      <span class="badge-premium">CONTENT</span>
+      <div class="brand-text-wrap">
+        <span class="brand-name">SEOSONA</span>
+        <span class="badge-premium">STUDIO</span>
+      </div>
     </div>
     <div class="header-tools">
-      <button class="icon-btn" id="hdrKnowledge" title="Kiến thức — bật/tắt block bơm vào prompt (dùng chung mọi nhánh)">🧠</button>
-      <button class="icon-btn" id="hdrSettings" title="Cài đặt selector (sửa khi AI đổi giao diện)">⚙</button>
-      <span class="dot-live" title="Sẵn sàng"></span>
+      <button class="icon-btn" id="hdrKnowledge" title="Kiến thức — bật/tắt block bơm vào prompt (dùng chung mọi nhánh)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6a4 4 0 0 0-4 4 1 1 0 0 0 2 0 2 2 0 0 1 4 0c0 2-3 3-3 5h2c0-3 3-4 3-7a4 4 0 0 0-4-4z"/><circle cx="12" cy="17" r="1"/></svg>
+      </button>
+      <button class="icon-btn" id="hdrSettings" title="Cài đặt selector override (chống vỡ UI)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <span class="dot-live" title="Hệ thống sẵn sàng"></span>
     </div>
   </header>
 
-  <!-- ============ SESSION BAR ============ -->
-  <div class="sessionbar">
-    <span class="session-ico">📄</span>
-    <select id="sessionSelect" class="session-select" title="Chọn phiên"></select>
-    <button class="icon-btn sm" id="sessionRename" title="Đổi tên phiên">✎</button>
-    <button class="icon-btn sm" id="sessionDelete" title="Xóa phiên">🗑</button>
-    <button class="tab-pill" id="hdrNewSession" title="Phiên mới">＋</button>
-  </div>
-
-  <!-- ============ SECTION NAV ============ -->
+  <!-- ============ SECTION NAV (5 Pillar Streamlined Tabs) ============ -->
   <nav id="sectionNav" class="sectionnav">
-    <button data-view="home" class="active"><span class="ico">🏠</span>Home</button>
-    <button data-view="studio"><span class="ico">🎬</span>SRT</button>
-    <button data-view="content"><span class="ico">📝</span>Content</button>
-    <button data-view="flow"><span class="ico">⚡</span>Flow</button>
-    <button data-view="research"><span class="ico">🔍</span>Research</button>
-    <button data-view="library"><span class="ico">🗂️</span>Thư viện</button>
-    <button data-view="prompts"><span class="ico">📚</span>Prompts</button>
-    <button data-view="batch"><span class="ico">📦</span>Batch</button>
-    <button data-view="history"><span class="ico">🕘</span>Lịch sử</button>
+    <button data-view="home" class="active">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+      <span>Home</span>
+    </button>
+    <button data-view="studio">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>
+      <span>SRT</span>
+    </button>
+    <button data-view="content">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+      <span>Content</span>
+    </button>
+    <button data-view="flow">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+      <span>Flow</span>
+    </button>
+    <button data-view="hub">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+      <span>Hub</span>
+    </button>
   </nav>
 
   <main class="content">
@@ -50,50 +58,85 @@
     <!-- ================= VIEW: HOME ================= -->
     <section class="view active" id="view-home">
       <div class="home-hero">
-        <h1 class="home-title">Content Studio</h1>
-        <p class="home-sub">Viết · audit · review · SEO · A/B · research — và cắt ghép video từ SRT. Chuẩn content/SEO cho mọi ngành.</p>
+        <div class="hero-top">
+          <span class="hero-badge">🟢 ONLINE · MULTI-AI ENGINE</span>
+          <span class="hero-brand-tag">SEOSONA OS</span>
+        </div>
+        <h1 class="home-title">Content & Video Studio</h1>
+        <p class="home-sub">Tối ưu quy trình sáng tạo: Viết content · Audit Grammarly · Đánh giá bài viết · Cắt ghép video SRT tự động.</p>
+        <div class="hero-stats">
+          <span class="stat-pill"><i class="dot-live"></i> 4 AI Providers</span>
+          <span class="stat-pill">⚡ Local Storage</span>
+          <span class="stat-pill">🎯 Chuẩn SEO Universal</span>
+        </div>
       </div>
 
       <div class="home-search">
-        <span class="hs-ico">🔎</span>
-        <input type="search" id="homeSearch" placeholder="Tìm trong nội dung, phiên, prompt, lịch sử…" autocomplete="off">
+        <span class="hs-ico">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </span>
+        <input type="search" id="homeSearch" placeholder="Tìm trong nội dung, phiên SRT, prompt, lịch sử…" autocomplete="off">
+        <kbd class="search-kbd">⌘K</kbd>
       </div>
       <div id="homeSearchResults" class="home-results" hidden></div>
 
       <div id="homeDefault">
-      <div class="home-branches">
-        <button class="home-branch" data-go="content">
-          <span class="hb-ico">📝</span>
-          <span class="hb-main"><b>Content</b><small>Viết / audit / review / SEO / A-B</small></span>
-          <span class="hb-arrow">→</span>
-        </button>
-        <button class="home-branch" data-go="studio">
-          <span class="hb-ico">🎬</span>
-          <span class="hb-main"><b>SRT → Video</b><small>Cắt · đánh giá · metadata · chapter · repurpose</small></span>
-          <span class="hb-arrow">→</span>
-        </button>
-      </div>
+        <div class="home-branches">
+          <button class="home-branch" data-go="content">
+            <div class="hb-icon-wrap icon-content">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+            <div class="hb-main">
+              <b>Content & SEO Audit</b>
+              <small>Viết mới bài viết, audit Grammarly, chấm điểm review & tối ưu SEO on-page</small>
+            </div>
+            <span class="hb-arrow">Khám phá →</span>
+          </button>
 
-      <div class="home-sec">
-        <div class="home-sec-head">⚡ Bắt đầu nhanh</div>
-        <div id="homeQuick" class="home-quick"></div>
-      </div>
+          <button class="home-branch" data-go="studio">
+            <div class="hb-icon-wrap icon-srt">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <div class="hb-main">
+              <b>SRT Subtitle Video Cut</b>
+              <small>Dựng bảng cắt ghép video từ SRT, sinh SEO metadata, YouTube chapters & Repurpose</small>
+            </div>
+            <span class="hb-arrow">Khám phá →</span>
+          </button>
+        </div>
 
-      <div class="home-sec">
-        <div class="home-sec-head between"><span>🕘 Phiên SRT gần đây</span><button id="homeNewSrt" class="pill-btn">＋ Phiên mới</button></div>
-        <div id="homeSessions" class="home-sessions"></div>
-      </div>
+        <div class="home-sec">
+          <div class="home-sec-head">⚡ Bắt Đầu Nhanh Tác Vụ</div>
+          <div id="homeQuick" class="home-quick"></div>
+        </div>
+
+        <div class="home-sec">
+          <div class="home-sec-head between">
+            <span>🕘 Phiên SRT Gần Đây</span>
+            <button id="homeNewSrt" class="pill-btn">＋ Phiên mới</button>
+          </div>
+          <div id="homeSessions" class="home-sessions"></div>
+        </div>
       </div><!-- /#homeDefault -->
     </section>
 
-    <!-- ================= VIEW: STUDIO (pipeline) ================= -->
+    <!-- ================= VIEW: STUDIO (pipeline SRT) ================= -->
     <section class="view" id="view-studio">
+
+      <!-- SESSION BAR (Chỉ dùng riêng trong tab SRT Studio) -->
+      <div class="sessionbar">
+        <span class="session-ico">📄</span>
+        <select id="sessionSelect" class="session-select" title="Chọn phiên"></select>
+        <button class="icon-btn sm" id="sessionRename" title="Đổi tên phiên">✎</button>
+        <button class="icon-btn sm" id="sessionDelete" title="Xóa phiên">🗑</button>
+        <button class="tab-pill" id="hdrNewSession" title="Phiên mới">＋ Mới</button>
+      </div>
 
       <!-- ---- STAGE 1: SRT ---- -->
       <section class="stage open" data-stage="srt">
         <div class="stage-head">
           <span class="stage-num">1</span>
-          <span class="stage-title">Nạp SRT</span>
+          <span class="stage-title">Nạp SRT Subtitle</span>
           <span class="stage-status" id="st-srt"></span>
           <span class="stage-caret">▾</span>
         </div>
@@ -101,10 +144,13 @@
           <label class="file-drop" id="dropZone">
             <input type="file" id="srtFile" accept=".srt,.txt" hidden>
             <span class="fd-icon">📄</span>
-            <strong>Chọn hoặc kéo thả file .srt</strong>
-            <span class="hint">hoặc dán nội dung vào ô bên dưới</span>
+            <strong>Chọn hoặc kéo thả file .srt vào đây</strong>
+            <span class="hint">hoặc dán nội dung SRT trực tiếp bên dưới</span>
           </label>
-          <textarea id="srtText" rows="4" placeholder="…hoặc dán nội dung SRT vào đây"></textarea>
+          <div class="textarea-wrap">
+            <textarea id="srtText" rows="4" placeholder="…hoặc dán nội dung SRT vào đây"></textarea>
+            <button type="button" class="btn-expand-ta" data-ta="srtText" title="Mở rộng ô nhập">⛶</button>
+          </div>
           <button id="btnParse" class="btn-cta">✅ Đọc & kiểm tra SRT</button>
           <div id="srtInfo" class="info"></div>
         </div>
@@ -114,7 +160,7 @@
       <section class="stage locked" data-stage="run">
         <div class="stage-head">
           <span class="stage-num">2</span>
-          <span class="stage-title">Phân tích</span>
+          <span class="stage-title">Phân Tích AI</span>
           <span class="stage-status" id="st-run"></span>
           <span class="stage-caret">▾</span>
         </div>
@@ -128,7 +174,10 @@
                 <button id="btnSavePromptQuick" class="pill-btn" title="Lưu vào thư viện">💾 Lưu</button>
               </div>
             </div>
-            <textarea id="tplBody" rows="6" spellcheck="false"></textarea>
+            <div class="textarea-wrap">
+              <textarea id="tplBody" rows="6" spellcheck="false"></textarea>
+              <button type="button" class="btn-expand-ta" data-ta="tplBody" title="Mở rộng ô nhập">⛶</button>
+            </div>
           </div>
 
           <div class="sec">
@@ -157,7 +206,7 @@
           </div>
 
           <div class="sec">
-            <div class="sec-head">🤖 Chạy trên AI</div>
+            <div class="sec-head">🤖 Chạy trên AI Provider</div>
             <div id="providerPills" class="provider-pills">
               <button type="button" class="ppill active" data-provider="chatgpt">💬 ChatGPT</button>
               <button type="button" class="ppill" data-provider="gemini">✦ Gemini</button>
@@ -171,17 +220,22 @@
             </div>
           </div>
 
-          <button id="btnRun" class="btn-cta">🚀 Gửi phân tích</button>
-          <button id="btnChain" class="btn-chain" title="Tự chạy một mạch: Phân tích → Dựng bảng cắt → SEO metadata → Đánh giá">▶▶ Chạy tự động (toàn bộ)</button>
+          <div class="action-btn-row">
+            <button id="btnRun" class="btn-cta">🚀 Gửi phân tích AI</button>
+            <button id="btnChain" class="btn-chain" title="Tự chạy một mạch: Phân tích → Dựng bảng cắt → SEO metadata → Đánh giá">⚡ Chạy tự động (Auto-Chain)</button>
+          </div>
           <button id="btnAbort" class="btn-danger" hidden>⛔ Hủy</button>
           <div id="jobStatus"></div>
 
           <div id="resultsCard" class="subcard" hidden>
-            <label>Kết quả thô</label>
+            <label>Kết quả phân tích từ AI</label>
             <div id="resultTabs" class="chips"></div>
-            <pre id="rawResponse"></pre>
-            <button id="btnUseResult" class="btn-cta">✂ Dựng bảng cắt ghép từ kết quả này</button>
-            <button id="btnDownloadRaw">⬇ Tải kết quả AI (.md)</button>
+            <div id="rawResponseMd" class="markdown-body"></div>
+            <pre id="rawResponse" style="display:none;"></pre>
+            <div class="row">
+              <button id="btnUseResult" class="btn-cta">✂ Dựng bảng cắt ghép từ kết quả này</button>
+              <button id="btnDownloadRaw" class="pill-btn">⬇ Tải .md</button>
+            </div>
           </div>
         </div>
       </section>
@@ -190,7 +244,7 @@
       <section class="stage locked" data-stage="edit">
         <div class="stage-head">
           <span class="stage-num">3</span>
-          <span class="stage-title">Cắt ghép & Xuất</span>
+          <span class="stage-title">Cắt Ghép & Xuất File</span>
           <span class="stage-status" id="st-edit"></span>
           <span class="stage-caret">▾</span>
         </div>
@@ -200,16 +254,16 @@
           <div id="segmentList"></div>
 
           <details class="subcard acc-card" open>
-            <summary class="card-sum">💾 Xuất file dựng</summary>
+            <summary class="card-sum">💾 Xuất file dựng video</summary>
             <div class="acc-body">
               <div class="btn-grid">
                 <button id="btnExportSrt">SRT ghép</button>
                 <button id="btnExportCsv">CSV cut-list</button>
                 <button id="btnExportEdl">EDL</button>
                 <button id="btnExportFcpxml">FCPXML</button>
-                <button id="btnExportCaptions">Caption CapCut</button>
+                <button id="btnExportCaptions">CapCut</button>
                 <button id="btnExportMd">Markdown</button>
-                <button id="btnExportJson">Project JSON</button>
+                <button id="btnExportJson">JSON</button>
               </div>
               <div class="row">
                 <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60"></label>
@@ -219,7 +273,7 @@
           </details>
 
           <details class="subcard acc-card">
-            <summary class="card-sum">🔎 SEO metadata</summary>
+            <summary class="card-sum">🔎 SEO metadata (YouTube/TikTok)</summary>
             <div class="acc-body">
               <div class="row">
                 <select id="metaProvider">
@@ -239,7 +293,7 @@
           <details class="subcard acc-card">
             <summary class="card-sum">♻ Tái sử dụng nội dung (Repurpose)</summary>
             <div class="acc-body">
-              <div class="hint">Biến nội dung này thành blog / thread / LinkedIn / carousel / newsletter. Kết quả là văn xuôi — tải về .md.</div>
+              <div class="hint">Biến kịch bản thành bài viết blog / thread / LinkedIn / carousel / newsletter.</div>
               <div class="row">
                 <div class="field grow">
                   <label>Định dạng</label>
@@ -258,17 +312,18 @@
                 <button id="btnRepurposeDownload" hidden>⬇ .md</button>
               </div>
               <div id="repurposeStatus"></div>
-              <pre id="repurposeView" class="meta-pre" hidden></pre>
+              <div id="repurposeViewMd" class="markdown-body" hidden></div>
+              <pre id="repurposeView" class="meta-pre" style="display:none;"></pre>
             </div>
           </details>
 
           <details class="subcard acc-card">
-            <summary class="card-sum">🔖 Chapter YouTube + Mô tả (tách riêng)</summary>
+            <summary class="card-sum">🔖 Chapter YouTube + Mô tả</summary>
             <div class="acc-body">
-              <div class="hint">Timecode chapter tính theo timeline video ĐÃ GHÉP (đúng 100%). AI chỉ đặt tên chapter + viết mô tả.</div>
+              <div class="hint">Timecode chapter tính theo timeline video ĐÃ GHÉP.</div>
               <div class="row">
-                <label class="inline">Tối thiểu/chapter (giây) <input type="number" id="chapMinSec" value="12" min="10" max="180"></label>
-                <button id="btnChapters" class="btn-cta compact">🔖 Sinh chapter + mô tả</button>
+                <label class="inline">Min/chapter (s) <input type="number" id="chapMinSec" value="12" min="10" max="180"></label>
+                <button id="btnChapters" class="btn-cta compact">🔖 Sinh chapter</button>
               </div>
               <div id="chaptersStatus"></div>
               <div id="chaptersView" hidden>
@@ -284,290 +339,328 @@
       <section class="stage locked" data-stage="review">
         <div class="stage-head">
           <span class="stage-num">4</span>
-          <span class="stage-title">Đánh giá</span>
+          <span class="stage-title">Chấm Điểm & Review Kịch Bản</span>
           <span class="stage-status" id="st-review"></span>
           <span class="stage-caret">▾</span>
         </div>
         <div class="stage-body">
-          <p class="hint">Gửi kịch bản đã cắt cho AI đang chọn chấm điểm hook / flow / retention / CTA.</p>
+          <p class="hint">Gửi kịch bản đã cắt cho AI chấm điểm hook / flow / retention / CTA.</p>
           <button id="btnReview" class="btn-cta">★ Gửi đánh giá</button>
           <div id="reviewStatus"></div>
           <div id="reviewScoreCard" class="subcard" hidden>
-            <label>Điểm số</label>
+            <label>Bảng điểm kịch bản</label>
             <div id="reviewScores"></div>
-            <details class="acc"><summary>Xem nhận xét chi tiết</summary><pre id="reviewResult"></pre></details>
+            <details class="acc"><summary>Xem nhận xét chi tiết</summary>
+              <div id="reviewResultMd" class="markdown-body"></div>
+              <pre id="reviewResult" style="display:none;"></pre>
+            </details>
           </div>
         </div>
       </section>
 
     </section>
 
-    <!-- ================= VIEW: PROMPTS ================= -->
-    <!-- ================= VIEW: CONTENT ================= -->
+    <!-- ================= VIEW: CONTENT (Viết/Audit/SEO/Research) ================= -->
     <section class="view" id="view-content">
       <div class="card">
-        <div class="view-head">📝 Content — viết · audit · review · SEO</div>
-        <p class="hint">Làm mọi loại nội dung, không cần SRT. Chọn tác vụ → nhập/dán nội dung → chạy trên AI. Kết quả tải về .md.</p>
-
-        <div class="sec">
-          <div class="sec-head">🧭 Tác vụ</div>
-          <div id="contentTasks" class="chips"></div>
+        <div class="view-head">📝 Content & Research Studio</div>
+        
+        <!-- Sub-tabs cho nhánh Content -->
+        <div class="subnav-chips" id="contentSubTabs">
+          <button type="button" class="sub-chip active" data-sub="writer">✍️ Content Studio</button>
+          <button type="button" class="sub-chip" data-sub="research">🔍 Research & Keywords</button>
         </div>
 
-        <div class="row" id="contentFormatRow" hidden>
-          <div class="field grow">
-            <label>📄 Định dạng</label>
-            <select id="contentFormat"></select>
+        <!-- PANEL 1: WRITER & AUDIT -->
+        <div id="contentPanelWriter">
+          <p class="hint">Viết mới, audit sửa lỗi Grammarly, review chất lượng bài viết hoặc tối ưu SEO on-page.</p>
+
+          <div class="sec">
+            <div class="sec-head">🧭 Tác vụ</div>
+            <div id="contentTasks" class="chips"></div>
           </div>
-        </div>
 
-        <div class="row" id="contentKeywordRow" hidden>
-          <div class="field grow">
-            <label>🔑 Từ khóa chính (tùy chọn)</label>
-            <input type="text" id="contentKeyword" placeholder="vd: phần mềm quản lý kho">
-          </div>
-        </div>
-
-        <details class="subcard acc-card" id="contentBrandRow">
-          <summary class="card-sum">🎨 Brand voice / hướng dẫn (tùy chọn)</summary>
-          <div class="acc-body">
-            <p class="hint">Để trống = dùng chuẩn nội dung phổ quát. Dán guideline thương hiệu/ngành của bạn để AI viết theo giọng riêng.</p>
-            <textarea id="contentBrand" rows="4" placeholder="vd: Giọng thân thiện, xưng 'mình–bạn'; tránh thuật ngữ khó; luôn nhấn yếu tố an toàn…"></textarea>
-          </div>
-        </details>
-
-        <div class="sec">
-          <div class="sec-head" id="contentInputLabel">✍️ Nội dung / brief</div>
-          <textarea id="contentInput" rows="8" placeholder="Nhập chủ đề/brief, hoặc dán nội dung cần xử lý…"></textarea>
-        </div>
-
-        <div class="sec">
-          <div class="sec-head">🧠 Kiến thức SEOSONA</div>
-          <div id="contentCombos" class="combo-bar" title="Bật nhanh một bộ block phù hợp"></div>
-        </div>
-
-        <div class="row">
-          <div class="field grow">
-            <label>🤖 Chạy trên AI</label>
-            <select id="contentProvider">
-              <option value="chatgpt">ChatGPT</option>
-              <option value="gemini">Gemini</option>
-              <option value="grok">Grok</option>
-              <option value="claude">Claude</option>
-            </select>
-          </div>
-        </div>
-
-        <button id="btnContentRun" class="btn-cta">🚀 Chạy Content</button>
-        <details class="subcard acc-card" id="facebookBatchCard">
-          <summary class="card-sum">Facebook Group Batch — 5 bài/tuần</summary>
-          <div class="acc-body">
-            <p class="hint">Bản nháp tiếng Việt cho cộng đồng SEO/marketing. Context, brand và evidence được đọc từ SEOSONA OS qua Companion cục bộ; Content không đăng Facebook.</p>
-            <div class="row"><div class="field grow"><label>Companion URL</label><input id="fbCompanionUrl" value="http://127.0.0.1:43117" autocomplete="off"></div></div>
-            <div class="row">
-              <div class="field grow"><label>Companion token</label><input id="fbCompanionToken" type="password" autocomplete="off" placeholder="Token Companion cục bộ"></div>
-              <button id="btnFbLoadContext" type="button">Nạp context OS</button>
-            </div>
-            <div id="fbContextStatus" class="hint">Chưa nạp context OS.</div>
-            <div class="sec">
-              <div class="sec-head">5 chủ đề tuần này — mỗi dòng một chủ đề</div>
-              <textarea id="fbTopics" rows="6" placeholder="SEO technical audit&#10;Content brief theo search intent&#10;Internal linking&#10;Schema thực dụng&#10;E-E-A-T bằng evidence"></textarea>
-            </div>
-            <button id="btnFbCreateBatch" class="btn-cta" type="button">Tạo 5 draft package</button>
-            <div id="fbBatchStatus"></div>
-          </div>
-        </details>
-        <div id="contentStatus"></div>
-
-        <div id="contentResultCard" hidden>
-          <div id="contentScoreCard" class="score-card" hidden></div>
-          <div class="row between">
-            <label>Kết quả</label>
-            <div class="result-actions">
-              <button id="btnContentApply" hidden title="Đưa bản đã sửa vào ô nhập để dùng/chỉnh tiếp">⤵ Áp bản đã sửa</button>
-              <button id="btnContentCopy">📋 Copy</button>
-              <button id="btnContentDownload">⬇ .md</button>
-              <button id="btnContentChat" class="chat-link" hidden>↗ Mở lại chat</button>
+          <div class="row" id="contentFormatRow" hidden>
+            <div class="field grow">
+              <label>📄 Định dạng</label>
+              <select id="contentFormat"></select>
             </div>
           </div>
-          <pre id="contentResult" class="meta-pre"></pre>
+
+          <div class="row" id="contentKeywordRow" hidden>
+            <div class="field grow">
+              <label>🔑 Từ khóa chính (tùy chọn)</label>
+              <input type="text" id="contentKeyword" placeholder="vd: phần mềm quản lý kho">
+            </div>
+          </div>
+
+          <details class="subcard acc-card" id="contentBrandRow">
+            <summary class="card-sum">🎨 Brand voice / Guideline thương hiệu</summary>
+            <div class="acc-body">
+              <div class="textarea-wrap">
+                <textarea id="contentBrand" rows="3" placeholder="vd: Giọng thân thiện, xưng 'mình–bạn'; tránh thuật ngữ khó; luôn nhấn yếu tố an toàn…"></textarea>
+                <button type="button" class="btn-expand-ta" data-ta="contentBrand">⛶</button>
+              </div>
+            </div>
+          </details>
+
+          <div class="sec">
+            <div class="sec-head" id="contentInputLabel">✍️ Nội dung / brief</div>
+            <div class="textarea-wrap">
+              <textarea id="contentInput" rows="7" placeholder="Nhập chủ đề/brief, hoặc dán nội dung cần xử lý…"></textarea>
+              <button type="button" class="btn-expand-ta" data-ta="contentInput">⛶</button>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-head">🧠 Kiến thức SEOSONA</div>
+            <div id="contentCombos" class="combo-bar" title="Bật nhanh một bộ block phù hợp"></div>
+          </div>
+
+          <div class="row">
+            <div class="field grow">
+              <label>🤖 Chạy trên AI</label>
+              <select id="contentProvider">
+                <option value="chatgpt">ChatGPT</option>
+                <option value="gemini">Gemini</option>
+                <option value="grok">Grok</option>
+                <option value="claude">Claude</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="btnContentRun" class="btn-cta">🚀 Chạy Content</button>
+
+          <details class="subcard acc-card" id="facebookBatchCard">
+            <summary class="card-sum">Facebook Group Batch — 5 bài/tuần</summary>
+            <div class="acc-body">
+              <p class="hint">Bản nháp tiếng Việt cho cộng đồng SEO/marketing. Context, BrandKit và evidence được đọc từ SEOSONA OS qua Companion cục bộ; Content không đăng Facebook.</p>
+              <div class="row"><div class="field grow"><label>Companion URL</label><input id="fbCompanionUrl" value="http://127.0.0.1:43117" autocomplete="off"></div></div>
+              <div class="row">
+                <div class="field grow"><label>Companion token</label><input id="fbCompanionToken" type="password" autocomplete="off" placeholder="Token Companion cục bộ"></div>
+                <button id="btnFbLoadContext" type="button">Nạp context OS</button>
+              </div>
+              <div id="fbContextStatus" class="hint">Chưa nạp context OS.</div>
+              <div class="sec">
+                <div class="sec-head">5 chủ đề tuần này — mỗi dòng một chủ đề</div>
+                <textarea id="fbTopics" rows="6" placeholder="SEO technical audit&#10;Content brief theo search intent&#10;Internal linking&#10;Schema thực dụng&#10;E-E-A-T bằng evidence"></textarea>
+              </div>
+              <button id="btnFbCreateBatch" class="btn-cta" type="button">Tạo 5 draft package</button>
+              <div id="fbBatchStatus"></div>
+            </div>
+          </details>
+
+          <div id="contentStatus"></div>
+
+          <div id="contentResultCard" class="subcard" hidden>
+            <div id="contentScoreCard" class="score-card" hidden></div>
+            <div class="row between">
+              <label>Kết quả từ AI</label>
+              <div class="result-actions">
+                <button id="btnContentApply" hidden title="Đưa bản đã sửa vào ô nhập">⤵ Áp dụng</button>
+                <button id="btnContentCopy" class="pill-btn">📋 Copy</button>
+                <button id="btnContentDownload" class="pill-btn">⬇ .md</button>
+                <button id="btnContentChat" class="chat-link" hidden>↗ Mở chat</button>
+              </div>
+            </div>
+            <div id="contentResultMd" class="markdown-body"></div>
+            <pre id="contentResult" class="meta-pre" style="display:none;"></pre>
+          </div>
         </div>
+
+        <!-- PANEL 2: RESEARCH -->
+        <div id="contentPanelResearch" hidden>
+          <p class="hint">Nghiên cứu chủ đề, tìm keyword ý tưởng, tìm khoảng trống nội dung (content gap).</p>
+
+          <div class="sec">
+            <div class="sec-head">🧭 Loại nghiên cứu</div>
+            <div id="researchTasks" class="chips"></div>
+          </div>
+
+          <div class="row" id="researchAudienceRow">
+            <div class="field grow">
+              <label>🎯 Đối tượng / ngành</label>
+              <input type="text" id="researchAudience" placeholder="vd: chủ shop thời trang, dân văn phòng…">
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-head" id="researchInputLabel">Đầu vào</div>
+            <div class="textarea-wrap">
+              <textarea id="researchInput" rows="6" placeholder="Nhập chủ đề/từ khóa hạt giống…"></textarea>
+              <button type="button" class="btn-expand-ta" data-ta="researchInput">⛶</button>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-head">🧠 Kiến thức SEOSONA</div>
+            <div id="researchCombos" class="combo-bar"></div>
+          </div>
+
+          <div class="row">
+            <div class="field grow">
+              <label>🤖 Chạy trên AI</label>
+              <select id="researchProvider">
+                <option value="chatgpt">ChatGPT</option>
+                <option value="gemini">Gemini</option>
+                <option value="grok">Grok</option>
+                <option value="claude">Claude</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="btnResearchRun" class="btn-cta">🚀 Chạy Research</button>
+          <div id="researchStatus"></div>
+
+          <div id="researchResultCard" class="subcard" hidden>
+            <div class="row between">
+              <label>Kết quả nghiên cứu</label>
+              <div class="result-actions">
+                <button id="btnResearchCopy" class="pill-btn">📋 Copy</button>
+                <button id="btnResearchDownload" class="pill-btn">⬇ .md</button>
+                <button id="btnResearchChat" class="chat-link" hidden>↗ Mở chat</button>
+              </div>
+            </div>
+            <div id="researchResultMd" class="markdown-body"></div>
+            <pre id="researchResult" class="meta-pre" style="display:none;"></pre>
+          </div>
+        </div>
+
       </div>
     </section>
 
-    <!-- ================= VIEW: FLOW ================= -->
+    <!-- ================= VIEW: FLOW & BATCH ================= -->
     <section class="view" id="view-flow">
       <div class="card">
-        <div class="view-head">⚡ Flow — chuỗi nhiều bước tự động</div>
-        <p class="hint">Chạy một mạch nhiều bước; output bước trước tự đổ vào bước sau qua <code>{{input}}</code>, <code>{{s1}}</code>, <code>{{prev}}</code>. Mỗi bước tự lưu vào Thư viện.</p>
+        <div class="view-head">⚡ Flow Automation & Batch Processing</div>
+        
+        <div class="subnav-chips" id="flowSubTabs">
+          <button type="button" class="sub-chip active" data-sub="flow">⚡ Flow Builder</button>
+          <button type="button" class="sub-chip" data-sub="batch">📦 Batch Nhiều SRT</button>
+        </div>
 
-        <div class="row">
-          <div class="field grow">
-            <label>Chọn flow</label>
-            <select id="flowSelect"></select>
+        <!-- PANEL 1: FLOW BUILDER -->
+        <div id="flowPanelBuilder">
+          <p class="hint">Chạy chuỗi nhiều bước tự động; output bước trước tự đổ vào bước sau.</p>
+
+          <div class="row">
+            <div class="field grow">
+              <label>Chọn flow</label>
+              <select id="flowSelect"></select>
+            </div>
+            <button id="flowNew" class="pill-btn" title="Flow trống mới">＋ Mới</button>
           </div>
-          <button id="flowNew" class="pill-btn" title="Flow trống mới">＋ Mới</button>
-        </div>
 
-        <div class="sec">
-          <div class="sec-head" id="flowInputLabel">Đầu vào <code>{{input}}</code></div>
-          <textarea id="flowInput" rows="4" placeholder="Nhập chủ đề / nội dung ban đầu…"></textarea>
-        </div>
-
-        <div class="sec">
-          <div class="sec-head between"><span>🧩 Các bước</span><button id="flowAddStep" class="pill-btn">＋ Thêm bước</button></div>
-          <div id="flowSteps" class="flow-steps"></div>
-        </div>
-
-        <div class="row">
-          <div class="field grow">
-            <label>🤖 Chạy trên AI</label>
-            <select id="flowProvider">
-              <option value="chatgpt">ChatGPT</option>
-              <option value="gemini">Gemini</option>
-              <option value="grok">Grok</option>
-              <option value="claude">Claude</option>
-            </select>
-          </div>
-          <label class="inline" title="Bơm block kiến thức đang bật vào mỗi bước"><input type="checkbox" id="flowKnowledge"> Bơm kiến thức</label>
-        </div>
-
-        <div class="row">
-          <button id="flowRun" class="btn-cta">▶▶ Chạy Flow</button>
-          <button id="flowStop" class="btn-danger" hidden>⛔ Dừng</button>
-          <button id="flowSave" class="pill-btn">💾 Lưu flow</button>
-        </div>
-        <div id="flowProgress" class="flow-progress"></div>
-        <div id="flowResults" class="lib-list"></div>
-        <button id="flowDownloadAll" hidden>⬇ Tải tất cả kết quả (.md)</button>
-      </div>
-    </section>
-
-    <!-- ================= VIEW: RESEARCH ================= -->
-    <section class="view" id="view-research">
-      <div class="card">
-        <div class="view-head">🔍 Research — nghiên cứu content & keyword</div>
-        <p class="hint">Ý tưởng qua AI — hữu ích để lên chủ đề/brief. <b>Không phải số liệu thật</b> (volume/độ khó là ước lượng). Riêng <b>Keyword workspace</b> phân tích trên số thật bạn dán vào.</p>
-
-        <div class="sec">
-          <div class="sec-head">🧭 Loại nghiên cứu</div>
-          <div id="researchTasks" class="chips"></div>
-        </div>
-
-        <div class="row" id="researchAudienceRow">
-          <div class="field grow">
-            <label>🎯 Đối tượng / ngành (tùy chọn)</label>
-            <input type="text" id="researchAudience" placeholder="vd: chủ shop thời trang, dân văn phòng…">
-          </div>
-        </div>
-
-        <div class="sec">
-          <div class="sec-head" id="researchInputLabel">Đầu vào</div>
-          <textarea id="researchInput" rows="7" placeholder="Nhập chủ đề/từ khóa hạt giống…"></textarea>
-        </div>
-
-        <div class="sec">
-          <div class="sec-head">🧠 Kiến thức SEOSONA</div>
-          <div id="researchCombos" class="combo-bar"></div>
-        </div>
-
-        <div class="row">
-          <div class="field grow">
-            <label>🤖 Chạy trên AI</label>
-            <select id="researchProvider">
-              <option value="chatgpt">ChatGPT</option>
-              <option value="gemini">Gemini</option>
-              <option value="grok">Grok</option>
-              <option value="claude">Claude</option>
-            </select>
-          </div>
-        </div>
-
-        <button id="btnResearchRun" class="btn-cta">🚀 Chạy Research</button>
-        <div id="researchStatus"></div>
-
-        <div id="researchResultCard" hidden>
-          <div class="row between">
-            <label>Kết quả</label>
-            <div class="result-actions">
-              <button id="btnResearchCopy">📋 Copy</button>
-              <button id="btnResearchDownload">⬇ .md</button>
-              <button id="btnResearchChat" class="chat-link" hidden>↗ Mở lại chat</button>
+          <div class="sec">
+            <div class="sec-head" id="flowInputLabel">Đầu vào <code>{{input}}</code></div>
+            <div class="textarea-wrap">
+              <textarea id="flowInput" rows="4" placeholder="Nhập chủ đề / nội dung ban đầu…"></textarea>
+              <button type="button" class="btn-expand-ta" data-ta="flowInput">⛶</button>
             </div>
           </div>
-          <pre id="researchResult" class="meta-pre"></pre>
-        </div>
-      </div>
-    </section>
 
-    <!-- ================= VIEW: LIBRARY ================= -->
-    <section class="view" id="view-library">
-      <div class="card">
-        <div class="view-head">🗂️ Thư viện — mọi nội dung đã tạo</div>
-        <p class="hint">Tìm & mở lại Content · Research · Repurpose · phiên SRT · prompt. Lưu cục bộ trên máy bạn.</p>
-        <div class="home-search">
-          <span class="hs-ico">🔎</span>
-          <input type="search" id="libSearch" placeholder="Tìm trong thư viện…" autocomplete="off">
-        </div>
-        <div id="libFilters" class="chips"></div>
-        <div id="libStats" class="hint"></div>
-        <div id="libList" class="lib-list"></div>
-      </div>
-    </section>
+          <div class="sec">
+            <div class="sec-head between"><span>🧩 Các bước</span><button id="flowAddStep" class="pill-btn">＋ Thêm bước</button></div>
+            <div id="flowSteps" class="flow-steps"></div>
+          </div>
 
-    <section class="view" id="view-prompts">
-      <div class="card">
-        <div class="view-head">📚 Thư viện prompt</div>
-        <p class="hint">Lưu prompt tái dùng. Dùng biến <code>{{ten_bien}}</code> trong prompt để điền nhanh khi dùng lại.</p>
-        <div id="promptMain">
-          <button id="btnSaveCurrentPrompt" class="btn-cta compact">💾 Lưu prompt đang soạn (ở Studio › Phân tích)</button>
-          <div id="promptList"></div>
-        </div>
-        <div id="promptFill" hidden>
-          <label>Điền biến cho: <span id="promptFillTitle" class="neon"></span></label>
-          <div id="promptVars"></div>
           <div class="row">
-            <button id="promptApply" class="btn-cta compact">Áp dụng vào prompt</button>
-            <button id="promptFillBack">Quay lại</button>
+            <div class="field grow">
+              <label>🤖 Chạy trên AI</label>
+              <select id="flowProvider">
+                <option value="chatgpt">ChatGPT</option>
+                <option value="gemini">Gemini</option>
+                <option value="grok">Grok</option>
+                <option value="claude">Claude</option>
+              </select>
+            </div>
+            <label class="inline" title="Bơm block kiến thức đang bật"><input type="checkbox" id="flowKnowledge"> Bơm kiến thức</label>
+          </div>
+
+          <div class="row">
+            <button id="flowRun" class="btn-cta">▶▶ Chạy Flow</button>
+            <button id="flowStop" class="btn-danger" hidden>⛔ Dừng</button>
+            <button id="flowSave" class="pill-btn">💾 Lưu flow</button>
+          </div>
+          <div id="flowProgress" class="flow-progress"></div>
+          <div id="flowResults" class="lib-list"></div>
+          <button id="flowDownloadAll" hidden>⬇ Tải tất cả kết quả (.md)</button>
+        </div>
+
+        <!-- PANEL 2: BATCH SRT -->
+        <div id="flowPanelBatch" hidden>
+          <p class="hint">Chạy cùng cấu hình phân tích lên nhiều file SRT tuần tự.</p>
+          <div class="row">
+            <label class="file-drop file-drop-sm" id="batchDrop">
+              <input type="file" id="batchFiles" accept=".srt,.txt" multiple hidden>
+              <span>📄 Thêm file .srt (chọn nhiều)</span>
+            </label>
+            <select id="batchProvider">
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="claude">Claude</option>
+            </select>
+          </div>
+          <div id="batchList"></div>
+          <div class="row">
+            <button id="batchRun" class="btn-cta compact">▶ Chạy batch</button>
+            <button id="batchStop" class="btn-danger" hidden>⛔ Dừng</button>
+            <button id="batchZipAll" hidden>⬇ Tải tất cả SRT ghép</button>
+            <button id="batchClear">Xóa danh sách</button>
           </div>
         </div>
+
       </div>
     </section>
 
-    <!-- ================= VIEW: BATCH ================= -->
-    <section class="view" id="view-batch">
+    <!-- ================= VIEW: HUB (Thư viện, Prompts, Lịch sử) ================= -->
+    <section class="view" id="view-hub">
       <div class="card">
-        <div class="view-head">📦 Batch nhiều file SRT</div>
-        <p class="hint">Chạy cùng cấu hình phân tích (prompt + kiến thức + nền tảng + số kịch bản ở Studio › Phân tích) lên nhiều file SRT, tuần tự. Mỗi file xong tự dựng bảng và cho tải SRT ghép.</p>
-        <div class="row">
-          <label class="file-drop file-drop-sm" id="batchDrop">
-            <input type="file" id="batchFiles" accept=".srt,.txt" multiple hidden>
-            <span>📄 Thêm file .srt (chọn nhiều)</span>
-          </label>
-          <select id="batchProvider">
-            <option value="chatgpt">ChatGPT</option>
-            <option value="gemini">Gemini</option>
-            <option value="grok">Grok</option>
-            <option value="claude">Claude</option>
-          </select>
+        <div class="view-head">🗂️ Hub — Bộ Nhớ & Tài Nguyên</div>
+        
+        <div class="subnav-chips" id="hubSubTabs">
+          <button type="button" class="sub-chip active" data-sub="library">🗂️ Thư viện</button>
+          <button type="button" class="sub-chip" data-sub="prompts">📚 Prompts</button>
+          <button type="button" class="sub-chip" data-sub="history">🕘 Lịch sử</button>
         </div>
-        <div id="batchList"></div>
-        <div class="row">
-          <button id="batchRun" class="btn-cta compact">▶ Chạy batch</button>
-          <button id="batchStop" class="btn-danger" hidden>⛔ Dừng</button>
-          <button id="batchZipAll" hidden>⬇ Tải tất cả SRT ghép</button>
-          <button id="batchClear">Xóa danh sách</button>
-        </div>
-      </div>
-    </section>
 
-    <!-- ================= VIEW: HISTORY ================= -->
-    <section class="view" id="view-history">
-      <div class="card">
-        <div class="view-head">🕘 Lịch sử chạy</div>
-        <p class="hint">Các lần phân tích gần đây. Mở lại để nạp SRT + kết quả AI vào phiên hiện tại.</p>
-        <div id="historyList"></div>
-        <button id="historyClear" class="btn-danger">Xóa toàn bộ lịch sử</button>
+        <!-- PANEL 1: THƯ VIỆN -->
+        <div id="hubPanelLibrary">
+          <p class="hint">Tìm & mở lại Content · Research · Repurpose · phiên SRT. Lưu cục bộ trên máy.</p>
+          <div class="home-search">
+            <span class="hs-ico">🔎</span>
+            <input type="search" id="libSearch" placeholder="Tìm trong thư viện…" autocomplete="off">
+          </div>
+          <div id="libFilters" class="chips"></div>
+          <div id="libStats" class="hint"></div>
+          <div id="libList" class="lib-list"></div>
+        </div>
+
+        <!-- PANEL 2: PROMPTS -->
+        <div id="hubPanelPrompts" hidden>
+          <p class="hint">Thư viện prompt tùy chỉnh. Dùng biến <code>{{ten_bien}}</code> để điền nhanh.</p>
+          <div id="promptMain">
+            <button id="btnSaveCurrentPrompt" class="btn-cta compact">💾 Lưu prompt đang soạn (ở Studio)</button>
+            <div id="promptList"></div>
+          </div>
+          <div id="promptFill" hidden>
+            <label>Điền biến cho: <span id="promptFillTitle" class="neon"></span></label>
+            <div id="promptVars"></div>
+            <div class="row">
+              <button id="promptApply" class="btn-cta compact">Áp dụng vào prompt</button>
+              <button id="promptFillBack">Quay lại</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 3: LỊCH SỬ -->
+        <div id="hubPanelHistory" hidden>
+          <p class="hint">Nhật ký các lần phân tích gần đây.</p>
+          <div id="historyList"></div>
+          <button id="historyClear" class="btn-danger">Xóa toàn bộ lịch sử</button>
+        </div>
+
       </div>
     </section>
 
@@ -576,14 +669,33 @@
   <!-- ============ TOASTS ============ -->
   <div id="toastWrap" class="toast-wrap"></div>
 
-  <!-- ============ SETTINGS OVERLAY: selector override ============ -->
+  <!-- ============ OVERLAY: TEXTAREA EXPAND MODAL ============ -->
+  <div id="expandModal" class="overlay" hidden>
+    <div class="modal modal-lg">
+      <div class="modal-head">
+        <b id="expandModalTitle">Soạn thảo văn bản</b>
+        <button class="icon-btn" id="expandModalClose">✕</button>
+      </div>
+      <textarea id="expandModalText" rows="14" placeholder="Nhập hoặc chỉnh sửa nội dung văn bản..."></textarea>
+      <div class="row between">
+        <span class="hint" id="expandModalStats">0 từ · 0 ký tự</span>
+        <div class="row">
+          <button id="expandModalCopy" class="pill-btn">📋 Copy</button>
+          <button id="expandModalClear" class="btn-danger compact">Xóa hết</button>
+          <button id="expandModalApply" class="btn-cta compact">Áp dụng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS OVERLAY ============ -->
   <div id="settingsOverlay" class="overlay" hidden>
     <div class="modal">
       <div class="modal-head">
         <b>⚙ Selector override — chống vỡ UI</b>
         <button class="icon-btn" id="settingsClose">✕</button>
       </div>
-      <p class="hint">Khi ChatGPT/Gemini/Grok/Claude đổi giao diện làm tự động hóa hỏng, dán selector mới vào đây rồi <b>tải lại tab AI</b> — không cần cập nhật extension. Mỗi dòng một selector, hệ thống thử lần lượt tới khi trúng.</p>
+      <p class="hint">Khi ChatGPT/Gemini/Grok/Claude đổi giao diện làm hỏng tự động hóa, dán selector mới vào đây rồi <b>tải lại tab AI</b>.</p>
       <div class="row">
         <div class="field grow"><label>Provider</label><select id="ovProvider"></select></div>
         <div class="field grow"><label>Thành phần</label><select id="ovKey"></select></div>
@@ -606,7 +718,7 @@
         <b>🧠 Kiến thức SEOSONA</b>
         <button class="icon-btn" id="knowledgeClose">✕</button>
       </div>
-      <p class="hint">Bật block để bơm kiến thức vào prompt — dùng chung cho <b>SRT · Content · Research</b>. Combo = bật nhanh một bộ theo mục tiêu.</p>
+      <p class="hint">Bật block để bơm kiến thức vào prompt — dùng chung cho <b>SRT · Content · Research</b>.</p>
       <div id="koCombos" class="combo-bar"></div>
       <div id="koBlocks" class="ko-blocks"></div>
       <div class="row between">
@@ -621,7 +733,7 @@
     <span class="status-text" id="statusText">Sẵn sàng</span>
     <span class="status-meta">
       <span class="tok" title="Không giới hạn (dùng tài khoản web của bạn)">✦ ∞</span>
-      <span class="chip-mini">SRT · Local</span>
+      <span class="chip-mini">SEOSONA OS</span>
     </span>
   </footer>
 
@@ -633,13 +745,13 @@
 <script src="../lib/prompts-longform.js"></script>
 <script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/prompts-content.js"></script>
-<script src="../lib/facebook-factory.js"></script>
-<script src="../lib/facebook-batch.js"></script>
 <script src="../lib/prompts-flows.js"></script>
 <script src="../lib/prompts-research.js"></script>
 <script src="../lib/templates.js"></script>
 <script src="../lib/output-parser.js"></script>
 <script src="../lib/exporter.js"></script>
+<script src="../lib/facebook-factory.js"></script>
+<script src="../lib/facebook-batch.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
