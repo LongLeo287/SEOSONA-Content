@@ -27,9 +27,24 @@ export class FlowMcpClient {
     await this.client.connect(this.transport);
   }
 
-  async callTool(name, args) {
+  async callTool(name, args, options = {}) {
     await this.connect();
-    return parseFlowEnvelope(await this.client.callTool({ name, arguments: args }));
+    const requestOptions = typeof options.onprogress === 'function' ? { onprogress: options.onprogress } : undefined;
+    return parseFlowEnvelope(await this.client.callTool({ name, arguments: args }, undefined, requestOptions));
+  }
+
+  async listTools() {
+    await this.connect();
+    const response = await this.client.listTools();
+    return Array.isArray(response && response.tools) ? response.tools : [];
+  }
+
+  async readResource(uri) {
+    await this.connect();
+    const response = await this.client.readResource({ uri });
+    const content = response && Array.isArray(response.contents) ? response.contents.find((item) => typeof item.text === 'string') : null;
+    if (!content) throw new Error('Flow MCP returned no readable resource: ' + uri + '.');
+    try { return JSON.parse(content.text); } catch { throw new Error('Flow MCP resource is not valid JSON: ' + uri + '.'); }
   }
 
   async close() {
