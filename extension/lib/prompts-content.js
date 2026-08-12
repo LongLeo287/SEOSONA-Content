@@ -20,16 +20,9 @@ const CONTENT_STANDARD = `## CHUẨN NỘI DUNG & SEO (áp dụng phổ quát, m
 // Chèn brand voice nếu người dùng cung cấp (rỗng thì không ràng buộc thương hiệu).
 const BRAND_SLOT = `{{BRAND}}`;
 
-const CONTENT_FORMATS = {
-  blog: 'Bài blog/website (H2/H3, 800–1400 từ, chuẩn SEO)',
-  facebook: 'Bài Facebook (hook + thân + CTA, emoji vừa phải)',
-  linkedin: 'Bài LinkedIn (hook dừng-lướt, insight, câu hỏi mở)',
-  thread: 'Thread X/Twitter (7–12 tweet đánh số)',
-  email: 'Email/newsletter (subject + preheader + thân + CTA)',
-  script: 'Kịch bản video ngắn (hook 3s + thân + CTA)',
-  ad: 'Ad copy (3 biến thể: ngắn/dài/CTA mạnh)',
-  outline: 'Dàn ý chi tiết (H2/H3 + ý chính từng mục)',
-};
+// Lấy từ danh mục chung (lib/output-formats.js) — KHÔNG định nghĩa lại luật định dạng ở đây nữa.
+// Nhãn dùng cho <select>; luật chi tiết ({{FORMAT}}) lấy từ OUTPUT_FORMATS[id].spec.
+const CONTENT_FORMATS = (typeof OUTPUT_FORMAT_LABELS !== 'undefined') ? OUTPUT_FORMAT_LABELS : {};
 
 const CONTENT_TASKS = {
   write: {

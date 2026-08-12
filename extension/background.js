@@ -154,7 +154,7 @@ async function ensureProviderTab(provider, { freshChat = false, chatUrl = null }
 }
 
 // ---------------------------------------------------------------- handlers
-async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl }) {
+async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl, modelMatch }) {
   if (!PROVIDERS[provider]) return { ok: false, error: 'Provider không hợp lệ: ' + provider };
   try {
     await setJob(jobId, { provider, status: 'preparing', startedAt: Date.now(), leaseUpdatedAt: Date.now() });
@@ -172,11 +172,12 @@ async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl
       jobId,
       text,
       timeout: timeout || 600000,
+      modelMatch: modelMatch || null,
     });
     if (!ack || !ack.accepted) throw new Error('Content script từ chối job');
 
     // Lưu spec để auto-retry khi lỗi tạm thời
-    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000 }, attempt: 0, maxRetries: 2, leaseUpdatedAt: Date.now() });
+    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000, modelMatch: modelMatch || null }, attempt: 0, maxRetries: 2, leaseUpdatedAt: Date.now() });
     broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', tabId: tab.id });
     return { ok: true, tabId: tab.id };
   } catch (e) {
@@ -213,7 +214,7 @@ async function maybeRetry(jobId, provider, result) {
     await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
     await sleep(400);
     const ack = await chrome.tabs.sendMessage(tab.id, {
-      action: 'srt:submitAndWait', jobId, text: job.spec.text, timeout: job.spec.timeout,
+      action: 'srt:submitAndWait', jobId, text: job.spec.text, timeout: job.spec.timeout, modelMatch: job.spec.modelMatch || null,
     });
     if (!ack || !ack.accepted) throw new Error('reject');
     await setJob(jobId, { tabId: tab.id, leaseUpdatedAt: Date.now() });

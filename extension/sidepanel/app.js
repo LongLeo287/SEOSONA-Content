@@ -9,6 +9,7 @@ const state = {
   cues: [],
   results: {},        // provider -> { status, text, error, jobId, chatUrl }
   provider: 'chatgpt', // provider đang chọn (single-select kiểu TobyFlow)
+  modelChoice: 'auto', // model trong hãng đó ('auto' = tự chọn theo độ nặng tác vụ)
   activeProvider: null,
   angles: [],         // [{ title, segments }] — nhiều góc cắt
   activeAngle: 0,
@@ -200,7 +201,11 @@ function loadSessionIntoState(sess) {
 }
 
 async function restoreProject() {
-  try { const { srtLastProvider } = await chrome.storage.local.get('srtLastProvider'); if (srtLastProvider) state.provider = srtLastProvider; } catch (_) {}
+  try {
+    const { srtLastProvider, srtModelChoice } = await chrome.storage.local.get(['srtLastProvider', 'srtModelChoice']);
+    if (srtLastProvider) state.provider = srtLastProvider;
+    if (srtModelChoice) state.modelChoice = srtModelChoice;
+  } catch (_) {}
   let { sessions, currentId } = await loadSessions();
   // migrate project cũ (một project) -> một phiên
   if (!Object.keys(sessions).length) {
@@ -485,6 +490,28 @@ function markSessionPills() {
   });
 }
 
+// ---------------------------------------------------------------- GỬI JOB (một cửa duy nhất)
+// Mọi lệnh chạy AI đi qua đây để tự gắn model đã chọn. Suy tác vụ từ tiền tố jobId nên
+// không chỗ gọi nào phải truyền thêm gì.
+const JOB_TASK = {
+  analyze_: 'analyze', review_: 'review', meta_: 'meta', chapters_: 'chapters', repurpose_: 'repurpose',
+  content_: 'write', research_: 'brief', flow_: 'flow', batch_: 'analyze',
+};
+function taskKeyOf(jobId) { for (const k in JOB_TASK) if (String(jobId).startsWith(k)) return JOB_TASK[k]; return ''; }
+function sendRunJob(msg) {
+  let modelMatch = null;
+  try {
+    if (typeof ModelPicker !== 'undefined') {
+      // Tác vụ Content/Research lấy đúng tên tác vụ đang chọn để Auto quyết chuẩn hơn
+      let task = taskKeyOf(msg.jobId);
+      if (String(msg.jobId).startsWith('content_')) task = (state.content && state.content.task) || task;
+      if (String(msg.jobId).startsWith('research_')) task = (state.research && state.research.task) || task;
+      modelMatch = ModelPicker.matchTexts(msg.provider, state.modelChoice, task);
+    }
+  } catch (_) {}
+  return chrome.runtime.sendMessage({ action: 'srt:runJob', modelMatch, ...msg });
+}
+
 // ---------------------------------------------------------------- THANH AI TOÀN CỤC
 // Một chỗ duy nhất chọn AI. Mọi view dùng chung state.provider; các <select> provider
 // cũ vẫn tồn tại (bị ẩn bằng CSS) và được đồng bộ để code cũ đọc .value không gãy.
@@ -492,6 +519,22 @@ const AI_SELECT_IDS = ['contentProvider', 'researchProvider', 'flowProvider', 'm
 function syncProviderSelects(p) {
   AI_SELECT_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.value = p; });
   $$('#aiBarPills .aibar-pill').forEach((b) => b.classList.toggle('active', b.dataset.provider === p));
+  renderModelSelect(p);
+}
+
+// Ô chọn model — CHỈ hiện với nhà mà extension thật sự bấm đổi được model.
+// Nhà không đổi được (vd Grok) thì ẩn hẳn, không bày một lựa chọn vô tác dụng.
+function renderModelSelect(provider) {
+  const sel = $('#aiBarModel'); if (!sel) return;
+  if (typeof ModelPicker === 'undefined' || !ModelPicker.supports(provider)) { sel.hidden = true; return; }
+  const prev = state.modelChoice;
+  const models = ModelPicker.list(provider);
+  sel.innerHTML = '';
+  models.forEach((m) => { const o = document.createElement('option'); o.value = m.value; o.textContent = m.name; sel.appendChild(o); });
+  // Giữ lựa chọn cũ nếu nhà mới vẫn có model đó, không thì về Auto
+  sel.value = models.some((m) => m.value === prev) ? prev : 'auto';
+  state.modelChoice = sel.value;
+  sel.hidden = false;
 }
 function initAiBar() {
   const wrap = $('#aiBarPills'); if (!wrap) return;
@@ -503,6 +546,11 @@ function initAiBar() {
     b.addEventListener('click', () => setProvider(id, { load: true, userAction: true }));
     wrap.appendChild(b);
   }
+  const msel = $('#aiBarModel');
+  if (msel) msel.addEventListener('change', () => {
+    state.modelChoice = msel.value;
+    try { chrome.storage.local.set({ srtModelChoice: state.modelChoice }); } catch (_) {}
+  });
   const openBtn = $('#aiBarOpen');
   if (openBtn) openBtn.addEventListener('click', () => {
     const r = state.results[state.provider];
@@ -564,7 +612,7 @@ async function runAnalyze() {
     const prevChatUrl = (state.results[provider] && state.results[provider].chatUrl) || null;
     const jobId = `analyze_${provider}_${Date.now()}`;
     state.results[provider] = { status: 'running', jobId, chatUrl: prevChatUrl };
-    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat, chatUrl: freshChat ? null : prevChatUrl });
+    const resp = await sendRunJob({ jobId, provider, text, timeout, freshChat, chatUrl: freshChat ? null : prevChatUrl });
     if (!resp || !resp.ok) {
       state.results[provider] = { status: 'error', error: (resp && resp.error) || 'Không gửi được job' };
       updateJobRow(provider, 'error', state.results[provider].error);
@@ -639,6 +687,10 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     RunTracker.observe(jobId, provider, status, result); // theo dõi tiến trình chung, không đụng luồng cũ
     // Ghi lỗi vừa gặp để mở Bác sĩ là thấy ngay mục liên quan
     if (status === 'error' && result && result.error) lastErrorCode = result.error;
+    // Nói thật khi KHÔNG đổi được model: thà báo còn hơn để người dùng tưởng đã đổi
+    if (status === 'done' && result && (result.modelState === 'no-match' || result.modelState === 'not-found')) {
+      toast('Không đổi được model trên trang — kết quả chạy bằng model đang chọn sẵn ở đó.', 'warn', 6000);
+    }
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
@@ -872,7 +924,7 @@ async function runMetadata() {
   const jobId = `meta_${provider}_${Date.now()}`;
   $('#btnMeta').disabled = true;
   $('#metaStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#metaStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnMeta').disabled = false; chainAbort('Gửi metadata thất bại'); return false; }
   return true;
 }
@@ -944,7 +996,7 @@ $('#btnRepurpose').addEventListener('click', async () => {
   $('#btnRepurposeDownload').hidden = true;
   $('#repurposeView').hidden = true;
   $('#repurposeStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#repurposeStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnRepurpose').disabled = false; }
 });
 
@@ -997,7 +1049,7 @@ $('#btnChapters').addEventListener('click', async () => {
   $('#btnChapters').disabled = true;
   $('#chaptersView').hidden = true;
   $('#chaptersStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#chaptersStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnChapters').disabled = false; }
 });
 
@@ -1101,7 +1153,10 @@ $('#btnContentRun').addEventListener('click', async () => {
   const provider = $('#contentProvider').value || state.provider;
   const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
   const kw = ($('#contentKeyword').value || '').trim() || '(chưa cung cấp)';
-  const fmt = CONTENT_FORMATS[$('#contentFormat').value] || $('#contentFormat').value || '';
+  // Bơm LUẬT ĐỊNH DẠNG đầy đủ (không phải chỉ cái nhãn) để bài viết ra đúng khuôn
+  const fmtId = $('#contentFormat').value;
+  const fmtDef = (typeof OUTPUT_FORMATS !== 'undefined') ? OUTPUT_FORMATS[fmtId] : null;
+  const fmt = fmtDef ? (fmtDef.name + '\n' + fmtDef.spec) : (CONTENT_FORMATS[fmtId] || fmtId || '');
   const brandRaw = t.needsBrand ? ($('#contentBrand').value || '').trim() : '';
   const brand = brandRaw ? `\n## BRAND VOICE (BẮT BUỘC tuân theo, ưu tiên hơn chuẩn chung khi có xung đột về giọng)\n${brandRaw}\n` : '';
   const lit = (v) => () => v; // tránh $-pattern trong replacement khi input chứa $&, $1...
@@ -1116,7 +1171,7 @@ $('#btnContentRun').addEventListener('click', async () => {
   $('#btnContentRun').disabled = true;
   $('#contentResultCard').hidden = true;
   $('#contentStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#contentStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnContentRun').disabled = false; }
 });
 
@@ -1233,7 +1288,7 @@ async function runQuickAction(action, text) {
   $('#contentResultCard').hidden = true;
   $('#contentScoreCard').hidden = true;
   $('#contentStatus').innerHTML = jobRow(provider, 'preparing', `${qa.name}…`);
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text: prompt, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text: prompt, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#contentStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnContentRun').disabled = false; }
   else toast(`${qa.name} → đã gửi cho ${PROVIDER_LABEL[provider] || provider}`, 'info');
 }
@@ -1314,7 +1369,7 @@ async function runReview() {
   for (const provider of providers) {
     const jobId = `review_${provider}_${Date.now()}`;
     state.review[provider] = { status: 'running' };
-    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 600000, freshChat: true });
+    const resp = await sendRunJob({ jobId, provider, text, timeout: 600000, freshChat: true });
     if (!resp || !resp.ok) { state.review[provider] = { status: 'error' }; updateJobRow(provider, 'error', (resp && resp.error) || 'lỗi', $('#reviewStatus')); chainAbort('Gửi đánh giá thất bại'); return false; }
   }
   return true;
@@ -1542,7 +1597,7 @@ async function runBatch() {
     const text = PromptBuilder.buildAnalyze({ srtRaw: f.raw, base, blockIds, platformId, angleCount });
     const done = new Promise((res) => { batchWaiters[jobId] = res; });
     setStatus(`📦 Batch: ${f.name}`);
-    const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout, freshChat: true });
+    const resp = await sendRunJob({ jobId, provider, text, timeout, freshChat: true });
     if (!resp || !resp.ok) { f.status = 'error'; f.error = (resp && resp.error) || 'không gửi được'; renderBatch(); delete batchWaiters[jobId]; continue; }
     await done;
   }
@@ -1801,7 +1856,7 @@ function runFlowStep(provider, text, i) {
     const jobId = `flow_${provider}_${Date.now()}_${i}`;
     flowWaiters[jobId] = resolve;
     if (flowRunState) flowRunState.currentJobId = jobId;
-    chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true })
+    sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true })
       .then((resp) => { if (!resp || !resp.ok) { delete flowWaiters[jobId]; resolve({ ok: false, error: (resp && resp.error) || 'không gửi được' }); } })
       .catch(() => { delete flowWaiters[jobId]; resolve({ ok: false, error: 'lỗi gửi job' }); });
   });
@@ -2026,7 +2081,7 @@ $('#btnResearchRun').addEventListener('click', async () => {
   $('#btnResearchRun').disabled = true;
   $('#researchResultCard').hidden = true;
   $('#researchStatus').innerHTML = jobRow(provider, 'preparing', 'đang gửi…');
-  const resp = await chrome.runtime.sendMessage({ action: 'srt:runJob', jobId, provider, text, timeout: 300000, freshChat: true });
+  const resp = await sendRunJob({ jobId, provider, text, timeout: 300000, freshChat: true });
   if (!resp || !resp.ok) { $('#researchStatus').innerHTML = jobRow(provider, 'error', (resp && resp.error) || 'lỗi'); $('#btnResearchRun').disabled = false; }
 });
 function handleResearchUpdate(status, result) {

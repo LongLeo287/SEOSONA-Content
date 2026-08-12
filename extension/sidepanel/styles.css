@@ -188,6 +188,12 @@ body {
 .aibar-pill:hover { color: var(--text); border-color: var(--border-soft); }
 .aibar-pill.active { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
 .aibar-pill.has-session::after { content: " ●"; font-size: 8px; color: var(--neon); }
+.aibar-model {
+  flex: none; max-width: 42%; height: 26px; padding: 0 6px;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text); font-size: 11px; cursor: pointer;
+}
+.aibar-model:hover { border-color: var(--neon-line); }
 /* Ẩn các ô chọn AI trùng lặp trong từng view — đã có thanh AI toàn cục */
 .field:has(> select#contentProvider),
 .field:has(> select#researchProvider),

@@ -6,6 +6,14 @@
 
 var SRT_SELECTORS_DEFAULT = {
   chatgpt: {
+    // Nút mở menu chọn model (pill nằm trong khung soạn tin) + các mục trong menu.
+    // Tránh dùng data-testid có gắn số phiên bản model vì đổi liên tục.
+    modelButton: [
+      'button.__composer-pill[aria-haspopup="menu"]',
+      '[data-testid="model-switcher-dropdown-button"]',
+      'button[aria-haspopup="menu"][id^="radix-"]',
+    ],
+    modelOption: ['[role="menuitemradio"]', '[role="menuitem"]'],
     editor: [
       '#prompt-textarea',
       'div[contenteditable="true"].ProseMirror',
@@ -32,6 +40,17 @@ var SRT_SELECTORS_DEFAULT = {
   },
 
   gemini: {
+    modelButton: [
+      'button[data-test-id="bard-mode-menu-button"]',
+      'button.gds-mode-switch-button',
+      'button[aria-haspopup="menu"]',
+    ],
+    modelOption: [
+      'button.bard-mode-list-button',
+      'button[data-test-id^="bard-mode-option"]',
+      '[role="menuitemradio"]',
+      '[role="menuitem"]',
+    ],
     editor: [
       '.ql-editor[contenteditable="true"]',
       'rich-textarea .ql-editor',
@@ -88,6 +107,11 @@ var SRT_SELECTORS_DEFAULT = {
   },
 
   claude: {
+    modelButton: [
+      'button[data-testid="model-selector-dropdown"]',
+      'button[aria-haspopup="menu"]',
+    ],
+    modelOption: ['[role="menuitem"]', '[role="option"]'],
     editor: [
       'div[contenteditable="true"].ProseMirror',
       'div[contenteditable="true"][aria-label]',
@@ -113,8 +137,8 @@ var SRT_SELECTORS_DEFAULT = {
 };
 
 // Danh sách key selector cho phép override (dùng cho UI Settings)
-var SRT_SELECTOR_KEYS = ['editor', 'sendButton', 'assistantNode', 'responseInner', 'generating', 'stop', 'blockedSelector'];
-var SRT_ARRAY_KEYS = ['editor', 'sendButton', 'assistantNode'];
+var SRT_SELECTOR_KEYS = ['editor', 'sendButton', 'assistantNode', 'responseInner', 'generating', 'stop', 'blockedSelector', 'modelButton', 'modelOption'];
+var SRT_ARRAY_KEYS = ['editor', 'sendButton', 'assistantNode', 'modelButton', 'modelOption'];
 
 // Merge default + override cho 1 provider -> config đầy đủ
 function srtBuildProviderConfig(name, overrides) {

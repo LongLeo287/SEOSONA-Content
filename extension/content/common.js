@@ -99,6 +99,54 @@
     }
     return null;
   }
+  // Đổi model trên giao diện web (best-effort).
+  // QUAN TRỌNG: hàm này KHÔNG BAO GIỜ làm hỏng job — đổi được thì tốt, không đổi được thì
+  // chạy tiếp bằng model đang chọn sẵn và báo lại để UI cảnh báo. Người dùng thà chạy được
+  // bằng model mặc định còn hơn bị chặn vì một cái dropdown.
+  // Trả về: 'switched' | 'already' | 'no-support' | 'not-found' | 'no-match'
+  async function selectModel(cfg, matchTexts) {
+    if (!matchTexts || !matchTexts.length) return 'no-support';
+    if (!cfg.modelButton || !cfg.modelButton.length) return 'no-support';
+    const wants = matchTexts.map((s) => String(s).toLowerCase());
+    const hit = (txt) => {
+      const t = normWs(txt).toLowerCase();
+      if (!t) return false;
+      return wants.some((w) => t === w) || wants.some((w) => t.includes(w));
+    };
+    const btn = findFirst(cfg.modelButton);
+    if (!btn) return 'not-found';
+    // Đã đúng model rồi thì đừng mở menu (mở ra rồi đóng lại dễ làm hỏng trạng thái composer)
+    if (hit(btn.innerText || btn.textContent)) return 'already';
+    simulateClick(btn);
+    // Chờ menu hiện
+    const items = await waitFor(() => {
+      const list = [];
+      for (const sel of (cfg.modelOption || [])) {
+        try { document.querySelectorAll(sel).forEach((n) => { if (isVisible(n)) list.push(n); }); } catch (_) {}
+      }
+      return list.length ? list : null;
+    }, { timeout: 2500, interval: 120 });
+    if (!items) { try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (_) {} return 'not-found'; }
+    // Khớp CHÍNH XÁC trước, rồi mới khớp CHỨA — tránh "Pro" nuốt nhầm "Pro Lite"
+    let target = items.find((n) => wants.some((w) => normWs(n.innerText || '').toLowerCase() === w))
+      || items.find((n) => hit(n.innerText || ''));
+    if (!target) {
+      try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (_) {}
+      return 'no-match';
+    }
+    simulateClick(target);
+    // Một số menu (Radix) chỉ phản hồi onSelect của React chứ không phải click thường
+    const k = Object.keys(target).find((x) => x.startsWith('__reactProps$'));
+    if (k && target[k] && typeof target[k].onSelect === 'function') {
+      try { target[k].onSelect({ preventDefault() {} }); } catch (_) {}
+    }
+    await sleep(400);
+    try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (_) {}
+    // XÁC MINH: đọc lại nhãn trên nút — thiếu bước này thì đổi hụt mà vẫn tưởng thành công
+    const after = findFirst(cfg.modelButton);
+    return (after && hit(after.innerText || after.textContent)) ? 'switched' : 'no-match';
+  }
+
   // Gui: uu tien Enter (editor rong = da gui), roi nut gui, roi form.requestSubmit
   // Mỗi tầng đều XÁC NHẬN đã gửi bằng cách POLL tới khi ô nhập rỗng (thay vì ngủ cố định
   // rồi đoán) — ngủ cố định quá ngắn sẽ rơi xuống tầng sau và GỬI HAI LẦN.
@@ -299,7 +347,7 @@
       return false;
     }
 
-    async function submitAndWait({ text, timeout = 600000 }) {
+    async function submitAndWait({ text, timeout = 600000, modelMatch = null }) {
       aborted = false;
       Tracker.show(() => { aborted = true; });
       Tracker.phase('đang chuẩn bị…');
@@ -314,6 +362,14 @@
       if (!editor) {
         Tracker.done(false);
         return { success: false, error: 'EDITOR_NOT_FOUND', message: 'Không tìm thấy ô nhập chat. Kiểm tra đã đăng nhập và đang ở trang chat chưa.' };
+      }
+
+      // Đổi model TRƯỚC khi chèn prompt: ở một số trang, đổi model làm reset khung soạn tin
+      // (mất nội dung/công cụ đã bật) nên phải làm sớm nhất có thể.
+      let modelState = 'skip';
+      if (modelMatch && modelMatch.length) {
+        Tracker.phase('đang chọn model…');
+        try { modelState = await selectModel(cfg, modelMatch); } catch (_) { modelState = 'error'; }
       }
 
       const baseline = getTurns().length;
@@ -382,7 +438,7 @@
           if (stable >= STABLE_CYCLES) {
             const elapsedMs = Date.now() - t0;
             Tracker.done(true, elapsedMs);
-            return { success: true, text: txt, elapsedMs, chatUrl: location.href };
+            return { success: true, text: txt, elapsedMs, chatUrl: location.href, modelState };
           }
         } else {
           stable = 0;

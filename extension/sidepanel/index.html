@@ -36,6 +36,7 @@
   <div class="aibar" id="aiBar" title="AI dùng cho mọi tác vụ. Phải đăng nhập sẵn trang đó trong Chrome.">
     <span class="aibar-label">Chạy trên</span>
     <div class="aibar-pills" id="aiBarPills"></div>
+    <select id="aiBarModel" class="aibar-model" title="Model dùng cho tác vụ. Auto = model mạnh cho việc nặng, model nhanh cho việc nhẹ." hidden></select>
     <button class="icon-btn sm" id="aiBarOpen" title="Mở tab AI đang chọn">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     </button>
@@ -807,6 +808,8 @@
 <script src="../lib/srt-parser.js"></script>
 <script src="../lib/selectors-default.js"></script>
 <script src="../lib/knowledge.js"></script>
+<script src="../lib/output-formats.js"></script>
+<script src="../lib/models.js"></script>
 <script src="../lib/prompts-longform.js"></script>
 <script src="../lib/prompts-repurpose.js"></script>
 <script src="../lib/prompts-content.js"></script>
