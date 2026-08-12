@@ -98,4 +98,90 @@ ${_FLOW_STD}
   },
 };
 
+// ===== Preset nâng cao — học từ BMAD (kernel/gate/elicitation) + spec-kit (clarify/analyze) =====
+FLOW_PRESETS.research_article = {
+  name: '🔬 Bài chuyên sâu có kiểm chứng (kernel → clarify → viết → soi)',
+  inputLabel: 'Chủ đề + tư liệu bạn có (dán nguồn/ghi chú nếu có)',
+  steps: [
+    { title: '1. Đọc bối cảnh + Kernel', prompt:
+`Bạn là biên tập viên trưởng. Từ yêu cầu dưới đây, KHÔNG viết bài vội. Hãy trả về:
+1) Một câu "đọc bối cảnh": "Tôi hiểu đây là: <dạng bài> cho <người đọc cụ thể> trong <ngành>, giọng <…>, độ sâu <1-10>."
+2) KERNEL 5 trường: VÌ SAO (bài tồn tại để làm gì) · GÓC TIẾP CẬN · RÀNG BUỘC · KHÔNG LÀM GÌ · DẤU HIỆU THÀNH CÔNG (đo được).
+3) Tối đa 5 điểm CÒN MƠ HỒ, mỗi điểm kèm phương án ĐỀ XUẤT của bạn (để người dùng chỉ cần gật/sửa).
+Đánh dấu chỗ bạn tự suy đoán bằng [GIẢ ĐỊNH: …].
+
+===== YÊU CẦU =====
+{{input}}` },
+    { title: '2. Dàn ý + tiêu chí đạt', prompt:
+`Từ kernel dưới đây, lập DÀN Ý chi tiết: mỗi mục có mã (S-001…), nhiệm vụ của mục, số từ dự kiến,
+và dữ kiện/bằng chứng cần có. Kèm 3–5 TIÊU CHÍ THÀNH CÔNG đo được (SC-001…).
+Kiểm chéo: mọi năng lực nêu trong kernel đều phải có ít nhất 1 mục phụ trách; mục nào không phục vụ kernel thì bỏ.
+
+===== KERNEL =====
+{{s1}}` },
+    { title: '3. Viết bản đầy đủ', prompt:
+`Viết BÀI HOÀN CHỈNH bám đúng dàn ý dưới đây. Yêu cầu:
+- Viết ĐỦ mọi mục, không tóm lược, không ghi "phần còn lại tương tự".
+- Không bịa số liệu/nguồn. Chỗ cần dữ liệu mà không có thì ghi [CẦN BỔ SUNG: …].
+- Mở đầu bằng hook cụ thể, không mở bài vòng vo.
+- Trả về markdown sạch.
+
+===== DÀN Ý =====
+{{s2}}` },
+    { title: '4. Soi cấu trúc + câu chữ', prompt:
+`Bạn là biên tập viên khó tính. Soi bài dưới đây theo HAI LƯỢT, KHÔNG viết đè lên bài:
+LƯỢT 1 — CẤU TRÚC: đề xuất CẮT / GỘP / CHUYỂN CHỖ / RÚT GỌN, mỗi đề xuất kèm lý do và ước tính số từ giảm.
+LƯỢT 2 — CÂU CHỮ: bảng | Nguyên văn | Sửa thành | Vì sao |. Áp dụng sửa NHỎ NHẤT đủ để rõ nghĩa; giữ giọng tác giả.
+Cuối cùng: liệt kê 5 việc sửa TÁC ĐỘNG LỚN NHẤT.
+
+===== BÀI VIẾT =====
+{{s3}}` },
+    { title: '5. Bản hoàn thiện', prompt:
+`Áp dụng các đề xuất biên tập dưới đây vào bài, trả về BẢN HOÀN THIỆN cuối cùng.
+Rà lần cuối: không gạch ngang dài (—) · không mở bài sáo · không "Không phải X, mà là Y" quá 1 lần ·
+không câu tuyên bố rỗng · mọi số liệu đều có nguồn hoặc đánh dấu [CẦN BỔ SUNG] · câu dài ngắn xen kẽ.
+Chỉ trả về bài hoàn thiện.
+
+===== BÀI GỐC =====
+{{s3}}
+
+===== ĐỀ XUẤT BIÊN TẬP =====
+{{s4}}` },
+  ],
+};
+
+FLOW_PRESETS.audit_fix = {
+  name: '🔍 Audit & sửa nội dung có sẵn (6 lượt soi → sửa)',
+  inputLabel: 'Dán nội dung cần audit',
+  steps: [
+    { title: '1. Sáu lượt soi', prompt:
+`Soi nội dung dưới đây theo 6 LƯỢT, CHỈ BÁO CÁO, KHÔNG sửa:
+1) TRÙNG LẶP (ý nói đi nói lại) · 2) MƠ HỒ (tính từ không định lượng: "mạnh mẽ", "tối ưu", "hiệu quả") ·
+3) THIẾU CĂN CỨ (khẳng định không bằng chứng) · 4) LỆCH GIỌNG/THƯƠNG HIỆU ·
+5) THIẾU HỤT (hứa nói mà không nói) · 6) KHÔNG NHẤT QUÁN (một khái niệm gọi nhiều tên).
+Mỗi lỗi ghi: [trích nguyên văn] + vấn đề + mức (NGHIÊM TRỌNG/CAO/TRUNG BÌNH/THẤP) + cách sửa cụ thể.
+Xác minh lỗi có thật rồi mới báo. Kết thúc bằng bảng tổng hợp và 5 việc ưu tiên.
+
+===== NỘI DUNG =====
+{{input}}` },
+    { title: '2. Bản đã sửa', prompt:
+`Dựa trên danh sách lỗi dưới đây, trả về BẢN ĐÃ SỬA hoàn chỉnh của nội dung gốc.
+Chỉ sửa đúng những chỗ được nêu; giữ nguyên ý, thông tin và giọng của tác giả.
+Sau bản đã sửa, liệt kê ngắn gọn những gì đã thay đổi.
+
+===== NỘI DUNG GỐC =====
+{{input}}
+
+===== LỖI CẦN SỬA =====
+{{s1}}` },
+    { title: '3. Kiểm lần cuối', prompt:
+`Chấm bản đã sửa dưới đây theo thang 100 với trọng số: Hook 15 · Giá trị 20 · Cấu trúc 15 · Giọng tự nhiên 15 ·
+Bằng chứng & chính xác 15 · SEO 10 · CTA 10. Xuất BẢNG | Tiêu chí | Điểm | Nhận xét | Việc cần sửa |.
+Sau bảng ghi **Điểm tổng: X/100** và **Kết luận** (≥80 nên đăng · 65–79 sửa nhẹ · 50–64 sửa lớn · <50 viết lại).
+
+===== BẢN ĐÃ SỬA =====
+{{s2}}` },
+  ],
+};
+
 if (typeof module !== 'undefined' && module.exports) module.exports = { FLOW_PRESETS };
