@@ -22,6 +22,9 @@
       <button class="icon-btn" id="hdrKnowledge" title="Kiến thức — bật/tắt block bơm vào prompt (dùng chung mọi nhánh)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6a4 4 0 0 0-4 4 1 1 0 0 0 2 0 2 2 0 0 1 4 0c0 2-3 3-3 5h2c0-3 3-4 3-7a4 4 0 0 0-4-4z"/><circle cx="12" cy="17" r="1"/></svg>
       </button>
+      <button class="icon-btn" id="hdrDoctor" title="Bác sĩ — gặp lỗi thì làm gì">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M9 6v5a3 3 0 0 0 6 0V6"/><path d="M12 14v3a4 4 0 0 0 8 0v-2"/><circle cx="20" cy="13" r="2"/></svg>
+      </button>
       <button class="icon-btn" id="hdrSettings" title="Cài đặt selector override (chống vỡ UI)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -265,19 +268,25 @@
           <details class="subcard acc-card" open>
             <summary class="card-sum">💾 Xuất file dựng video</summary>
             <div class="acc-body">
+              <!-- 2 định dạng dùng nhiều nhất để ngay ngoài; phần còn lại gập lại cho đỡ ngợp -->
               <div class="btn-grid">
-                <button id="btnExportSrt">SRT ghép</button>
-                <button id="btnExportCsv">CSV cut-list</button>
-                <button id="btnExportEdl">EDL</button>
-                <button id="btnExportFcpxml">FCPXML</button>
-                <button id="btnExportCaptions">CapCut</button>
-                <button id="btnExportMd">Markdown</button>
-                <button id="btnExportJson">JSON</button>
+                <button id="btnExportSrt" class="btn-cta compact">⬇ SRT ghép</button>
+                <button id="btnExportCaptions">⬇ Caption (CapCut)</button>
               </div>
-              <div class="row">
-                <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60"></label>
-                <label class="inline">Clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4"></label>
-              </div>
+              <details class="nested-adv">
+                <summary>Định dạng khác &amp; tùy chọn dựng</summary>
+                <div class="btn-grid" style="margin-top:8px">
+                  <button id="btnExportCsv">CSV cut-list</button>
+                  <button id="btnExportEdl">EDL (Premiere/Resolve)</button>
+                  <button id="btnExportFcpxml">FCPXML</button>
+                  <button id="btnExportMd">Markdown</button>
+                  <button id="btnExportJson">Project JSON</button>
+                </div>
+                <div class="row" style="margin-top:8px">
+                  <label class="inline">FPS <input type="number" id="edlFps" value="30" min="15" max="60"></label>
+                  <label class="inline">Clip nguồn <input type="text" id="edlClip" value="SOURCE.MP4"></label>
+                </div>
+              </details>
             </div>
           </details>
 
@@ -746,6 +755,18 @@
     </div>
   </div>
 
+  <!-- ============ BÁC SĨ — tra cứu lỗi (dữ liệu tĩnh, không gọi mạng) ============ -->
+  <div id="doctorOverlay" class="overlay" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>🩺 Bác sĩ — gặp lỗi thì làm gì</b>
+        <button class="icon-btn" id="doctorClose">✕</button>
+      </div>
+      <p class="hint">Tra cứu bất cứ lúc nào. Nếu vừa gặp lỗi, mục tương ứng tự mở sẵn.</p>
+      <div id="doctorList" class="doctor-list"></div>
+    </div>
+  </div>
+
   <!-- ============ ONBOARDING (lần đầu mở, xem lại được từ ⚙) ============ -->
   <div id="onboardOverlay" class="overlay" hidden>
     <div class="modal onboard-modal">
@@ -758,6 +779,18 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ============ RUN FOOTER (tiến trình thống nhất mọi tác vụ) ============ -->
+  <div id="runFooter" class="runfooter" hidden>
+    <button class="rf-main" id="runFooterMain">
+      <span class="rf-dot"></span>
+      <span class="rf-label" id="runFooterLabel">Đang chạy…</span>
+      <span class="rf-time" id="runFooterTime">0:00</span>
+      <span class="rf-caret" id="runFooterCaret">▴</span>
+    </button>
+    <button class="rf-stop" id="runFooterStop" title="Dừng tất cả">■</button>
+    <div class="rf-jobs" id="runFooterJobs" hidden></div>
   </div>
 
   <!-- ============ STATUS BAR ============ -->

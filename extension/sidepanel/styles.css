@@ -104,6 +104,63 @@ body {
   margin-left: 2px;
 }
 
+/* ---------------------------------------------------- nhóm tùy chọn nâng cao (gập) */
+.nested-adv { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.nested-adv > summary {
+  cursor: pointer; list-style: none; font-size: 11.5px; font-weight: 600; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+}
+.nested-adv > summary::-webkit-details-marker { display: none; }
+.nested-adv > summary::before { content: "▸"; font-size: 10px; transition: transform .15s; }
+.nested-adv[open] > summary::before { transform: rotate(90deg); }
+.nested-adv > summary:hover { color: var(--neon); }
+
+/* ---------------------------------------------------- BÁC SĨ (tra cứu lỗi) */
+.doctor-list { display: flex; flex-direction: column; gap: 6px; max-height: 58vh; overflow-y: auto; }
+.doctor-item { background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; }
+.doctor-item > summary { display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 9px 11px; list-style: none; font-size: 12.5px; }
+.doctor-item > summary::-webkit-details-marker { display: none; }
+.doctor-item[open] { border-color: var(--neon-line); }
+.doc-sev { flex: none; font-size: 9.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
+  border: 1px solid; border-radius: 5px; padding: 1px 6px; }
+.doc-title { font-weight: 600; color: var(--text); }
+.doc-body { padding: 0 11px 11px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.doc-body b { color: var(--text); }
+.doc-body ol { margin: 6px 0 6px 18px; display: flex; flex-direction: column; gap: 4px; }
+
+/* ---------------------------------------------------- RUN FOOTER (tiến trình chung) */
+.runfooter {
+  position: sticky; bottom: 26px; z-index: 30;
+  display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+  background: var(--bg-1); border-top: 1px solid var(--neon-line);
+  box-shadow: 0 -4px 18px -10px rgba(0,0,0,.8);
+}
+.runfooter.done { border-top-color: var(--ok); }
+.rf-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; background: transparent; border: none; cursor: pointer;
+  color: var(--text); font-size: 12px; text-align: left;
+}
+.rf-main:hover { background: var(--neon-soft); }
+.rf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--neon); flex: none;
+  box-shadow: 0 0 8px var(--neon); animation: rfPulse 1.4s ease-in-out infinite; }
+.runfooter.done .rf-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
+@keyframes rfPulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.rf-label { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rf-time { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: none; }
+.rf-caret { color: var(--muted); font-size: 10px; flex: none; }
+.rf-stop {
+  flex: none; width: 32px; height: 32px; margin-right: 6px; padding: 0;
+  background: #3a1c20; border: 1px solid #6a2b32; color: #ff8b90; border-radius: 8px; cursor: pointer;
+}
+.rf-stop:hover { color: #ffb3b6; border-color: #8a3a42; }
+.rf-jobs { flex-basis: 100%; border-top: 1px solid var(--border); padding: 4px 10px 8px;
+  display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow-y: auto; }
+.rf-job { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 4px 0; }
+.rf-job-name { font-weight: 600; color: var(--text); flex: none; }
+.rf-job-time { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
 /* ---------------------------------------------------- ONBOARDING */
 .onboard-modal { max-width: 340px; }
 .onboard-step { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 12px; }

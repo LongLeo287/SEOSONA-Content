@@ -636,6 +636,9 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (!msg || msg.action !== 'srt:jobUpdate') return;
     const { jobId, provider, status, result } = msg;
     if (!jobId) return;
+    RunTracker.observe(jobId, provider, status, result); // theo dõi tiến trình chung, không đụng luồng cũ
+    // Ghi lỗi vừa gặp để mở Bác sĩ là thấy ngay mục liên quan
+    if (status === 'error' && result && result.error) lastErrorCode = result.error;
     if (jobId.startsWith('review_')) return handleReviewUpdate(provider, status, result);
     if (jobId.startsWith('repurpose_')) return handleRepurposeUpdate(status, result);
     if (jobId.startsWith('chapters_')) return handleChaptersUpdate(status, result);
@@ -2399,6 +2402,161 @@ async function initFacebookBatch() {
 }
 
 // ---------------------------------------------------------------- init
+// ---------------------------------------------------------------- BÁC SĨ (tra cứu lỗi)
+// Toàn bộ là dữ liệu TĨNH — mở tab này không gọi mạng.
+// Mỗi lỗi trả lời đúng 3 câu người dùng cần: vì sao / làm gì bây giờ / lần sau tránh thế nào.
+// Mức độ ghi bằng ĐỘNG TỪ ("Dừng lại", "Chờ rồi tự hết", "Sửa rồi chạy lại") thay vì "cao/thấp",
+// vì người đang kẹt cần biết PHẢI LÀM GÌ chứ không cần biết lỗi nặng mấy.
+const DOCTOR = [
+  { code: 'EDITOR_NOT_FOUND', sev: 'fix', title: 'Không tìm thấy ô nhập chat',
+    why: 'Extension mở đúng trang AI nhưng không thấy ô để gõ. Thường do chưa đăng nhập, trang chưa tải xong, hoặc nhà cung cấp vừa đổi giao diện.',
+    how: ['Mở tab AI đó, kiểm tra đã đăng nhập chưa.', 'Tải lại trang, đợi giao diện chat hiện đầy đủ rồi chạy lại.', 'Nếu vẫn lỗi: ⚙ Settings → chọn provider → thành phần "editor" → dán selector mới.'],
+    next: 'Giữ sẵn một tab AI đã đăng nhập trước khi bấm chạy.' },
+  { code: 'SUBMIT_LOST', sev: 'fix', title: 'Chèn được prompt nhưng không gửi đi',
+    why: 'Prompt đã vào ô nhập nhưng cả Enter, nút gửi lẫn form đều không kích hoạt. Thường do nút gửi đổi selector hoặc trang đang bận.',
+    how: ['Chạy lại — hệ thống tự thử lại 2 lần.', 'Xem tab AI: nếu prompt còn nằm trong ô nhập, bấm gửi tay để xác nhận trang vẫn hoạt động.', 'Nếu lặp lại: ⚙ Settings → thành phần "sendButton" → cập nhật selector.'],
+    next: 'Đừng thao tác trên tab AI khi extension đang chạy.' },
+  { code: 'NO_RESPONSE_STARTED', sev: 'wait', title: 'AI không bắt đầu trả lời',
+    why: 'Đã gửi nhưng không thấy câu trả lời mới xuất hiện. Hay gặp khi bị giới hạn lượt dùng, hoặc tab bị treo.',
+    how: ['Mở tab AI xem có thông báo giới hạn/đăng nhập lại không.', 'Đợi vài phút rồi chạy lại (giới hạn thường tự hết).', 'Đổi sang AI khác ở thanh "Chạy trên" nếu gấp.'],
+    next: 'Chia nhỏ nội dung, tránh gửi liên tiếp nhiều lượt nặng.' },
+  { code: 'INSERT_FAILED', sev: 'fix', title: 'Không chèn được prompt',
+    why: 'Ô nhập tồn tại nhưng mọi cách chèn đều thất bại, hoặc chèn vào bị thiếu chữ (kiểm tra tự động phát hiện).',
+    how: ['Tải lại tab AI rồi chạy lại.', 'Thử rút ngắn nội dung — prompt quá dài có thể bị trình soạn thảo cắt.', 'Cập nhật selector "editor" trong ⚙ Settings.'],
+    next: 'Với SRT rất dài, dùng Flow chia nhiều bước thay vì gửi một lần.' },
+  { code: 'BLOCKED', sev: 'stop', title: 'Bị chặn / yêu cầu xác minh (captcha)',
+    why: 'Nhà cung cấp nghi ngờ hoạt động tự động và bật xác minh.',
+    how: ['NGỪNG chạy lại ngay — thử lại liên tục sẽ bị gắn cờ nặng hơn.', 'Mở tab AI, tự tay giải xác minh cho tới khi chat lại bình thường.', 'Đợi vài phút rồi mới chạy tiếp.'],
+    next: 'Giãn nhịp chạy, tránh chạy hàng loạt liên tục trên cùng một tài khoản.' },
+  { code: 'RATE_LIMIT', sev: 'wait', title: 'Hết lượt / vượt giới hạn',
+    why: 'Tài khoản AI đã dùng hết hạn mức trong khoảng thời gian đó.',
+    how: ['Chờ theo thời gian trang báo.', 'Đổi sang AI khác ở thanh "Chạy trên".'],
+    next: 'Luân phiên nhiều AI cho công việc chạy nhiều.' },
+  { code: 'NOT_LOGGED_IN', sev: 'fix', title: 'Chưa đăng nhập',
+    why: 'Extension dùng chính tài khoản web của bạn, nên bắt buộc phải đăng nhập sẵn.',
+    how: ['Mở trang AI, đăng nhập.', 'Quay lại panel, chạy lại.'],
+    next: 'Đăng nhập sẵn cả 2–3 AI để có phương án dự phòng.' },
+  { code: 'TABLE_EMPTY', sev: 'fix', title: 'Không dựng được bảng cắt ghép',
+    why: 'AI trả lời nhưng không đúng định dạng bảng, hoặc timecode không khớp SRT gốc (AI tự sửa số).',
+    how: ['Xem "Kết quả thô" để biết AI trả về gì.', 'Bấm "⬇ Tải kết quả AI (.md)" để dùng ngoài nếu cần gấp.', 'Chạy lại, hoặc đổi AI khác — một số AI bám định dạng tốt hơn.'],
+    next: 'Bật khối kiến thức "Chính xác & audit"; tránh SRT quá dài trong một lượt.' },
+];
+const DOCTOR_SEV = { stop: ['Dừng lại ngay', 'var(--err)'], wait: ['Chờ rồi tự hết', 'var(--warn)'], fix: ['Sửa rồi chạy lại', 'var(--neon)'] };
+let lastErrorCode = null;
+function openDoctor(focusCode) {
+  const box = $('#doctorList'); if (!box) return;
+  const focus = focusCode || lastErrorCode;
+  box.innerHTML = '';
+  DOCTOR.forEach((d) => {
+    const [sevLabel, sevColor] = DOCTOR_SEV[d.sev] || DOCTOR_SEV.fix;
+    const el = document.createElement('details');
+    el.className = 'doctor-item';
+    if (focus && d.code === focus) el.open = true;
+    el.innerHTML = `<summary><span class="doc-sev" style="color:${sevColor};border-color:${sevColor}">${sevLabel}</span>`
+      + `<span class="doc-title">${escapeHtml(d.title)}</span></summary>`
+      + `<div class="doc-body"><p><b>Vì sao:</b> ${escapeHtml(d.why)}</p>`
+      + `<ol>${d.how.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`
+      + `<p class="hint"><b>Lần sau:</b> ${escapeHtml(d.next)}</p></div>`;
+    box.appendChild(el);
+  });
+  $('#doctorOverlay').hidden = false;
+}
+$('#doctorClose').addEventListener('click', () => { $('#doctorOverlay').hidden = true; });
+$('#doctorOverlay').addEventListener('click', (e) => { if (e.target.id === 'doctorOverlay') $('#doctorOverlay').hidden = true; });
+$('#hdrDoctor').addEventListener('click', () => openDoctor());
+
+// ---------------------------------------------------------------- RUN TRACKER (tiến trình chung)
+// Suy ra trạng thái từ chính luồng srt:jobUpdate nên không phải sửa chỗ gửi job nào.
+// Máy trạng thái: hidden -> visible -> completing ("Hoàn tất", tự ẩn sau 3s) -> hidden.
+// Có trạng thái "completing" để người dùng phân biệt XONG với CHẾT GIỮA CHỪNG.
+const RunTracker = (() => {
+  const KIND = {
+    analyze_: 'Phân tích SRT', review_: 'Đánh giá', meta_: 'SEO metadata', chapters_: 'Chapter + mô tả',
+    repurpose_: 'Tái sử dụng', content_: 'Content', research_: 'Research', flow_: 'Flow', batch_: 'Batch SRT',
+  };
+  const jobs = new Map();   // jobId -> { label, provider, status, startedAt }
+  let ticker = null, hideT = null, expanded = false;
+  const labelOf = (jobId) => { for (const k in KIND) if (jobId.startsWith(k)) return KIND[k]; return 'Tác vụ'; };
+  const running = () => [...jobs.values()].filter((j) => j.status === 'running' || j.status === 'preparing');
+
+  function fmt(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+  function render() {
+    const box = $('#runFooter'); if (!box) return;
+    const act = running();
+    if (!act.length) return;
+    box.hidden = false;
+    box.classList.remove('done');
+    const oldest = act.reduce((a, b) => (a.startedAt <= b.startedAt ? a : b));
+    $('#runFooterLabel').textContent = act.length === 1
+      ? `${oldest.label} · ${PROVIDER_LABEL[oldest.provider] || oldest.provider || ''}`
+      : `${act.length} tác vụ đang chạy`;
+    $('#runFooterTime').textContent = fmt(Date.now() - oldest.startedAt);
+    $('#runFooterStop').hidden = false;
+    const list = $('#runFooterJobs');
+    list.hidden = !expanded;
+    $('#runFooterCaret').textContent = expanded ? '▾' : '▴';
+    if (expanded) {
+      list.innerHTML = '';
+      act.forEach((j) => {
+        const row = document.createElement('div'); row.className = 'rf-job';
+        row.innerHTML = `<span class="rf-job-name">${escapeHtml(j.label)}</span>`
+          + `<span class="hint">${escapeHtml(PROVIDER_LABEL[j.provider] || j.provider || '')} · ${j.status === 'running' ? 'đang xử lý' : 'đang mở tab'}</span>`
+          + `<span class="rf-job-time">${fmt(Date.now() - j.startedAt)}</span>`;
+        list.appendChild(row);
+      });
+    }
+  }
+  function complete(ok) {
+    const box = $('#runFooter'); if (!box) return;
+    stopTick();
+    box.hidden = false; box.classList.add('done');
+    $('#runFooterLabel').textContent = ok ? '✅ Hoàn tất' : '⚠️ Kết thúc có lỗi';
+    $('#runFooterTime').textContent = '';
+    $('#runFooterStop').hidden = true;
+    $('#runFooterJobs').hidden = true; expanded = false;
+    clearTimeout(hideT);
+    hideT = setTimeout(() => { box.hidden = true; jobs.clear(); }, 3000);
+  }
+  function startTick() { if (!ticker) ticker = setInterval(render, 1000); }
+  function stopTick() { if (ticker) { clearInterval(ticker); ticker = null; } }
+
+  return {
+    observe(jobId, provider, status, result) {
+      if (status === 'preparing' || status === 'running') {
+        clearTimeout(hideT);
+        const j = jobs.get(jobId) || { label: labelOf(jobId), startedAt: Date.now() };
+        j.status = status; j.provider = provider || j.provider;
+        jobs.set(jobId, j);
+        startTick(); render();
+      } else {
+        const j = jobs.get(jobId);
+        if (j) { j.status = status; j.ok = status === 'done'; }
+        if (!running().length) {
+          const anyFail = [...jobs.values()].some((x) => x.status && x.status !== 'done');
+          complete(!anyFail);
+        } else render();
+      }
+    },
+    toggle() { expanded = !expanded; render(); },
+  };
+})();
+$('#runFooterMain').addEventListener('click', () => RunTracker.toggle());
+$('#runFooterStop').addEventListener('click', async () => {
+  // Dừng "nặng": hủy mọi job đang chạy trong phiên + ngắt flow/batch
+  try {
+    const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
+    for (const [jid, j] of Object.entries(srtJobs)) {
+      if (j && (j.status === 'running' || j.status === 'preparing')) {
+        chrome.runtime.sendMessage({ action: 'srt:abortJob', jobId: jid }).catch(() => {});
+      }
+    }
+  } catch (_) {}
+  try { flowStop(); } catch (_) {}
+  try { state.batch.stopFlag = true; } catch (_) {}
+  $('#runFooter').hidden = true;
+  toast('Đã dừng tất cả tác vụ', 'warn');
+});
+
 // ---------------------------------------------------------------- ONBOARDING (lần đầu)
 // Bước 2 cố ý nói thẳng extension KHÔNG tự sinh nội dung — nó điều khiển tài khoản AI của bạn.
 // Hiểu sai điều này là lý do người dùng mới bỏ cuộc ngay lần chạy đầu.
