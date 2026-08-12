@@ -60,12 +60,18 @@
       sel.addRange(range);
     } catch (_) {}
   }
+  // Kiểm chèn: so trên chuỗi ĐÃ BỎ MỌI KHOẢNG TRẮNG (ProseMirror nối các <p> không có '\n'
+  // nên so nguyên văn sẽ báo sai). Yêu cầu đủ 3 điều kiện: độ dài >=95%, có 20 ký tự ĐẦU,
+  // và (nếu prompt dài) có 20 ký tự CUỐI — thiếu kiểm đuôi thì prompt dài bị editor cắt
+  // vẫn "pass" và ta gửi đi một prompt thiếu mà không hề biết.
   function verifyInserted(editor, text) {
     const got = normWs(editor.textContent);
     const exp = normWs(text);
     if (!exp.length) return true;
-    if (got.length < Math.floor(exp.length * 0.9)) return false;
-    return got.includes(exp.substring(0, Math.min(20, exp.length)));
+    if (got.length < Math.floor(exp.length * 0.95)) return false;
+    if (!got.includes(exp.substring(0, Math.min(20, exp.length)))) return false;
+    if (exp.length > 40 && !got.includes(exp.substring(exp.length - 20))) return false;
+    return true;
   }
   function clearEditor(editor) {
     try { editor.focus(); document.execCommand('selectAll', false, null); document.execCommand('delete', false, null); } catch (_) {}
@@ -94,34 +100,44 @@
     return null;
   }
   // Gui: uu tien Enter (editor rong = da gui), roi nut gui, roi form.requestSubmit
+  // Mỗi tầng đều XÁC NHẬN đã gửi bằng cách POLL tới khi ô nhập rỗng (thay vì ngủ cố định
+  // rồi đoán) — ngủ cố định quá ngắn sẽ rơi xuống tầng sau và GỬI HAI LẦN.
   async function submitPrompt(editor, cfg) {
-    const emptied = () => normWs(editor.textContent).length === 0;
+    const emptied = () => normWs(editor.textContent).length < 3;
+    // Poll tối đa `ms`, trả true ngay khi ô nhập đã rỗng
+    const verifySubmitted = async (ms = 1500) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        if (emptied()) return true;
+        await sleep(200);
+      }
+      return emptied();
+    };
     const enter = () => {
       const o = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
       editor.dispatchEvent(new KeyboardEvent('keydown', o));
       editor.dispatchEvent(new KeyboardEvent('keypress', o));
       editor.dispatchEvent(new KeyboardEvent('keyup', o));
     };
+    // SPA có thể render lại giữa lúc chèn và lúc gửi -> mọi thao tác sau đó rơi vào node đã chết
+    if (!editor.isConnected) return false;
     editor.focus(); await sleep(80);
     enter();
-    await sleep(1300);
-    if (emptied()) return true;
+    if (await verifySubmitted(1500)) return true;
     let btn = findFirst(cfg.sendButton) || findSendBySvg();
     if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
       simulateClick(btn);
-      await sleep(1000);
-      if (emptied()) return true;
+      if (await verifySubmitted(1200)) return true;
       const k = Object.keys(btn).find((x) => x.startsWith('__reactProps$'));
       if (k && btn[k] && typeof btn[k].onClick === 'function') {
         try { btn[k].onClick({ preventDefault() {}, stopPropagation() {} }); } catch (_) {}
-        await sleep(800);
-        if (emptied()) return true;
+        if (await verifySubmitted(1000)) return true;
       }
     }
     const form = (btn && btn.closest('form')) || editor.closest('form');
     if (form && typeof form.requestSubmit === 'function') {
       try { form.requestSubmit(btn || undefined); } catch (_) { try { form.submit(); } catch (__) {} }
-      await sleep(800);
+      if (await verifySubmitted(1000)) return true;
     }
     return emptied();
   }
@@ -309,15 +325,22 @@
         return { success: false, error: 'INSERT_FAILED', message: 'Không chèn được prompt vào ô chat (UI có thể đã đổi). Vào ⚙ Settings cập nhật selector "editor".' };
       }
       await sleep(400);
-      await submitPrompt(editor, cfg);
+      const submitted = await submitPrompt(editor, cfg);
 
       // Chờ message mới xuất hiện. Với provider đếm cả bubble user
       // (countsUserMessages) cần vượt baseline + 1.
+      // Nếu submitPrompt đã báo KHÔNG gửi được thì chỉ chờ ngắn (30s) rồi báo lỗi rõ ràng,
+      // thay vì treo đủ 90s để cuối cùng vẫn không biết vì sao.
       const needed = baseline + (cfg.countsUserMessages ? 2 : 1);
       const appeared = await waitFor(() => getTurns().length >= needed, {
-        timeout: 90000,
+        timeout: submitted ? 90000 : 30000,
         interval: 500,
       });
+      if (!appeared && !submitted) {
+        Tracker.done(false);
+        return { success: false, error: 'SUBMIT_LOST', retryable: true,
+          message: 'Không gửi được prompt (ô nhập vẫn còn chữ sau khi thử Enter/nút gửi/form). Kiểm tra đã đăng nhập, hoặc cập nhật selector "sendButton" trong ⚙ Settings.' };
+      }
       if (!appeared) {
         Tracker.done(false);
         return { success: false, error: 'NO_RESPONSE_STARTED', message: 'AI không bắt đầu trả lời (có thể chưa gửi được prompt hoặc bị rate limit).' };

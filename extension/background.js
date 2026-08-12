@@ -188,7 +188,10 @@ async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl
 }
 
 // Lỗi tạm thời -> đáng thử lại. Lỗi do đăng nhập/nội dung/hủy -> không.
-const RETRYABLE_ERRORS = new Set(['NO_RESPONSE_STARTED', 'NO_RESPONSE', 'TIMEOUT', 'NETWORK', 'EXCEPTION']);
+// SUBMIT_LOST: prompt chèn xong nhưng không gửi đi được — thường do UI chưa sẵn sàng,
+// thử lại thường ăn. KHÔNG đưa vào đây các lỗi vĩnh viễn (chưa đăng nhập, bị chặn nội dung,
+// hết quota) vì thử lại chỉ tốn thêm lượt và có thể bị gắn cờ nặng hơn.
+const RETRYABLE_ERRORS = new Set(['NO_RESPONSE_STARTED', 'NO_RESPONSE', 'TIMEOUT', 'NETWORK', 'EXCEPTION', 'SUBMIT_LOST']);
 
 async function maybeRetry(jobId, provider, result) {
   const err = result && result.error;

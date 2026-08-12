@@ -455,6 +455,7 @@ function openChatFor(provider, url) { if (url) bgSend({ action: 'srt:openChat', 
 function setProvider(p, { load = true, userAction = false } = {}) {
   state.provider = p;
   $$('#providerPills .ppill').forEach((b) => b.classList.toggle('active', b.dataset.provider === p));
+  syncProviderSelects(p);
   markSessionPills();
   const r = state.results[p];
   const hint = $('#providerSessionHint');
@@ -478,10 +479,37 @@ function setProvider(p, { load = true, userAction = false } = {}) {
   try { chrome.storage.local.set({ srtLastProvider: p }); } catch (_) {}
 }
 function markSessionPills() {
-  $$('#providerPills .ppill').forEach((b) => {
+  $$('#providerPills .ppill, #aiBarPills .aibar-pill').forEach((b) => {
     const r = state.results[b.dataset.provider];
     b.classList.toggle('has-session', !!(r && r.text));
   });
+}
+
+// ---------------------------------------------------------------- THANH AI TOÀN CỤC
+// Một chỗ duy nhất chọn AI. Mọi view dùng chung state.provider; các <select> provider
+// cũ vẫn tồn tại (bị ẩn bằng CSS) và được đồng bộ để code cũ đọc .value không gãy.
+const AI_SELECT_IDS = ['contentProvider', 'researchProvider', 'flowProvider', 'metaProvider', 'batchProvider'];
+function syncProviderSelects(p) {
+  AI_SELECT_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.value = p; });
+  $$('#aiBarPills .aibar-pill').forEach((b) => b.classList.toggle('active', b.dataset.provider === p));
+}
+function initAiBar() {
+  const wrap = $('#aiBarPills'); if (!wrap) return;
+  wrap.innerHTML = '';
+  for (const [id, label] of Object.entries(PROVIDER_LABEL)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'aibar-pill'; b.dataset.provider = id; b.textContent = label;
+    b.title = 'Chạy trên ' + label + ' — cần đăng nhập sẵn trang này trong Chrome';
+    b.addEventListener('click', () => setProvider(id, { load: true, userAction: true }));
+    wrap.appendChild(b);
+  }
+  const openBtn = $('#aiBarOpen');
+  if (openBtn) openBtn.addEventListener('click', () => {
+    const r = state.results[state.provider];
+    openChatFor(state.provider, (r && r.chatUrl) || null);
+    toast('Đang mở ' + (PROVIDER_LABEL[state.provider] || state.provider) + '…', 'info');
+  });
+  syncProviderSelects(state.provider);
 }
 $$('#providerPills .ppill').forEach((b) => b.addEventListener('click', () => setProvider(b.dataset.provider, { load: true, userAction: true })));
 // Tắt "Hội thoại mới" khi provider hiện tại có chat cũ -> mở lại để nối tiếp
@@ -1630,6 +1658,7 @@ async function openSettings() {
   $('#settingsOverlay').hidden = false;
 }
 $('#hdrSettings').addEventListener('click', openSettings);
+$('#btnReplayOnboard').addEventListener('click', () => { $('#settingsOverlay').hidden = true; openOnboard(); });
 $('#settingsClose').addEventListener('click', () => { $('#settingsOverlay').hidden = true; });
 $('#settingsOverlay').addEventListener('click', (e) => { if (e.target.id === 'settingsOverlay') $('#settingsOverlay').hidden = true; });
 $('#ovProvider').addEventListener('change', ovRender);
@@ -2370,6 +2399,43 @@ async function initFacebookBatch() {
 }
 
 // ---------------------------------------------------------------- init
+// ---------------------------------------------------------------- ONBOARDING (lần đầu)
+// Bước 2 cố ý nói thẳng extension KHÔNG tự sinh nội dung — nó điều khiển tài khoản AI của bạn.
+// Hiểu sai điều này là lý do người dùng mới bỏ cuộc ngay lần chạy đầu.
+const ONBOARD_STEPS = [
+  { t: '👋 Chào bạn!', h: 'SEOSONA Content — xưởng nội dung',
+    b: 'Công cụ giúp bạn <b>viết · kiểm tra · chấm điểm · tối ưu SEO</b> mọi loại nội dung, và <b>cắt ghép video từ file SRT</b>.' },
+  { t: '⚠️ Cần biết trước', h: 'Extension KHÔNG tự sinh nội dung',
+    b: 'Nó <b>điều khiển chính tài khoản AI bạn đã đăng nhập</b> trên Chrome (ChatGPT / Gemini / Grok / Claude) — không dùng API trả phí.<br><br>Vì vậy: <b>phải đăng nhập sẵn</b> ít nhất một trang AI, và <b>giữ tab đó mở</b> khi chạy.' },
+  { t: '🤖 Chọn AI ở đâu', h: 'Thanh "Chạy trên" ngay dưới logo',
+    b: 'Chọn một lần, dùng cho <b>tất cả</b> tác vụ. Chấm ● nghĩa là AI đó đã có kết quả trong phiên này. Nút ↗ mở nhanh tab AI.' },
+  { t: '🧭 Đi đâu làm gì', h: '5 khu vực',
+    b: '<b>Home</b> bắt đầu nhanh · <b>SRT</b> video → kịch bản · <b>Content</b> viết/audit/SEO · <b>Flow</b> chạy chuỗi nhiều bước tự động · <b>Hub</b> thư viện, prompt, lịch sử.' },
+  { t: '✅ Xong rồi!', h: 'Bắt đầu thôi',
+    b: 'Gợi ý: vào <b>Content → Viết mới</b> gõ một chủ đề, hoặc <b>Flow</b> chọn preset có sẵn.<br><br>Muốn xem lại hướng dẫn này: bấm <b>⚙</b> trên đầu trang.' },
+];
+let onboardIdx = 0;
+function renderOnboard() {
+  const s = ONBOARD_STEPS[onboardIdx];
+  $('#onboardBody').innerHTML = `<div class="ob-title">${s.t}</div><div class="ob-head">${escapeHtml(s.h)}</div><div class="ob-body">${s.b}</div>`;
+  $('#onboardCount').textContent = `${onboardIdx + 1} / ${ONBOARD_STEPS.length}`;
+  $('#onboardNext').textContent = onboardIdx === ONBOARD_STEPS.length - 1 ? 'Bắt đầu' : 'Tiếp theo';
+}
+function openOnboard() { onboardIdx = 0; renderOnboard(); $('#onboardOverlay').hidden = false; }
+async function closeOnboard() {
+  $('#onboardOverlay').hidden = true;
+  try { await chrome.storage.local.set({ srtOnboardDone: true }); } catch (_) {}
+}
+$('#onboardNext').addEventListener('click', () => {
+  if (onboardIdx < ONBOARD_STEPS.length - 1) { onboardIdx += 1; renderOnboard(); }
+  else { closeOnboard(); showView('content'); }
+});
+$('#onboardSkip').addEventListener('click', closeOnboard);
+async function maybeOnboard() {
+  try { const { srtOnboardDone } = await chrome.storage.local.get('srtOnboardDone'); if (!srtOnboardDone) openOnboard(); } catch (_) {}
+}
+
+initAiBar();
 initKnowledge();
 initTemplates();
 initRepurpose();
@@ -2386,4 +2452,5 @@ updateLocks();
 restoreProject();
 syncKnowledgeUI();
 showView('home');
+maybeOnboard();
 consumeQuickPending();
