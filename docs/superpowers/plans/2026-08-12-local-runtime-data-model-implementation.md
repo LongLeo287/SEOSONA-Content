@@ -362,15 +362,15 @@ git commit -m "feat(runtime): persist writing projects and revisions"
 - Legal events: `JOB_STARTED`, `STAGE_STARTED`, `STAGE_CHECKPOINTED`, `STAGE_COMPLETED`, `STAGE_FAILED`, `PROVIDER_ATTEMPT_STARTED`, `PROVIDER_ATTEMPT_COMPLETED`, `JOB_RESUMED`, `JOB_CANCELLED`, `JOB_COMPLETED`.
 - Terminal states: `completed`, `cancelled`.
 
-- [ ] **Step 1: Port the useful reducer invariants into new failing tests**
+- [x] **Step 1: Port the useful reducer invariants into new failing tests**
 
 Test append-only history, illegal rollback, terminal protection, failed-stage resume, cancellation, and persisted checkpoint refs.
 
-- [ ] **Step 2: Verify tests fail because generic reducer is absent**
+- [x] **Step 2: Verify tests fail because generic reducer is absent**
 
 Run: `node --test tests/runtime-job-state.test.mjs`
 
-- [ ] **Step 3: Implement a pure reducer without Facebook/media concepts**
+- [x] **Step 3: Implement a pure reducer without Facebook/media concepts**
 
 Example stage start:
 
@@ -385,7 +385,7 @@ case 'STAGE_STARTED': {
 
 `VISUAL_*`, `ASSET_*`, draft count, Facebook IDs, and companion concepts must not exist in this module.
 
-- [ ] **Step 4: Run reducer tests and commit**
+- [x] **Step 4: Run reducer tests and commit**
 
 ```bash
 node --test tests/runtime-job-state.test.mjs
