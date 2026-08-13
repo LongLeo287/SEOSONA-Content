@@ -596,23 +596,23 @@ git commit -m "feat(writing): add independent content audit engine"
 - TargetSpec fields: `destinationType`, `surface`, `outputFormat`, `fieldSet`, `lengthRules`, `formatRules`, `discoveryRules`, `linkRules`, `ctaRules`, `locale`, `revision`.
 - `repurpose({ fromContentId, fromRevisionId, toJobType, briefOverrides, providerPolicy })` creates a new ContentItem and `ContentLineage` edge.
 
-- [ ] **Step 1: Write failing target tests**
+- [x] **Step 1: Write failing target tests**
 
 Hard text limit can block/shorten only through an explicit edit; a recommendation yields WARN, not BLOCK. No media generation/publishing field appears in the output.
 
-- [ ] **Step 2: Implement target validator/adaptor**
+- [x] **Step 2: Implement target validator/adaptor**
 
 Deterministic transformations may normalize formatting/field serialization. Semantic shortening/rewrite goes through Editor so claim preservation checks remain active.
 
-- [ ] **Step 3: Write failing repurpose lineage test**
+- [x] **Step 3: Write failing repurpose lineage test**
 
 Article -> Transcript is invalid without transcript source; Transcript -> Article is valid and retains source/content lineage. Product -> Social contract may be registry-ready but not required in V1.
 
-- [ ] **Step 4: Implement lineage persistence**
+- [x] **Step 4: Implement lineage persistence**
 
 New content gets a new `contentId`; never overwrite the source artifact.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-workflow.test.mjs

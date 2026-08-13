@@ -29,6 +29,10 @@ const SPEC = {
   evidence: { strings: ['evidenceId', 'sourceId', 'statement'] },
   claim: { strings: ['claimId', 'proposition', 'strength'] },
   content: { strings: ['contentId', 'projectId', 'contentJob', 'createdAt'] },
+  // Cạnh phả hệ giữa hai nội dung: bài này được chuyển thể TỪ bài kia. Là bản ghi riêng chứ
+  // không phải một trường trong content, để truy được cả hai chiều và để bản gốc không bị
+  // sửa mỗi lần có ai chuyển thể từ nó.
+  contentLineage: { strings: ['lineageId', 'fromContentId', 'toContentId', 'relation', 'createdAt'] },
   revision: { strings: ['revisionId', 'contentId', 'operation', 'createdAt'], objects: ['payload'] },
   // Job bị ghim vào một ContextSnapshot ngay từ đầu — chống "đổi bối cảnh giữa chừng".
   job: { strings: ['jobId', 'projectId', 'contextSnapshotId', 'status', 'createdAt'] },
