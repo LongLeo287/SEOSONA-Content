@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSrt, serializeSrt, timeToMs, msToTime, normalizeForMatching, validateTranscriptSelection } from '../runtime/writing/transcript/srt.mjs';
+import { transcriptPack } from '../runtime/writing/job-packs/transcript.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const RAW = readFileSync(join(here, 'fixtures/transcript-exact.srt'), 'utf8');
@@ -208,4 +209,206 @@ test('runtime parsing matches the legacy parser on timecodes and cue count', asy
 test('the runtime parser does not trim inside an authoritative cue', () => {
   const indented = '1\n00:00:01,000 --> 00:00:02,000\n   Có thụt đầu dòng   \n';
   assert.equal(parseSrt(indented)[0].rawText, '   Có thụt đầu dòng   ', 'whitespace is part of the source');
+});
+
+// ================================================================ Transcript Job Pack
+
+const transcript = {
+  sourceId: 's_video', cues, durationMs: cues.at(-1).endMs, language: 'vi-VN',
+};
+
+const draft = (operation, fields, overrides = {}) => ({
+  contentId: 'content_1',
+  jobType: 'transcript',
+  fields: { operation, ...fields },
+  sourceRefs: ['s_video'],
+  claimRefs: [],
+  ...overrides,
+});
+
+const packContext = { transcript };
+
+test('the pack declares the V1 operations and nothing more', () => {
+  assert.deepEqual(transcriptPack.operations, [
+    'HIGHLIGHTS', 'SHORT_CUT', 'CLEAN_TRANSCRIPT', 'QUOTES', 'CHAPTERS', 'REPURPOSE_ARTICLE',
+  ]);
+  assert.equal(transcriptPack.jobType, 'transcript');
+  assert.throws(
+    () => transcriptPack.validateDraft(draft('DUB', {}), packContext),
+    /operation/,
+  );
+});
+
+// Mỗi thao tác có hợp đồng riêng. Một schema chung cho cả sáu sẽ khiến mọi trường thành
+// tùy chọn, và khi mọi trường đều tùy chọn thì không còn gì được kiểm.
+test('each operation is validated against its own contract, not one shared blob', () => {
+  const shortCut = draft('SHORT_CUT', { selections: [] });
+  assert.ok(transcriptPack.validateDraft(shortCut, packContext).issues.some((i) => i.code === 'EMPTY_OUTPUT'));
+
+  const quotes = draft('QUOTES', { selections: [] });
+  assert.ok(transcriptPack.validateDraft(quotes, packContext).issues.some((i) => i.code === 'EMPTY_OUTPUT'));
+
+  // Trường của thao tác này không được dùng để thoả mãn thao tác kia.
+  const wrongShape = draft('SHORT_CUT', { quotes: [{ text: 'x' }] });
+  assert.equal(transcriptPack.validateDraft(wrongShape, packContext).ok, false);
+});
+
+// ---------------------------------------------------------------- SHORT_CUT
+
+const shortCutSelection = () => ({
+  cueIds: [cues[0].cueId, cues[1].cueId],
+  sourceStartMs: cues[0].startMs,
+  sourceEndMs: cues[1].endMs,
+  rawTranscript: `${cues[0].rawText}\n${cues[1].rawText}`,
+});
+
+test('a short cut built from real cues passes', () => {
+  const result = transcriptPack.validateDraft(draft('SHORT_CUT', { selections: [shortCutSelection()] }), packContext);
+  assert.deepEqual(result, { ok: true, issues: [] });
+});
+
+// Timecode tự do là cách một bản cắt lệch khỏi video mà không ai thấy: con số trông hợp lý,
+// và chỉ đến lúc dựng mới biết nó trỏ vào chỗ khác.
+test('a short cut with freeform timecodes instead of cue ids is rejected', () => {
+  const freeform = { sourceStartMs: 1000, sourceEndMs: 9500, rawTranscript: 'gì đó' };
+  const result = transcriptPack.validateDraft(draft('SHORT_CUT', { selections: [freeform] }), packContext);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((i) => i.code === 'EMPTY_SELECTION' || i.code === 'FREEFORM_TIMECODE'));
+});
+
+test('a short cut whose transcript was tidied up is blocked', () => {
+  const edited = { ...shortCutSelection(), rawTranscript: 'Chào bạn. Nhiều shop nghĩ gom đơn là xong.' };
+  const result = transcriptPack.validateDraft(draft('SHORT_CUT', { selections: [edited] }), packContext);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'TRANSCRIPT_SOURCE_MISMATCH');
+});
+
+// Chữ hiển thị trên video là một LỚP PHỦ, tách khỏi lời thoại gốc. Có nó thì vẫn dựng đúng
+// được, vì bản gốc không bị đụng tới.
+test('an editor overlay is allowed as long as the source fields stay exact', () => {
+  const withOverlay = { ...shortCutSelection(), editorOverlay: 'Tốc độ giao hàng quyết định giỏ hàng' };
+  assert.equal(transcriptPack.validateDraft(draft('SHORT_CUT', { selections: [withOverlay] }), packContext).ok, true);
+});
+
+// ---------------------------------------------------------------- CLEAN_TRANSCRIPT
+
+test('a clean transcript may correct the display text but must keep its cue reference', () => {
+  const cleaned = draft('CLEAN_TRANSCRIPT', {
+    lines: [{ cueId: cues[4].cueId, displayText: 'Từ "logistics" trong slide gốc bị viết sai.' }],
+  });
+  const result = transcriptPack.validateDraft(cleaned, packContext);
+  assert.equal(result.ok, true, 'correcting the display layer is the whole point of this operation');
+
+  const orphan = draft('CLEAN_TRANSCRIPT', { lines: [{ displayText: 'Một câu không gắn với cue nào.' }] });
+  const orphanResult = transcriptPack.validateDraft(orphan, packContext);
+  assert.equal(orphanResult.ok, false);
+  assert.equal(orphanResult.issues[0].code, 'MISSING_CUE_REFERENCE');
+});
+
+test('a clean transcript line pointing at a cue that does not exist is blocked', () => {
+  const bad = draft('CLEAN_TRANSCRIPT', { lines: [{ cueId: 'cue_9999', displayText: 'x' }] });
+  assert.ok(transcriptPack.validateDraft(bad, packContext).issues.some((i) => i.code === 'UNKNOWN_CUE'));
+});
+
+// Bản gốc không bao giờ bị bản đã dọn thay thế.
+test('cleaning never overwrites the authoritative cue text', () => {
+  const cleaned = draft('CLEAN_TRANSCRIPT', {
+    lines: [{ cueId: cues[4].cueId, displayText: 'logistics' }],
+  });
+  transcriptPack.validateDraft(cleaned, packContext);
+  assert.ok(transcript.cues[4].rawText.includes('logictics'), 'the source still says what it said');
+});
+
+// ---------------------------------------------------------------- QUOTES
+
+test('a quote must be the exact words unless it is marked as a paraphrase', () => {
+  const exact = draft('QUOTES', {
+    quotes: [{ cueIds: [cues[2].cueId], text: cues[2].rawText }],
+  });
+  assert.equal(transcriptPack.validateDraft(exact, packContext).ok, true);
+
+  const altered = draft('QUOTES', {
+    quotes: [{ cueIds: [cues[2].cueId], text: 'Theo số liệu, 87% khách bỏ giỏ.' }],
+  });
+  const result = transcriptPack.validateDraft(altered, packContext);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'QUOTE_NOT_VERBATIM');
+
+  const paraphrased = draft('QUOTES', {
+    quotes: [{ cueIds: [cues[2].cueId], text: 'Theo số liệu, 87% khách bỏ giỏ.', paraphrase: true }],
+  });
+  assert.equal(transcriptPack.validateDraft(paraphrased, packContext).ok, true, 'saying it is a paraphrase makes it honest');
+});
+
+// ---------------------------------------------------------------- HIGHLIGHTS / CHAPTERS
+
+test('highlights and chapters must point at real cues', () => {
+  const highlights = draft('HIGHLIGHTS', {
+    highlights: [{ cueIds: [cues[2].cueId], reason: 'Có số liệu cụ thể' }],
+  });
+  assert.equal(transcriptPack.validateDraft(highlights, packContext).ok, true);
+
+  const chapters = draft('CHAPTERS', {
+    chapters: [{ title: 'Vì sao tốc độ quan trọng', startCueId: cues[0].cueId }],
+  });
+  assert.equal(transcriptPack.validateDraft(chapters, packContext).ok, true);
+
+  const invented = draft('CHAPTERS', { chapters: [{ title: 'Chương ma', startCueId: 'cue_9999' }] });
+  assert.ok(transcriptPack.validateDraft(invented, packContext).issues.some((i) => i.code === 'UNKNOWN_CUE'));
+});
+
+// Chương phải theo thứ tự thời gian — một mục lục nhảy lung tung là mục lục vô dụng.
+test('chapters must run forward in time', () => {
+  const backwards = draft('CHAPTERS', {
+    chapters: [{ title: 'Sau', startCueId: cues[3].cueId }, { title: 'Trước', startCueId: cues[0].cueId }],
+  });
+  assert.ok(transcriptPack.validateDraft(backwards, packContext).issues.some((i) => i.code === 'CHAPTERS_OUT_OF_ORDER'));
+});
+
+// ---------------------------------------------------------------- REPURPOSE_ARTICLE
+
+test('an article made from a transcript still has to cite its cues', () => {
+  const ok = draft('REPURPOSE_ARTICLE', {
+    title: 'Cửa sổ kiên nhẫn của khách hàng',
+    sections: [{ heading: 'Số liệu', body: '87% khách bỏ giỏ khi chờ quá 3 ngày.', cueIds: [cues[2].cueId] }],
+  });
+  assert.equal(transcriptPack.validateDraft(ok, packContext).ok, true);
+
+  const uncited = draft('REPURPOSE_ARTICLE', {
+    title: 'Cửa sổ kiên nhẫn',
+    sections: [{ heading: 'Số liệu', body: '95% khách bỏ giỏ ngay lập tức.' }],
+  });
+  const result = transcriptPack.validateDraft(uncited, packContext);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'SECTION_WITHOUT_CUE_REFERENCE');
+});
+
+// ---------------------------------------------------------------- cổng cuối
+
+// Cổng này chạy lại một lần nữa ngay trước khi lưu. Kiểm hai lần là có chủ ý: giữa lúc
+// duyệt và lúc lưu, bản thảo có thể đã đi qua một bước sửa khác.
+test('the final gate resolves every cue back to the transcript before persisting', () => {
+  const approved = draft('SHORT_CUT', { selections: [shortCutSelection()] });
+  assert.equal(transcriptPack.assertSourceFidelity(approved, transcript).ok, true);
+
+  const tampered = draft('SHORT_CUT', {
+    selections: [{ ...shortCutSelection(), sourceStartMs: 999 }],
+  });
+  const blocked = transcriptPack.assertSourceFidelity(tampered, transcript);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.issues[0].code, 'TRANSCRIPT_SOURCE_MISMATCH');
+});
+
+test('the final gate refuses a transcript that is not the one the cut came from', () => {
+  const approved = draft('SHORT_CUT', { selections: [shortCutSelection()] });
+  const other = { ...transcript, sourceId: 's_khac' };
+  const result = transcriptPack.assertSourceFidelity(approved, other);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'TRANSCRIPT_SOURCE_MISMATCH');
+});
+
+test('a transcript job is done only when its required evaluations pass', () => {
+  const passing = transcriptPack.requiredEvaluators.map((dimension) => ({ dimension, verdict: 'PASS' }));
+  assert.equal(transcriptPack.definitionOfDone(draft('SHORT_CUT', {}), passing).done, true);
+  assert.equal(transcriptPack.definitionOfDone(draft('SHORT_CUT', {}), []).done, false);
 });

@@ -479,19 +479,19 @@ git commit -m "feat(writing): preserve exact srt transcript sources"
 - Supported V1 operations: `HIGHLIGHTS`, `SHORT_CUT`, `CLEAN_TRANSCRIPT`, `QUOTES`, `CHAPTERS`, `REPURPOSE_ARTICLE`.
 - `SHORT_CUT` output contains `selections[] = { cueIds, sourceStartMs, sourceEndMs, rawTranscript, editorOverlay? }`.
 
-- [ ] **Step 1: Write failing operation-schema tests**
+- [x] **Step 1: Write failing operation-schema tests**
 
 `SHORT_CUT` must reject freeform timecodes. `CLEAN_TRANSCRIPT` may produce corrected display text but must retain source cue references. `QUOTES` must retain exact quote text unless explicitly marked `paraphrase`.
 
-- [ ] **Step 2: Implement pack output contracts**
+- [x] **Step 2: Implement pack output contracts**
 
 Do not make every transcript operation share one oversized schema; define operation-specific field validators under the Transcript pack.
 
-- [ ] **Step 3: Implement final source validation gate**
+- [x] **Step 3: Implement final source validation gate**
 
 Before persisting an approved transcript-derived cut, resolve every `cueId` back to `TranscriptIR`, reconstruct `rawTranscript`, and compare exact start/end. Any mismatch blocks completion.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/job-pack-transcript.test.mjs
