@@ -384,7 +384,7 @@ git commit -m "feat(writing): add article job pack"
 - Product source-of-truth facts are explicit `ProductFact[] = { factId, name, value, unit?, sourceRef, locator }`.
 - `validateProductClaims(content, productFacts, evidence): { ok, issues }`.
 
-- [ ] **Step 1: Write failing product-fidelity tests**
+- [x] **Step 1: Write failing product-fidelity tests**
 
 Required cases:
 
@@ -397,15 +397,15 @@ price/availability/offer absent from source -> block INVENTED_COMMERCIAL_FACT
 FAQ answer introduces unsupported claim -> block
 ```
 
-- [ ] **Step 2: Implement ProductContentIR validator**
+- [x] **Step 2: Implement ProductContentIR validator**
 
 `specs[]` retain source refs/units. Normalization may change presentation (`1 kg` vs `1000 g`) only if a tested deterministic unit conversion explicitly supports it; otherwise exact source value is required in V1.
 
-- [ ] **Step 3: Implement claim/fact gate**
+- [x] **Step 3: Implement claim/fact gate**
 
 Every feature/spec claim maps to a ProductFact or Evidence record. `benefits[]` require explicit support relation; absence of support is not auto-repaired by inventing evidence.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/job-pack-product.test.mjs tests/writing-evidence-claims.test.mjs
