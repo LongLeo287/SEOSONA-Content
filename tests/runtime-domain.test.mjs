@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createWorkspaceStore } from '../runtime/storage/workspace-store.mjs';
 import { createWorkspaceService } from '../runtime/domain/workspace-service.mjs';
 import { createContentService } from '../runtime/domain/content-service.mjs';
+import { createContextSnapshot } from '../runtime/domain/context-snapshot.mjs';
 
 function sequenceIds() {
   let n = 0;
@@ -82,4 +83,59 @@ test('evidence and claims retain traceable project/content scope', async () => {
   const claim = await content.addClaim({ workspaceId: ws.workspaceId, projectId: project.projectId, contentId: created.content.contentId, proposition: 'Fact', type: 'FACTUAL', strength: 'qualified', status: 'SUPPORTED', evidenceRefs: [evidence.evidenceId] });
   assert.equal(claim.contentId, created.content.contentId);
   assert.deepEqual(claim.evidenceRefs, [evidence.evidenceId]);
+});
+
+test('context snapshot hash is deterministic and changes when source or job pack revision changes', async () => {
+  const { workspace, store } = await setup();
+  const ws = await workspace.createWorkspace({ name: 'A' });
+  const project = await workspace.createProject({ workspaceId: ws.workspaceId, name: 'P' });
+  const deps = { store, workspaceId: ws.workspaceId, now: () => '2026-08-13T02:00:00.000Z', idFactory: sequenceIds() };
+  const base = {
+    project,
+    brand: { brandId: 'brand_1', revision: 'brand-r1', voice: { tone: 'clear', formal: false } },
+    audience: { pains: ['slow'], level: 'intermediate' },
+    sourceRefs: [{ sourceId: 'source_1', revision: 'src-r1' }],
+    evidenceRefs: [{ evidenceId: 'evidence_1', revision: 'ev-r1' }],
+    jobPack: { id: 'article', version: '1.0' },
+    targetPack: { id: 'web', version: '1.0' },
+    policy: { paidApi: false, privacy: { deny: [] } },
+    providerPolicy: { mode: 'auto', paidAllowed: false },
+  };
+  const one = await createContextSnapshot(base, deps);
+  const two = await createContextSnapshot({
+    providerPolicy: { paidAllowed: false, mode: 'auto' },
+    policy: { privacy: { deny: [] }, paidApi: false },
+    targetPack: { version: '1.0', id: 'web' },
+    jobPack: { version: '1.0', id: 'article' },
+    evidenceRefs: [{ revision: 'ev-r1', evidenceId: 'evidence_1' }],
+    sourceRefs: [{ revision: 'src-r1', sourceId: 'source_1' }],
+    audience: { level: 'intermediate', pains: ['slow'] },
+    brand: { voice: { formal: false, tone: 'clear' }, revision: 'brand-r1', brandId: 'brand_1' },
+    project,
+  }, deps);
+  assert.equal(one.hash, two.hash);
+  assert.notEqual(one.contextSnapshotId, two.contextSnapshotId);
+
+  const changed = await createContextSnapshot({ ...base, jobPack: { id: 'article', version: '1.1' } }, deps);
+  assert.notEqual(changed.hash, one.hash);
+  const changedSource = await createContextSnapshot({ ...base, sourceRefs: [{ sourceId: 'source_1', revision: 'src-r2' }] }, deps);
+  assert.notEqual(changedSource.hash, one.hash);
+});
+
+test('persisted context snapshots are immutable and input mutation cannot change stored snapshot', async () => {
+  const { workspace, store } = await setup();
+  const ws = await workspace.createWorkspace({ name: 'A' });
+  const project = await workspace.createProject({ workspaceId: ws.workspaceId, name: 'P' });
+  const input = {
+    project, brand: null, audience: {}, sourceRefs: [], evidenceRefs: [],
+    jobPack: { id: 'product', version: '1.0' }, targetPack: null, policy: {}, providerPolicy: { paidAllowed: false },
+  };
+  const snapshot = await createContextSnapshot(input, { store, workspaceId: ws.workspaceId, idFactory: sequenceIds(), now: () => 'now' });
+  input.jobPack.version = '9.9';
+  const stored = await store.get('contextSnapshot', ws.workspaceId, snapshot.contextSnapshotId);
+  assert.equal(stored.jobPack.version, '1.0');
+  await assert.rejects(
+    () => store.put('contextSnapshot', ws.workspaceId, { ...stored, hash: 'tampered' }),
+    (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT'
+  );
 });
