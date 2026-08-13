@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { canonicalJson, writeJsonAtomic } from '../lib/atomic-json.mjs';
+import { canonicalJson, writeJsonAtomic, writeJsonExclusiveAtomic } from '../lib/atomic-json.mjs';
 
 const ID_RE = /^[a-z][a-z0-9_:-]{1,159}$/;
 const IMMUTABLE = new Set(['revision', 'sourceBlock', 'providerReceipt', 'contextSnapshot']);
@@ -34,13 +34,12 @@ async function readJson(file) {
 
 async function writeBlobAtomic(file, bytes) {
   await mkdir(dirname(file), { recursive: true });
-  const temp = `${file}.${process.pid}.tmp`;
+  const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await writeFile(temp, bytes, { flag: 'wx' });
     await rename(temp, file);
   } catch (error) {
     await unlink(temp).catch(() => {});
-    if (error && error.code === 'EEXIST') return;
     throw error;
   }
 }
@@ -60,6 +59,17 @@ export function createWorkspaceStore({ rootDir }) {
           const error = new Error(`${type} ${id} is immutable.`);
           error.code = 'IMMUTABLE_RECORD_CONFLICT';
           throw error;
+        }
+        try {
+          await writeJsonExclusiveAtomic(file, record);
+          return structuredClone(record);
+        } catch (error) {
+          if (!error || error.code !== 'EEXIST') throw error;
+          const winner = await readJson(file);
+          if (winner && canonicalJson(winner) === canonicalJson(record)) return structuredClone(winner);
+          const conflict = new Error(`${type} ${id} is immutable.`);
+          conflict.code = 'IMMUTABLE_RECORD_CONFLICT';
+          throw conflict;
         }
       }
       await writeJsonAtomic(file, record);
