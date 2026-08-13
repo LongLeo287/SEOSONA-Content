@@ -1,4 +1,4 @@
-import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -26,5 +26,16 @@ export async function writeJsonAtomic(file, value) {
   } catch (error) {
     await unlink(temp).catch(() => {});
     throw error;
+  }
+}
+
+export async function writeJsonExclusiveAtomic(file, value) {
+  await mkdir(dirname(file), { recursive: true });
+  const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, canonicalJson(value), { encoding: 'utf8', flag: 'wx' });
+    await link(temp, file);
+  } finally {
+    await unlink(temp).catch(() => {});
   }
 }
