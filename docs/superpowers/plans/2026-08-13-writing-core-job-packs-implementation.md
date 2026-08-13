@@ -105,7 +105,7 @@
 - `CLAIM_STATUSES = ['SUPPORTED','PARTIALLY_SUPPORTED','UNSUPPORTED','CONTRADICTED','NEEDS_REVIEW']`
 - `EVIDENCE_TYPES = ['FACT','CLAIM','QUOTE','STATISTIC','OPINION','INFERENCE']`
 
-- [ ] **Step 1: Write failing IR contract tests**
+- [x] **Step 1: Write failing IR contract tests**
 
 ```js
 import test from 'node:test';
@@ -131,15 +131,15 @@ test('ContentIR is semantic content, not provider output metadata', () => {
 });
 ```
 
-- [ ] **Step 2: Run and verify missing-module failures**
+- [x] **Step 2: Run and verify missing-module failures**
 
 Run: `node --test tests/writing-contracts.test.mjs`
 
-- [ ] **Step 3: Implement strict validators and structured-clone return values**
+- [x] **Step 3: Implement strict validators and structured-clone return values**
 
 `ContentIR` fields are limited to semantic writing data such as `contentId`, `jobType`, `language`, `fields`, `sourceRefs`, `claimRefs`, `targetRef`, and `metadata`. Provider/session fields belong in `ProviderReceipt`.
 
-- [ ] **Step 4: Add specialized-extension validation hooks**
+- [x] **Step 4: Add specialized-extension validation hooks**
 
 Expose:
 
@@ -152,7 +152,7 @@ export function assertSpecializedContent(base, specializedValidator) {
 
 Do not introduce a single giant union containing every future field.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-contracts.test.mjs
