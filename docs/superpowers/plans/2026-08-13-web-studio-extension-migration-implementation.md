@@ -137,19 +137,19 @@ git commit -m "feat(studio): serve local writing workspace"
 - `reduceStudioState(state, event)` legal events: `ROUTE_CHANGED`, `PROJECT_SELECTED`, `CONTENT_SELECTED`, `REQUEST_STARTED`, `REQUEST_SUCCEEDED`, `REQUEST_FAILED`, `NOTICE_DISMISSED`.
 - Browser history route format: `#/projects/:projectId/<section>`.
 
-- [ ] **Step 1: Write failing reducer tests**
+- [x] **Step 1: Write failing reducer tests**
 
 Test project selection, route change, busy transition, failure cleanup, and no stale content selection after switching projects.
 
-- [ ] **Step 2: Implement pure reducer**
+- [x] **Step 2: Implement pure reducer**
 
 No DOM, fetch, provider or Runtime code in `state.mjs`.
 
-- [ ] **Step 3: Wire `app.mjs` to hash navigation and state renderer**
+- [x] **Step 3: Wire `app.mjs` to hash navigation and state renderer**
 
 `app.mjs` imports views and passes only state + API client callbacks.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/studio-state.test.mjs

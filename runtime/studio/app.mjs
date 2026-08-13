@@ -1,4 +1,5 @@
 import { createStudioApiClient } from '/studio/api-client.mjs';
+import { createStudioState, reduceStudioState, parseRoute, routeToHash } from '/studio/state.mjs';
 
 // Bộ điều khiển cấp trang của Studio.
 //
@@ -10,17 +11,6 @@ const api = createStudioApiClient();
 const main = document.getElementById('studio-main');
 const statusEl = document.getElementById('runtime-status');
 const statusText = document.getElementById('runtime-status-text');
-
-const SECTIONS = ['projects', 'sources', 'brand', 'content', 'audit', 'transcript', 'providers'];
-
-function parseRoute(hash) {
-  // #/projects/<projectId>/<section>  hoặc  #/<section>
-  const parts = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
-  if (parts[0] === 'projects' && parts[1]) {
-    return { section: SECTIONS.includes(parts[2]) ? parts[2] : 'content', projectId: parts[1], contentId: parts[3] || null };
-  }
-  return { section: SECTIONS.includes(parts[0]) ? parts[0] : 'projects', projectId: null, contentId: null };
-}
 
 function markActiveNav(section) {
   for (const link of document.querySelectorAll('.sidebar a')) {
@@ -61,21 +51,34 @@ const VIEWS = {
   providers: () => import('/studio/views/providers.mjs'),
 };
 
+// Toàn bộ trạng thái màn hình đi qua reducer thuần. app.mjs không tự sửa state bằng tay —
+// nếu nó tự sửa thì luật điều hướng lại có hai bản, và bản trong file này không ai test.
+let state = createStudioState();
+
+function dispatch(event) {
+  state = reduceStudioState(state, event);
+  return state;
+}
+
 async function render() {
-  const route = parseRoute(location.hash);
-  markActiveNav(route.section);
+  dispatch({ type: 'ROUTE_CHANGED', route: parseRoute(location.hash) });
+  markActiveNav(state.route.section);
   main.replaceChildren(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'Đang tải…' }));
 
   try {
-    const module = await VIEWS[route.section]();
-    const node = await module.render({ api, route, navigate });
+    dispatch({ type: 'REQUEST_STARTED' });
+    const module = await VIEWS[state.route.section]();
+    const node = await module.render({ api, state, navigate, dispatch });
+    dispatch({ type: 'REQUEST_SUCCEEDED' });
     main.replaceChildren(node);
   } catch (error) {
-    showError(error);
+    dispatch({ type: 'REQUEST_FAILED', error });
+    showError(state.error);
   }
 }
 
-function navigate(hash) {
+function navigate(target) {
+  const hash = typeof target === 'string' ? target : routeToHash(target);
   if (location.hash === hash) render();
   else location.hash = hash;
 }
@@ -83,4 +86,4 @@ function navigate(hash) {
 window.addEventListener('hashchange', render);
 checkRuntime().then(render);
 
-export { parseRoute };
+export { dispatch, navigate };
