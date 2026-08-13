@@ -464,11 +464,11 @@ git commit -m "feat(providers): add api adapter contract proof"
 - Creates one `ProviderAttempt` per selected provider and one immutable `ProviderReceipt` per completed attempt.
 - Fallback reuses same `taskId`/`contextSnapshotId`; attempt IDs change.
 
-- [ ] **Step 1: Write failing Gateway tests**
+- [x] **Step 1: Write failing Gateway tests**
 
 Cases: manual browser success; browser retryable failure -> next zero-incremental browser; all browser unavailable -> FREE_QUOTA API; only paid API -> `PAID_PROVIDER_BLOCKED`; explicitly allowed paid API; non-retryable content block does not blindly retry same provider; receipt contains context class/digest but no secret/full prompt.
 
-- [ ] **Step 2: Implement attempt loop**
+- [x] **Step 2: Implement attempt loop**
 
 Pseudo-code:
 
@@ -487,11 +487,11 @@ while (true) {
 }
 ```
 
-- [ ] **Step 3: Feed observed health/quality only after finalized attempts/evaluations**
+- [x] **Step 3: Feed observed health/quality only after finalized attempts/evaluations**
 
 Transport success updates stability. Content quality is updated by evaluator/user signals later; Gateway must not label any textual output “high quality” merely because the HTTP/browser call succeeded.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```bash
 node --test tests/provider-gateway.test.mjs tests/provider-router.test.mjs tests/provider-api-adapter.test.mjs tests/provider-browser-bridge.test.mjs
