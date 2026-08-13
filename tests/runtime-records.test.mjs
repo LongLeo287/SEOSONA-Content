@@ -54,6 +54,7 @@ const VALID = {
   evidence: { evidenceId: 'evidence_1', sourceId: 'source_1', statement: 'X is Y' },
   claim: { claimId: 'claim_1', proposition: 'X causes Y', strength: 'ASSOCIATED' },
   content: { contentId: 'content_1', projectId: 'project_1', contentJob: 'article', createdAt: '2026-08-12T00:00:00.000Z' },
+  contentLineage: { lineageId: 'contentlineage_1', fromContentId: 'content_1', toContentId: 'content_2', relation: 'REPURPOSED_FROM', createdAt: '2026-08-12T00:00:00.000Z' },
   revision: { revisionId: 'revision_1', contentId: 'content_1', operation: 'CREATE', payload: { body: 'x' }, createdAt: '2026-08-12T00:00:00.000Z' },
   job: { jobId: 'job_1', projectId: 'project_1', contextSnapshotId: 'contextsnapshot_1', status: 'PENDING', createdAt: '2026-08-12T00:00:00.000Z' },
   jobStage: { stageId: 'jobstage_1', jobId: 'job_1', stage: 'WRITE', status: 'PENDING' },

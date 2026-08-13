@@ -137,6 +137,7 @@ test('every declared record type round-trips through the store', async () => {
     evidence: { evidenceId: 'evidence_1', sourceId: 'source_1', statement: 'X' },
     claim: { claimId: 'claim_1', proposition: 'P', strength: 'ASSOCIATED' },
     content: { contentId: 'content_1', projectId: 'project_1', contentJob: 'article', createdAt: NOW },
+    contentLineage: { lineageId: 'contentlineage_1', fromContentId: 'content_1', toContentId: 'content_2', relation: 'REPURPOSED_FROM', createdAt: NOW },
     revision: revision(),
     job: { jobId: 'job_1', projectId: 'project_1', contextSnapshotId: 'contextsnapshot_1', status: 'PENDING', createdAt: NOW },
     jobStage: { stageId: 'jobstage_1', jobId: 'job_1', stage: 'WRITE', status: 'PENDING' },
