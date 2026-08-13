@@ -515,15 +515,15 @@ git commit -m "feat(runtime): expose authenticated local content API"
 - Produces documented start command and data ownership/security boundary.
 - Does not claim browser/API provider execution exists yet; that is the next plan.
 
-- [ ] **Step 1: Add a runtime acceptance test**
+- [x] **Step 1: Add a runtime acceptance test**
 
 Create one project, brand, source blob, content item, second revision, claim, evidence and context snapshot through domain services; restart the store/server against the same temp root; verify IDs, revision history and hashes survive.
 
-- [ ] **Step 2: Run `npm run runtime:verify` and `npm test`**
+- [x] **Step 2: Run `npm run runtime:verify` and `npm test`**
 
 Expected: all new and legacy tests PASS.
 
-- [ ] **Step 3: Document the exact boundary**
+- [x] **Step 3: Document the exact boundary**
 
 `runtime/README.md` must state:
 
@@ -535,7 +535,7 @@ Secrets are references only and are implemented in the Provider plan.
 No cloud sync or publishing is part of Runtime V1.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add runtime/README.md README.md tests/runtime-domain.test.mjs

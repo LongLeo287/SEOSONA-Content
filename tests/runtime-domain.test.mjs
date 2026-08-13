@@ -312,3 +312,100 @@ test('snapshot records the refs a run must be reproducible from', async () => {
     assert.equal(snap.providerPolicy.lock, null);
   });
 });
+
+// ---------------------------------------------------------------- Nghiệm thu Runtime (Task 8)
+// Dựng đủ một lát cắt dữ liệu, rồi VỨT BỎ mọi đối tượng trong bộ nhớ và mở lại kho
+// trên cùng thư mục. Nếu dữ liệu chỉ sống trong RAM thì bài này sẽ vỡ.
+test('runtime slice survives a full restart against the same root', async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), 'seosona-acceptance-'));
+  try {
+    let ids;
+    let firstHash;
+
+    // --- phiên 1: ghi ---
+    {
+      const store = createWorkspaceStore({ rootDir });
+      const { workspaces, content } = makeHarness(store);
+
+      const ws = await workspaces.createWorkspace({ name: 'Acceptance' });
+      const brand = await workspaces.createBrand({ workspaceId: ws.workspaceId, name: 'Acme' });
+      const project = await workspaces.createProject({
+        workspaceId: ws.workspaceId, name: 'Launch', brandId: brand.brandId, objective: 'Grow',
+      });
+
+      const bytes = Buffer.from('<html>source of truth</html>', 'utf8');
+      const source = await content.addSource({
+        workspaceId: ws.workspaceId, projectId: project.projectId,
+        kind: 'html', title: 'Landing', canonicalUrl: 'https://x.test/a', bytes, parserVersion: 'html@1',
+      });
+      const evidence = await content.addEvidence({
+        workspaceId: ws.workspaceId, sourceId: source.sourceId, statement: 'Ships in 2 days', locator: { line: 12 },
+      });
+      const claim = await content.addClaim({
+        workspaceId: ws.workspaceId, proposition: 'Delivery is fast', strength: 'ASSOCIATED', evidenceRefs: [evidence.evidenceId],
+      });
+
+      const item = await content.createContent({
+        workspaceId: ws.workspaceId, projectId: project.projectId, contentJob: 'article', payload: { body: 'v1' },
+      });
+      await content.appendRevision({
+        workspaceId: ws.workspaceId, contentId: item.contentId, operation: 'EDIT', payload: { body: 'v2' },
+      });
+
+      const snapshot = await createContextSnapshot(
+        {
+          project: { projectId: project.projectId },
+          brand: { brandId: brand.brandId },
+          sourceRefs: [{ sourceId: source.sourceId, sha256: source.sha256 }],
+          evidenceRefs: [{ evidenceId: evidence.evidenceId }],
+          jobPack: { id: 'job.article', version: '1.0.0' },
+        },
+        { store, workspaceId: ws.workspaceId, now: () => NOW, idFactory: () => 'contextsnapshot_acceptance' },
+      );
+      firstHash = snapshot.hash;
+
+      ids = {
+        workspaceId: ws.workspaceId, brandId: brand.brandId, projectId: project.projectId,
+        sourceId: source.sourceId, sha256: source.sha256, blobRef: source.blobRef,
+        evidenceId: evidence.evidenceId, claimId: claim.claimId,
+        contentId: item.contentId, snapshotId: snapshot.contextSnapshotId,
+      };
+    }
+
+    // --- phiên 2: mở lại kho hoàn toàn mới trên cùng thư mục ---
+    {
+      const store = createWorkspaceStore({ rootDir });
+      const { content } = makeHarness(store);
+
+      assert.equal((await store.get('project', ids.workspaceId, ids.projectId)).brandId, ids.brandId);
+      assert.equal((await store.get('brand', ids.workspaceId, ids.brandId)).name, 'Acme');
+
+      const source = await store.get('source', ids.workspaceId, ids.sourceId);
+      assert.equal(source.sha256, ids.sha256, 'source digest must survive a restart');
+      assert.deepEqual(
+        await store.readBlob(ids.blobRef),
+        Buffer.from('<html>source of truth</html>', 'utf8'),
+        'the raw snapshot bytes must still be readable',
+      );
+
+      assert.equal((await store.get('evidence', ids.workspaceId, ids.evidenceId)).sourceId, ids.sourceId);
+      assert.equal((await store.get('claim', ids.workspaceId, ids.claimId)).strength, 'ASSOCIATED');
+
+      const history = await content.getContentHistory(ids.workspaceId, ids.contentId);
+      assert.deepEqual(history.map((r) => r.payload.body), ['v1', 'v2'], 'revision lineage must survive intact');
+      assert.equal(history[0].parentRevisionId, null);
+      assert.equal(history[1].parentRevisionId, history[0].revisionId);
+
+      const snapshot = await store.get('contextSnapshot', ids.workspaceId, ids.snapshotId);
+      assert.equal(snapshot.hash, firstHash, 'the frozen context hash must be reproducible after restart');
+
+      // Và sau khi khởi động lại, dữ liệu bất biến vẫn không cho ghi đè.
+      await assert.rejects(
+        () => store.put('revision', ids.workspaceId, { ...history[0], payload: { body: 'tampered' } }),
+        (e) => e.code === 'IMMUTABLE_RECORD_CONFLICT',
+      );
+    }
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});

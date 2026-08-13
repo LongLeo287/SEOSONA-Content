@@ -110,6 +110,22 @@ extension/
 - **Phản hồi**: toast trong panel ở các mốc; **thông báo hệ thống** khi job xong lúc bạn đang ở tab khác.
 - **Nhật ký chạy** (🕘): 20 lần gần nhất, mở lại để nạp SRT + kết quả.
 
+## Local Runtime (dữ liệu gốc nằm ở máy bạn)
+
+Bên cạnh extension, repo có **Local Runtime** — tiến trình Node chạy trên `127.0.0.1`, giữ dữ liệu
+gốc dưới dạng file thường trên đĩa. Extension và Studio chỉ là **client** của nó.
+
+```bash
+SEOSONA_CONTENT_RUNTIME_TOKEN=<chuỗi ít nhất 32 ký tự> npm run runtime:start
+```
+
+- Ảnh chụp nguồn và revision **bất biến**: nguồn đổi thì sinh bản mới, không đè bản cũ.
+- Ghi **atomic** (file tạm → rename), blob đánh địa chỉ bằng SHA-256.
+- Không đồng bộ đám mây, không đăng bài, không chứa API key.
+- **Runtime V1 chưa chạy AI** — phần thực thi provider thuộc kế hoạch kế tiếp.
+
+Chi tiết ranh giới, API và cách kiểm thử: [runtime/README.md](runtime/README.md).
+
 ## Bảo trì selector
 
 Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provider + thành phần, dán selector mới (mỗi dòng một cái), Lưu, rồi tải lại tab AI. Lấy selector mới bằng DevTools trên trang AI. Bản mặc định nằm ở `extension/lib/selectors-default.js`.
