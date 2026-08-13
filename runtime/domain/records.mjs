@@ -22,7 +22,9 @@ const SPEC = {
   workspace: { strings: ['workspaceId', 'name', 'createdAt'] },
   project: { strings: ['projectId', 'workspaceId', 'name', 'createdAt'] },
   brand: { strings: ['brandId', 'workspaceId', 'name', 'createdAt'] },
-  source: { strings: ['sourceId', 'projectId', 'hash', 'retrievedAt'] },
+  // sha256 (không phải "hash" chung chung) vì blob được địa chỉ hóa bằng SHA-256;
+  // giữ đúng một tên gọi để bản ghi và blobRef không lệch nhau.
+  source: { strings: ['sourceId', 'projectId', 'sha256', 'retrievedAt'] },
   sourceBlock: { strings: ['blockId', 'sourceId'], objects: ['locator'] },
   evidence: { strings: ['evidenceId', 'sourceId', 'statement'] },
   claim: { strings: ['claimId', 'proposition', 'strength'] },

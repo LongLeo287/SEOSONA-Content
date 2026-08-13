@@ -296,15 +296,15 @@ git commit -m "feat(runtime): add atomic local workspace store"
 - `ContentItem.currentRevisionId` is mutable metadata; `Revision` records are append-only.
 - `SourceArtifact` stores an immutable blob ref/hash when raw bytes exist.
 
-- [ ] **Step 1: Write failing domain tests**
+- [x] **Step 1: Write failing domain tests**
 
 Cover: project must reference existing workspace; project brand must be same workspace; source snapshot hash preserved; first content revision created atomically; later revisions point to parent; revision payload cannot be overwritten; project history remains available.
 
-- [ ] **Step 2: Run focused tests and verify failures**
+- [x] **Step 2: Run focused tests and verify failures**
 
 Run: `node --test tests/runtime-domain.test.mjs`
 
-- [ ] **Step 3: Implement workspace/project/brand service**
+- [x] **Step 3: Implement workspace/project/brand service**
 
 Return records shaped like:
 
@@ -322,7 +322,7 @@ Return records shaped like:
 
 Reject cross-workspace brand assignment with `SCOPE_MISMATCH`.
 
-- [ ] **Step 4: Implement source persistence**
+- [x] **Step 4: Implement source persistence**
 
 For raw source bytes, call `putBlob()` first and persist:
 
@@ -335,11 +335,11 @@ For raw source bytes, call `putBlob()` first and persist:
 
 Never replace an existing source snapshot; page changes create a new `sourceId`.
 
-- [ ] **Step 5: Implement content + revision append**
+- [x] **Step 5: Implement content + revision append**
 
 `createContent()` creates `ContentItem` plus revision `CREATE`. `appendRevision()` creates a new immutable `Revision`, then updates only `ContentItem.currentRevisionId/status`.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 node --test tests/runtime-domain.test.mjs

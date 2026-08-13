@@ -49,7 +49,7 @@ const VALID = {
   workspace: { workspaceId: 'workspace_1', name: 'WS', createdAt: '2026-08-12T00:00:00.000Z' },
   project: { projectId: 'project_1', workspaceId: 'workspace_1', name: 'P', createdAt: '2026-08-12T00:00:00.000Z' },
   brand: { brandId: 'brand_1', workspaceId: 'workspace_1', name: 'B', createdAt: '2026-08-12T00:00:00.000Z' },
-  source: { sourceId: 'source_1', projectId: 'project_1', hash: 'sha256-abc', retrievedAt: '2026-08-12T00:00:00.000Z' },
+  source: { sourceId: 'source_1', projectId: 'project_1', sha256: 'sha256-abc', retrievedAt: '2026-08-12T00:00:00.000Z' },
   sourceBlock: { blockId: 'sourceblock_1', sourceId: 'source_1', locator: { page: 1 } },
   evidence: { evidenceId: 'evidence_1', sourceId: 'source_1', statement: 'X is Y' },
   claim: { claimId: 'claim_1', proposition: 'X causes Y', strength: 'ASSOCIATED' },
