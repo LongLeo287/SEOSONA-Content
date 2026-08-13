@@ -56,3 +56,27 @@ test('record files are valid JSON and no temp file is exposed by normal reads', 
   const raw = await readFile(join(rootDir, 'workspaces', 'workspace_1', 'records', 'project', 'project_1.json'), 'utf8');
   assert.deepEqual(JSON.parse(raw), record);
 });
+
+test('concurrent different writes to one immutable id allow exactly one winner', async () => {
+  const { store } = await tempStore();
+  const base = { revisionId: 'revision_race', contentId: 'content_1', operation: 'CREATE', createdAt: 'now' };
+  const results = await Promise.allSettled([
+    store.put('revision', 'workspace_1', { ...base, payload: { body: 'A' } }),
+    store.put('revision', 'workspace_1', { ...base, payload: { body: 'B' } }),
+  ]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const rejected = results.find((r) => r.status === 'rejected');
+  assert.equal(rejected.reason.code, 'IMMUTABLE_RECORD_CONFLICT');
+  const stored = await store.get('revision', 'workspace_1', 'revision_race');
+  assert.ok(['A', 'B'].includes(stored.payload.body));
+});
+
+test('each concurrent same-content blob writer resolves only after its portable ref is readable', async () => {
+  const { store } = await tempStore();
+  const writes = Array.from({ length: 12 }, (_, index) => store.putBlob('workspace_1', `blob_${index}`, Buffer.from('same-content')).then(async (receipt) => {
+    assert.equal((await store.readBlob(receipt.blobRef)).toString(), 'same-content');
+    return receipt;
+  }));
+  const receipts = await Promise.all(writes);
+  assert.equal(new Set(receipts.map((r) => r.sha256)).size, 1);
+});
