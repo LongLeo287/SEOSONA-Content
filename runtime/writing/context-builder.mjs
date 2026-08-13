@@ -37,6 +37,7 @@ export function buildContextBundle({
   evidence = [],
   targetPack = null,
   userInstruction = '',
+  currentDraft = null,
 } = {}) {
   const core = packOf(corePack, 'corePack');
   const job = packOf(jobPack, 'jobPack');
@@ -63,5 +64,8 @@ export function buildContextBundle({
       ? { id: targetPack.id, revision: targetPack.revision ?? 0, rules: structuredClone(targetPack.rules || []) }
       : null,
     userInstruction: String(userInstruction || ''),
+    // Bản thảo đang sửa: đi kèm để model biết phải sửa cái gì, nhưng vẫn nằm trong hàng rào
+    // dữ liệu như mọi văn bản khác.
+    currentDraft: currentDraft ? structuredClone(currentDraft) : null,
   };
 }

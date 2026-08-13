@@ -196,6 +196,9 @@ export const transcriptPack = {
     },
   },
 
+  // Lời thoại nguyên văn và mốc thời gian: sửa văn chung không được đụng vào.
+  immutableFields: ['selections', 'quotes'],
+
   structureRules: {},
 
   rules: [

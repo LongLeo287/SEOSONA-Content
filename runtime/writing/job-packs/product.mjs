@@ -223,6 +223,9 @@ export const productPack = {
     },
   },
 
+  // Trường có NGUỒN SỰ THẬT: thao tác sửa văn chung không được đụng vào.
+  immutableFields: ['specs'],
+
   structureRules: {},
 
   rules: [

@@ -514,11 +514,11 @@ git commit -m "feat(writing): add transcript intelligence job pack"
 - `editor.edit({ contentId, revisionId, operation, instruction?, providerPolicy }): Promise<{revision, issues, providerResult}>`.
 - Edit operations: `REWRITE`, `SHORTEN`, `EXPAND`, `SIMPLIFY`, `PROFESSIONALIZE`, `CLARIFY`, `DESLOP`, `FIX_REPETITION`, `IMPROVE_TRANSITIONS`, `IMPROVE_HOOK`, `IMPROVE_CTA`, `FIX_TERMINOLOGY`.
 
-- [ ] **Step 1: Write failing writer tests using a fake Provider Gateway**
+- [x] **Step 1: Write failing writer tests using a fake Provider Gateway**
 
 Prove Article and Product packs send the same ProviderTask shape with different `contentJob/outputContract`; switching fake provider IDs requires no Writer code branch.
 
-- [ ] **Step 2: Implement Writer orchestration**
+- [x] **Step 2: Implement Writer orchestration**
 
 Flow:
 
@@ -528,15 +528,15 @@ get job pack -> build/validate brief -> build context -> compose input -> gatewa
 
 Invalid provider output is not persisted as approved content; store failed attempt/receipt through Gateway only.
 
-- [ ] **Step 3: Write failing edit claim-strength tests**
+- [x] **Step 3: Write failing edit claim-strength tests**
 
 A rewrite that turns “may help” into “guarantees” without new evidence must be blocked or returned with `NEEDS_REVIEW`; exact product numbers and transcript raw fields cannot be changed by generic edit operations.
 
-- [ ] **Step 4: Implement Editor with pre/post claim comparison**
+- [x] **Step 4: Implement Editor with pre/post claim comparison**
 
 For immutable authoritative fields (`ProductFact`, Transcript `rawText/timecodes`), the provider receives them as constraints but Editor also restores/blocks changes deterministically after output parsing.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-edit-audit.test.mjs tests/job-pack-product.test.mjs tests/job-pack-transcript.test.mjs

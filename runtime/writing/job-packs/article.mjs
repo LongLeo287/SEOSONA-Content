@@ -69,6 +69,9 @@ export const articlePack = {
 
   structureRules: { headingLevels: [2, 3] },
 
+  // Bài blog không có trường nào là nguồn sự thật bất biến — mọi câu đều sửa được.
+  immutableFields: [],
+
   rules: [
     'Mỗi mục phải trả lời một câu hỏi cụ thể của người đọc, không phải một chủ đề chung chung.',
     'Câu nào có số liệu hoặc dữ kiện kiểm chứng được thì phải gắn evidenceRefs.',

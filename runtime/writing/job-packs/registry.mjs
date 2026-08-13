@@ -70,6 +70,11 @@ function assertJobPack(pack) {
     requiredEvaluators: [...pack.requiredEvaluators],
     requiredCapabilities: [...capabilities],
     rules: [...(pack.rules || [])],
+    // Trường có nguồn sự thật: Editor cần biết cái gì KHÔNG được sửa. Bỏ sót nó ở đây thì
+    // thao tác sửa văn chung sẽ lặng lẽ ghi đè lên thông số sản phẩm hay lời thoại gốc.
+    immutableFields: [...(pack.immutableFields || [])],
+    // Pack nhiều thao tác (như transcript) khai danh sách thao tác của nó.
+    operations: pack.operations ? [...pack.operations] : null,
     buildBrief: pack.buildBrief.bind(pack),
     validateDraft: pack.validateDraft.bind(pack),
     definitionOfDone: pack.definitionOfDone.bind(pack),

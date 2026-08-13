@@ -132,8 +132,15 @@ function sectionsFor(bundle, operation) {
     name: 'USER_TASK',
     // Yêu cầu của người dùng là VIỆC CẦN LÀM, không phải luật. Nó không ghi đè được CORE_RULES —
     // nếu ghi đè được thì mọi ràng buộc về bằng chứng chỉ tồn tại đến câu "bỏ qua luật đi".
-    body: [TASK_HEADERS[operation], bundle.userInstruction ? `\nYêu cầu của người dùng:\n${bundle.userInstruction}` : null]
-      .filter(Boolean).join('\n'),
+    body: [
+      TASK_HEADERS[operation],
+      // Bản thảo hiện tại cũng đi trong hàng rào dữ liệu. Nó là văn bản do model sinh ra ở
+      // lượt trước; coi nó là mệnh lệnh nghĩa là để một lượt chạy tự viết luật cho lượt sau.
+      bundle.currentDraft
+        ? `\nBản thảo hiện tại:\n${dataBlock('currentDraft', typeof bundle.currentDraft === 'string' ? bundle.currentDraft : JSON.stringify(bundle.currentDraft, null, 2))}`
+        : null,
+      bundle.userInstruction ? `\nYêu cầu của người dùng:\n${bundle.userInstruction}` : null,
+    ].filter(Boolean).join('\n'),
   });
 
   sections.push({

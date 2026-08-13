@@ -195,9 +195,12 @@ export function assertBriefIR(value) {
   return structuredClone({
     briefId: text(v.briefId, 'briefId', what, { required: false }),
     jobType: text(v.jobType, 'jobType', what),
+    // Chỉ mục tiêu là bắt buộc với MỌI loại nội dung. "Ý định" và "góc tiếp cận" có nghĩa với
+    // bài blog nhưng không nhất thiết với một bản cắt transcript — pack nào cần thì pack đó
+    // tự đòi. Ép ở đây là mang luật của một loại nội dung áp lên tất cả.
     objective: text(v.objective, 'objective', what),
-    intent: text(v.intent, 'intent', what),
-    angle: text(v.angle, 'angle', what),
+    intent: text(v.intent, 'intent', what, { required: false }),
+    angle: text(v.angle, 'angle', what, { required: false }),
     audience: v.audience ? assertAudienceContext(v.audience) : null,
     language: v.language === undefined || v.language === null ? 'vi-VN' : text(v.language, 'language', what),
     // Mặc định an toàn: bài viết phải dựa trên nguồn. Muốn viết tự do thì phải nói rõ.
