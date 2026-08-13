@@ -7,3 +7,7 @@ Thumbs.db
 # Tài sản nội dung (ảnh carousel...) — để trên máy, không đưa vào git.
 # Ảnh nhị phân đưa lên sẽ nằm vĩnh viễn trong lịch sử repo và làm mọi lần clone nặng thêm.
 data/
+
+# Local-first SEOSONA Content Runtime state and tokens.
+.seosona-content/
+.runtime-token
