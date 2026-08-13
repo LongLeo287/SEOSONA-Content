@@ -195,5 +195,159 @@
     return { start, status, retry, abort, normalizeResult: normalizeBrowserResult };
   }
 
-  return { create, normalizeBrowserResult, ERROR_MAP };
+  // ================================================================ cầu nối Runtime
+  //
+  // Extension đóng vai worker cho Local Runtime: hỏi job, chạy, trả kết quả.
+  //
+  // Vài ràng buộc không thương lượng:
+  //   - CHỈ nói chuyện với loopback. Một URL công khai ở đây nghĩa là prompt và nội dung
+  //     của người dùng đi ra ngoài máy họ mà không ai bảo.
+  //   - Token chỉ nằm ở storage.session, không bao giờ ghi xuống storage.local.
+  //   - Không đọc, không sao chép cookie của trang AI. Extension lái phiên đăng nhập sẵn có,
+  //     nó không cần và không được cầm thông tin đăng nhập đó.
+  //   - Poll ngắn qua alarm, không giữ kết nối mở: service worker của MV3 bị tắt bất cứ lúc nào,
+  //     nên một kết nối "luôn mở" không phải thứ có thể dựa vào để chạy đúng.
+
+  const LOOPBACK_RE = /^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/;
+
+  function isLoopbackUrl(url) {
+    return LOOPBACK_RE.test(String(url || '').replace(/\/$/, ''));
+  }
+
+  function createRuntimeBridgeClient(deps) {
+    const fetchImpl = deps.fetchImpl;
+    const readConfig = deps.readConfig; // async () => { url, token } | null
+    const adapter = deps.adapter;
+    const jobStore = deps.jobStore;
+    const newNonce = deps.newNonce || (() => Math.random().toString(36).slice(2).repeat(3).slice(0, 24));
+
+    async function config() {
+      const cfg = await readConfig();
+      if (!cfg || !cfg.url || !cfg.token) return null;
+      // Kiểm loopback ở NGAY chỗ dùng, không tin cấu hình đã lưu: storage có thể bị sửa.
+      if (!isLoopbackUrl(cfg.url)) {
+        const err = new Error('Runtime URL must use local loopback.');
+        err.code = 'RUNTIME_URL_INVALID';
+        throw err;
+      }
+      return { url: String(cfg.url).replace(/\/$/, ''), token: cfg.token };
+    }
+
+    async function call(cfg, path, body) {
+      const response = await fetchImpl(cfg.url + path, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: Object.assign(
+          { Authorization: 'Bearer ' + cfg.token, 'x-seosona-nonce': newNonce() },
+          body === undefined ? {} : { 'content-type': 'application/json' },
+        ),
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      return response;
+    }
+
+    // Một lượt poll. Trả về trạng thái để bên gọi ghi log / chỉnh nhịp, không ném lỗi ra ngoài:
+    // Runtime chưa bật là chuyện bình thường, không phải sự cố của extension.
+    async function pollOnce() {
+      let cfg;
+      try {
+        cfg = await config();
+      } catch (e) {
+        return { status: 'RUNTIME_URL_INVALID', message: e.message };
+      }
+      if (!cfg) return { status: 'NOT_CONFIGURED' };
+
+      // Đang chạy một job rồi thì đừng nhận thêm: mỗi lần chỉ lái được một tab AI.
+      if (await hasActiveRuntimeJob()) return { status: 'BUSY' };
+
+      let response;
+      try {
+        response = await call(cfg, '/v1/provider/browser/jobs/next');
+      } catch (_) {
+        return { status: 'RUNTIME_UNAVAILABLE' };
+      }
+      if (response.status === 204) return { status: 'IDLE' };
+      if (!response.ok) return { status: 'RUNTIME_ERROR', httpStatus: response.status };
+
+      const claimed = await response.json();
+      // Ghi lease token TRƯỚC khi chạy: service worker chết ngay sau đó thì lần khởi động lại
+      // vẫn biết mình đang giữ job nào và trả kết quả về đúng chỗ.
+      await jobStore.set(claimed.taskId, {
+        runtimeTask: true, leaseToken: claimed.leaseToken, providerId: claimed.providerId,
+      });
+
+      const started = await adapter.start({
+        taskId: claimed.taskId,
+        providerId: claimed.providerId,
+        text: claimed.payload && claimed.payload.prompt,
+        timeoutMs: claimed.payload && claimed.payload.timeoutMs,
+        modelMatch: (claimed.payload && claimed.payload.modelMatch) || null,
+        freshChat: !(claimed.payload && claimed.payload.chatUrl),
+        chatUrl: (claimed.payload && claimed.payload.chatUrl) || null,
+      });
+
+      if (!started.ok) {
+        // Không mở được tab thì báo về ngay, đừng để Runtime chờ hết lease mới biết.
+        await report(claimed.taskId, {
+          status: 'FAILED', code: started.error.code, message: started.error.message, retryable: false,
+        });
+        return { status: 'START_FAILED', taskId: claimed.taskId, code: started.error.code };
+      }
+      return { status: 'STARTED', taskId: claimed.taskId };
+    }
+
+    async function hasActiveRuntimeJob() {
+      if (typeof jobStore.listActive !== 'function') return false;
+      const active = await jobStore.listActive();
+      return active.some((job) => job && job.runtimeTask === true);
+    }
+
+    async function report(taskId, normalized) {
+      const cfg = await config();
+      const job = await jobStore.get(taskId);
+      if (!cfg || !job || !job.leaseToken) return { status: 'NOT_A_RUNTIME_TASK' };
+      let response;
+      try {
+        response = await call(cfg, '/v1/provider/browser/jobs/' + taskId + '/result', {
+          leaseToken: job.leaseToken, result: normalized,
+        });
+      } catch (_) {
+        return { status: 'RUNTIME_UNAVAILABLE' };
+      }
+      await jobStore.set(taskId, { runtimeTask: false, leaseToken: null });
+      return { status: response.ok ? 'REPORTED' : 'REJECTED', httpStatus: response.status };
+    }
+
+    // Gia hạn lease cho job đang chạy dài. Runtime trả 409 TASK_CANCELLED nghĩa là người dùng
+    // đã huỷ ở phía Studio — dừng tab AI lại luôn thay vì viết tiếp một bài không ai cần.
+    async function renewActive() {
+      const cfg = await config().catch(() => null);
+      if (!cfg || typeof jobStore.listActive !== 'function') return { status: 'NOT_CONFIGURED' };
+      const results = [];
+      for (const job of await jobStore.listActive()) {
+        if (!job || !job.runtimeTask || !job.leaseToken) continue;
+        let response;
+        try {
+          response = await call(cfg, '/v1/provider/browser/jobs/' + job.jobId + '/lease', { leaseToken: job.leaseToken });
+        } catch (_) {
+          results.push({ taskId: job.jobId, status: 'RUNTIME_UNAVAILABLE' });
+          continue;
+        }
+        if (response.ok) { results.push({ taskId: job.jobId, status: 'RENEWED' }); continue; }
+        const body = await response.json().catch(() => ({}));
+        const code = body && body.error && body.error.code;
+        if (code === 'TASK_CANCELLED') {
+          await adapter.abort(job.jobId);
+          await jobStore.set(job.jobId, { runtimeTask: false, leaseToken: null });
+          results.push({ taskId: job.jobId, status: 'CANCELLED' });
+        } else {
+          results.push({ taskId: job.jobId, status: 'LEASE_LOST', code: code || null });
+        }
+      }
+      return { status: 'CHECKED', results };
+    }
+
+    return { pollOnce, report, renewActive };
+  }
+
+  return { create, createRuntimeBridgeClient, normalizeBrowserResult, isLoopbackUrl, ERROR_MAP };
 });

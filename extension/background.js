@@ -157,6 +157,59 @@ const browserProvider = BrowserProviderAdapter.create({
   now: () => Date.now(),
 });
 
+// ---------------------------------------------------------------- cầu nối Local Runtime
+// Extension làm worker cho Runtime: hỏi job, chạy, trả kết quả. Token CHỈ nằm ở
+// storage.session (mất khi đóng Chrome) — không bao giờ ghi xuống storage.local.
+const RUNTIME_POLL_ALARM = 'seosona-provider-bridge-poll';
+
+async function readRuntimeConfig() {
+  const [{ seosonaRuntime }, { seosonaRuntimeToken }] = await Promise.all([
+    chrome.storage.local.get('seosonaRuntime'),
+    chrome.storage.session.get('seosonaRuntimeToken'),
+  ]);
+  if (!seosonaRuntime || !seosonaRuntime.url || !seosonaRuntimeToken) return null;
+  return { url: seosonaRuntime.url, token: seosonaRuntimeToken };
+}
+
+const runtimeBridge = BrowserProviderAdapter.createRuntimeBridgeClient({
+  fetchImpl: (url, init) => fetch(url, init),
+  readConfig: readRuntimeConfig,
+  adapter: browserProvider,
+  jobStore: {
+    get: getJob,
+    set: setJob,
+    listActive: async () => {
+      const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
+      return Object.entries(srtJobs)
+        .filter(([, job]) => ['preparing', 'running'].includes(job && job.status))
+        .map(([jobId, job]) => Object.assign({ jobId }, job));
+    },
+  },
+  newNonce: () => crypto.randomUUID().replace(/-/g, ''),
+});
+
+// Poll ngắn qua alarm thay vì giữ kết nối mở: MV3 tắt service worker bất cứ lúc nào, nên một
+// kết nối "luôn mở" không phải thứ dựa vào được. Hàng đợi rỗng trả 204, một lượt hỏi rất rẻ.
+async function runtimeBridgeTick() {
+  await runtimeBridge.renewActive().catch(() => {});
+  await runtimeBridge.pollOnce().catch(() => {});
+}
+
+async function setRuntimeBridge({ url, token, enabled }) {
+  if (enabled === false) {
+    await chrome.alarms.clear(RUNTIME_POLL_ALARM).catch(() => false);
+    await chrome.storage.session.remove('seosonaRuntimeToken');
+    return { ok: true, enabled: false };
+  }
+  if (!BrowserProviderAdapter.isLoopbackUrl(url)) {
+    return { ok: false, error: 'Runtime URL phải là loopback (http://127.0.0.1:cổng).' };
+  }
+  await chrome.storage.local.set({ seosonaRuntime: { url: String(url).replace(/\/$/, '') } });
+  await chrome.storage.session.set({ seosonaRuntimeToken: token });
+  chrome.alarms.create(RUNTIME_POLL_ALARM, { periodInMinutes: 0.5 });
+  return { ok: true, enabled: true };
+}
+
 // ---------------------------------------------------------------- handlers
 // Chữ ký cũ được giữ nguyên (jobId/provider/timeout, lỗi là chuỗi) vì Facebook orchestrator
 // và side panel đang gọi đúng hình dạng này.
@@ -177,6 +230,8 @@ async function handleJobResult({ jobId, provider, result }) {
   await setJob(jobId, { status, result, finishedAt: Date.now() });
   broadcast({ action: 'srt:jobUpdate', jobId, provider, status, result });
   notifyDone(jobId, provider, status, result);
+  // Job do Runtime giao thì trả kết quả về đó. Job của side panel thì client tự bỏ qua.
+  await runtimeBridge.report(jobId, browserProvider.normalizeResult(result)).catch(() => {});
   return { finalized: true, status };
 }
 
@@ -323,7 +378,9 @@ const facebookOrchestrator = FacebookOrchestrator.createOrchestrator({
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (!alarm || alarm.name !== FACEBOOK_VISUAL_ALARM) return;
+  if (!alarm) return;
+  if (alarm.name === RUNTIME_POLL_ALARM) { runtimeBridgeTick(); return; }
+  if (alarm.name !== FACEBOOK_VISUAL_ALARM) return;
   facebookOrchestrator.resume().then(scheduleFacebookVisualPoll).catch((error) => {
     broadcast({ action: 'facebook:batchError', error: facebookError(error) });
   });
@@ -401,6 +458,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'provider:listBrowserProviders') {
     sendResponse({ ok: true, providers: BrowserProviderRegistry.list() });
     return;
+  }
+  if (msg.action === 'provider:setRuntimeBridge') {
+    setRuntimeBridge(msg).then(sendResponse);
+    return true;
+  }
+  if (msg.action === 'provider:pollRuntimeBridge') {
+    runtimeBridgeTick().then(() => sendResponse({ ok: true }));
+    return true;
   }
   if (msg.action.startsWith('facebook:')) {
     handleFacebookAction(msg.action, msg).then(sendResponse);

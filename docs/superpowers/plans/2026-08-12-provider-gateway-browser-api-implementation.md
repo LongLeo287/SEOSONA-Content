@@ -336,11 +336,11 @@ git commit -m "refactor(extension): isolate browser ai provider adapter"
 - Background alarm `seosona-provider-bridge-poll` checks `/v1/provider/browser/jobs/next` while Runtime integration is enabled.
 - Claimed task is executed by `BrowserProviderAdapter`; lease renewed during long response; normalized result posted back.
 
-- [ ] **Step 1: Write failing tests for poll -> claim -> execute -> result**
+- [x] **Step 1: Write failing tests for poll -> claim -> execute -> result**
 
 Test Runtime unavailable, no pending job, job success, typed provider error, cancelled job, and service-worker restart with leased job recovery.
 
-- [ ] **Step 2: Add Runtime config separate from Facebook Companion config**
+- [x] **Step 2: Add Runtime config separate from Facebook Companion config**
 
 Use keys such as:
 
@@ -351,15 +351,15 @@ seosonaRuntimeToken in chrome.storage.session
 
 Validate loopback URL exactly. Do not reuse a public/cloud URL.
 
-- [ ] **Step 3: Implement short polling via `chrome.alarms`**
+- [x] **Step 3: Implement short polling via `chrome.alarms`**
 
 Do not use a permanently open port as a correctness requirement. If no task exists, return cheaply. Alarm cadence must respect Chrome extension constraints.
 
-- [ ] **Step 4: Preserve no-secret persistence**
+- [x] **Step 4: Preserve no-secret persistence**
 
 Token remains session-only; browser cookies are never read or copied by SEOSONA.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 node --test tests/browser-provider-adapter.test.cjs tests/provider-browser-bridge.test.mjs

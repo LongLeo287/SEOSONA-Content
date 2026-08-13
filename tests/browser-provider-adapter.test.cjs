@@ -263,3 +263,215 @@ test('a retry that cannot reach the page gives up instead of looping', async () 
   await adapter.start({ taskId: 'task_1', providerId: 'chatgpt-web', text: 'x' });
   assert.equal(await adapter.retry('task_1', normalizeBrowserResult({ success: false, error: 'TIMEOUT' })), false);
 });
+
+// ================================================================ Cầu nối Runtime
+
+const { createRuntimeBridgeClient, isLoopbackUrl } = BrowserProviderAdapter;
+
+const jsonResponse = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+
+function runtimeHarness({ routes = {}, config = { url: 'http://127.0.0.1:43118', token: 'x'.repeat(40) } } = {}) {
+  const calls = [];
+  const jobs = new Map();
+  const started = [];
+  const aborted = [];
+
+  const jobStore = {
+    get: async (id) => jobs.get(id) || null,
+    set: async (id, patch) => { jobs.set(id, Object.assign({ jobId: id }, jobs.get(id), patch)); return jobs.get(id); },
+    listActive: async () => [...jobs.values()].filter((j) => ['preparing', 'running'].includes(j.status)),
+  };
+
+  const adapter = {
+    start: async (task) => {
+      started.push(task);
+      await jobStore.set(task.taskId, { status: 'running' });
+      return routes.start || { ok: true, tabId: 3 };
+    },
+    abort: async (id) => { aborted.push(id); await jobStore.set(id, { status: 'aborted' }); return { ok: true }; },
+  };
+
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
+    const path = url.replace('http://127.0.0.1:43118', '');
+    const match = Object.entries(routes).find(([key]) => key.startsWith('/') && path.includes(key));
+    if (!match) return jsonResponse(200, {});
+    const value = typeof match[1] === 'function' ? match[1]() : match[1];
+    if (value instanceof Error) throw value;
+    return value;
+  };
+
+  const client = createRuntimeBridgeClient({
+    fetchImpl, readConfig: async () => config, adapter, jobStore, newNonce: () => 'n'.repeat(20),
+  });
+
+  return { client, calls, jobs, jobStore, started, aborted, fetchImpl };
+}
+
+test('only loopback runtime urls are accepted', () => {
+  for (const url of ['http://127.0.0.1:43118', 'http://localhost:43118', 'http://127.0.0.1']) {
+    assert.equal(isLoopbackUrl(url), true, url);
+  }
+  for (const url of ['https://seosona.example.com', 'http://192.168.1.5:43118', 'http://evil.test', '']) {
+    assert.equal(isLoopbackUrl(url), false, `${url} must never be treated as the local runtime`);
+  }
+});
+
+test('a non loopback runtime url is refused instead of being called', async () => {
+  const { client, calls } = runtimeHarness({ config: { url: 'https://runtime.example.com', token: 'x'.repeat(40) } });
+  assert.equal((await client.pollOnce()).status, 'RUNTIME_URL_INVALID');
+  assert.equal(calls.length, 0, 'the user content never leaves the machine');
+});
+
+test('polling without configuration or token does nothing', async () => {
+  assert.equal((await runtimeHarness({ config: null }).client.pollOnce()).status, 'NOT_CONFIGURED');
+  assert.equal(
+    (await runtimeHarness({ config: { url: 'http://127.0.0.1:43118', token: '' } }).client.pollOnce()).status,
+    'NOT_CONFIGURED',
+  );
+});
+
+test('a runtime that is not running is not an extension error', async () => {
+  const { client } = runtimeHarness({ routes: { '/jobs/next': new Error('ECONNREFUSED') } });
+  assert.equal((await client.pollOnce()).status, 'RUNTIME_UNAVAILABLE');
+});
+
+test('an empty queue costs one cheap call and starts nothing', async () => {
+  const { client, started } = runtimeHarness({ routes: { '/jobs/next': jsonResponse(204, null) } });
+  assert.equal((await client.pollOnce()).status, 'IDLE');
+  assert.equal(started.length, 0);
+});
+
+test('a claimed job is stored with its lease token before it is started', async () => {
+  const { client, jobs, started } = runtimeHarness({
+    routes: {
+      '/jobs/next': jsonResponse(200, {
+        taskId: 'providertask_1', providerId: 'chatgpt-web', leaseToken: 'lease-abc',
+        payload: { prompt: 'write this', timeoutMs: 120000, modelMatch: ['thinking'] },
+      }),
+    },
+  });
+
+  assert.equal((await client.pollOnce()).status, 'STARTED');
+  assert.deepEqual(started[0], {
+    taskId: 'providertask_1', providerId: 'chatgpt-web', text: 'write this',
+    timeoutMs: 120000, modelMatch: ['thinking'], freshChat: true, chatUrl: null,
+  });
+  assert.equal(jobs.get('providertask_1').leaseToken, 'lease-abc');
+  assert.equal(jobs.get('providertask_1').runtimeTask, true);
+});
+
+test('the worker does not claim a second job while one is running', async () => {
+  const { client, jobs, started } = runtimeHarness({
+    routes: {
+      '/jobs/next': jsonResponse(200, {
+        taskId: 'providertask_2', providerId: 'chatgpt-web', leaseToken: 'l2', payload: { prompt: 'x' },
+      }),
+    },
+  });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'l1' });
+  assert.equal((await client.pollOnce()).status, 'BUSY');
+  assert.equal(started.length, 0, 'only one AI tab can be driven at a time');
+});
+
+test('a job that cannot be started is reported back immediately', async () => {
+  const { client, calls } = runtimeHarness({
+    routes: {
+      '/jobs/next': jsonResponse(200, {
+        taskId: 'providertask_1', providerId: 'chatgpt-web', leaseToken: 'l1', payload: { prompt: 'x' },
+      }),
+      '/result': jsonResponse(200, { status: 'COMPLETED' }),
+      start: { ok: false, error: { code: 'PROVIDER_TAB_FAILED', message: 'no tab' } },
+    },
+  });
+  const outcome = await client.pollOnce();
+  assert.equal(outcome.status, 'START_FAILED');
+  const reported = calls.find((c) => c.url.includes('/result'));
+  assert.equal(reported.body.result.code, 'PROVIDER_TAB_FAILED');
+  assert.equal(reported.body.leaseToken, 'l1', 'the runtime learns now, not after the lease expires');
+});
+
+test('a finished job is reported with its lease token and released', async () => {
+  const { client, jobs, calls } = runtimeHarness({ routes: { '/result': jsonResponse(200, { status: 'COMPLETED' }) } });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'lease-abc' });
+
+  const result = await client.report('providertask_1', { status: 'COMPLETED', code: 'COMPLETED', output: 'answer' });
+  assert.equal(result.status, 'REPORTED');
+  const posted = calls.at(-1);
+  assert.equal(posted.url, 'http://127.0.0.1:43118/v1/provider/browser/jobs/providertask_1/result');
+  assert.equal(posted.body.leaseToken, 'lease-abc');
+  assert.equal(posted.body.result.output, 'answer');
+  assert.equal(posted.init.headers.Authorization, `Bearer ${'x'.repeat(40)}`);
+  assert.ok(posted.init.headers['x-seosona-nonce']);
+  assert.equal(jobs.get('providertask_1').leaseToken, null, 'the lease is released once reported');
+});
+
+test('a job the runtime never handed out is not reported to it', async () => {
+  const { client, jobs, calls } = runtimeHarness();
+  jobs.set('local_1', { jobId: 'local_1', status: 'running' });
+  assert.equal((await client.report('local_1', { status: 'COMPLETED' })).status, 'NOT_A_RUNTIME_TASK');
+  assert.equal(calls.length, 0, 'local side panel work stays local');
+});
+
+test('a typed provider failure is reported verbatim', async () => {
+  const { client, jobs, calls } = runtimeHarness({ routes: { '/result': jsonResponse(200, {}) } });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'l1' });
+  await client.report('providertask_1', normalizeBrowserResult({ success: false, error: 'RATE_LIMIT', message: 'hết lượt' }));
+  assert.equal(calls.at(-1).body.result.code, 'RATE_LIMITED');
+  assert.equal(calls.at(-1).body.result.retryable, true);
+});
+
+test('renewing keeps a long job alive', async () => {
+  const { client, jobs, calls } = runtimeHarness({ routes: { '/lease': jsonResponse(200, { status: 'LEASED' }) } });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'l1' });
+  const outcome = await client.renewActive();
+  assert.deepEqual(outcome.results, [{ taskId: 'providertask_1', status: 'RENEWED' }]);
+  assert.equal(calls.at(-1).url.endsWith('/providertask_1/lease'), true);
+});
+
+// Người dùng bấm huỷ ở Studio. Extension chỉ biết điều đó ở lần gọi tiếp theo — và phải
+// dừng tab AI lại, chứ không viết tiếp một bài không ai cần nữa.
+test('a cancellation discovered while renewing aborts the browser job', async () => {
+  const { client, jobs, aborted } = runtimeHarness({
+    routes: { '/lease': jsonResponse(409, { error: { code: 'TASK_CANCELLED', message: 'cancelled' } }) },
+  });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'l1' });
+  const outcome = await client.renewActive();
+  assert.deepEqual(aborted, ['providertask_1']);
+  assert.equal(outcome.results[0].status, 'CANCELLED');
+  assert.equal(jobs.get('providertask_1').leaseToken, null);
+});
+
+test('a lease lost to another worker is reported without aborting blindly', async () => {
+  const { client, jobs, aborted } = runtimeHarness({
+    routes: { '/lease': jsonResponse(409, { error: { code: 'LEASE_LOST', message: 'gone' } }) },
+  });
+  jobs.set('providertask_1', { jobId: 'providertask_1', status: 'running', runtimeTask: true, leaseToken: 'l1' });
+  assert.equal((await client.renewActive()).results[0].status, 'LEASE_LOST');
+  assert.deepEqual(aborted, [], 'losing a lease is not a reason to kill a tab mid-answer');
+});
+
+// Chrome tắt service worker rồi bật lại: client mới, mọi biến trong bộ nhớ mất, nhưng job
+// và lease token còn trong storage.session — kết quả vẫn về đúng chỗ.
+test('a leased job survives a service worker restart', async () => {
+  const first = runtimeHarness({
+    routes: {
+      '/jobs/next': jsonResponse(200, {
+        taskId: 'providertask_1', providerId: 'chatgpt-web', leaseToken: 'lease-abc', payload: { prompt: 'x' },
+      }),
+      '/result': jsonResponse(200, {}),
+    },
+  });
+  await first.client.pollOnce();
+
+  const revived = createRuntimeBridgeClient({
+    fetchImpl: first.fetchImpl,
+    readConfig: async () => ({ url: 'http://127.0.0.1:43118', token: 'x'.repeat(40) }),
+    adapter: { start: async () => ({ ok: true }), abort: async () => ({ ok: true }) },
+    jobStore: first.jobStore,
+    newNonce: () => 'n'.repeat(20),
+  });
+
+  assert.equal((await revived.report('providertask_1', { status: 'COMPLETED', output: 'answer' })).status, 'REPORTED');
+  assert.equal(first.calls.at(-1).body.leaseToken, 'lease-abc', 'the revived worker still holds the right lease');
+});
