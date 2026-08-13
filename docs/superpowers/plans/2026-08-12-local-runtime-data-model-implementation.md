@@ -459,15 +459,15 @@ git commit -m "feat(runtime): freeze execution context snapshots"
   - `POST /v1/content/:contentId/revisions`
   - `GET /v1/content/:contentId`
 
-- [ ] **Step 1: Write failing server tests**
+- [x] **Step 1: Write failing server tests**
 
 Use `server.listen(0, '127.0.0.1')`. Cover loopback host, valid extension token+nonce, invalid token, nonce replay, disallowed origin, Studio session cookie, JSON size limit, unknown endpoint envelope, and create/read project round-trip.
 
-- [ ] **Step 2: Reuse the proven Companion auth shape instead of copying media routes**
+- [x] **Step 2: Reuse the proven Companion auth shape instead of copying media routes**
 
 Port the generic ideas from `scripts/companion/facebook-companion.mjs:104-157`: bounded JSON body, exact allowlist, bearer token, replay-resistant nonce, stable `{error:{code,message,retryable}}` envelope.
 
-- [ ] **Step 3: Implement tiny router**
+- [x] **Step 3: Implement tiny router**
 
 ```js
 router.add('POST', /^\/v1\/projects$/, async ({ body }) => ({ status: 201, body: await workspaceService.createProject(body) }));
@@ -476,7 +476,7 @@ router.add('GET', /^\/v1\/content\/([^/]+)$/, async ({ match }) => ({ status: 20
 
 Do not put domain logic in `server.mjs`.
 
-- [ ] **Step 4: Implement Runtime entrypoint**
+- [x] **Step 4: Implement Runtime entrypoint**
 
 `runtime/index.mjs` reads:
 
@@ -489,14 +489,14 @@ SEOSONA_CONTENT_RUNTIME_TOKEN  required, minimum 32 characters
 
 Bind only `127.0.0.1`, print one startup line to stderr, and close cleanly on SIGINT/SIGTERM.
 
-- [ ] **Step 5: Run focused/full tests**
+- [x] **Step 5: Run focused/full tests**
 
 ```bash
 node --test tests/runtime-server.test.mjs
 npm test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add runtime/http runtime/index.mjs tests/runtime-server.test.mjs
