@@ -1,5 +1,5 @@
-import { createStudioApiClient } from '/studio/api-client.mjs';
-import { createStudioState, reduceStudioState, parseRoute, routeToHash } from '/studio/state.mjs';
+import { createStudioApiClient } from './api-client.mjs';
+import { createStudioState, reduceStudioState, parseRoute, routeToHash } from './state.mjs';
 
 // Bộ điều khiển cấp trang của Studio.
 //
@@ -42,13 +42,13 @@ async function checkRuntime() {
 }
 
 const VIEWS = {
-  projects: () => import('/studio/views/projects.mjs'),
-  sources: () => import('/studio/views/sources.mjs'),
-  brand: () => import('/studio/views/brand.mjs'),
-  content: () => import('/studio/views/content-editor.mjs'),
-  audit: () => import('/studio/views/audit.mjs'),
-  transcript: () => import('/studio/views/transcript.mjs'),
-  providers: () => import('/studio/views/providers.mjs'),
+  projects: () => import('./views/projects.mjs'),
+  sources: () => import('./views/sources.mjs'),
+  brand: () => import('./views/brand.mjs'),
+  content: () => import('./views/content-editor.mjs'),
+  audit: () => import('./views/audit.mjs'),
+  transcript: () => import('./views/transcript.mjs'),
+  providers: () => import('./views/providers.mjs'),
 };
 
 // Toàn bộ trạng thái màn hình đi qua reducer thuần. app.mjs không tự sửa state bằng tay —

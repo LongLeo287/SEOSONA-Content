@@ -176,7 +176,7 @@ git commit -m "feat(studio): add workspace navigation state"
 - Brand view edits structured writing fields: identity, products/services, voice, terminology, claims/evidence refs, audience vocabulary, approved/rejected examples, negative rules.
 - Every mutation goes through Runtime API and refreshes canonical record from response.
 
-- [ ] **Step 1: Add view-model tests**
+- [x] **Step 1: Add view-model tests**
 
 Export pure functions such as:
 
@@ -188,19 +188,19 @@ brandFormModel(brand)
 
 Test empty/loading/error/data states and that source locators/verification status remain visible.
 
-- [ ] **Step 2: Implement project creation/selection UI**
+- [x] **Step 2: Implement project creation/selection UI**
 
 Require `name`; `objective` optional. On create, navigate to returned `projectId` rather than generating an ID in browser.
 
-- [ ] **Step 3: Implement Source view**
+- [x] **Step 3: Implement Source view**
 
 Show source type, title, canonical URL/local ref, hash, retrieval time and evidence count. Do not render raw source HTML as trusted HTML; use text nodes/textContent.
 
-- [ ] **Step 4: Implement Brand view**
+- [x] **Step 4: Implement Brand view**
 
 Use plain structured controls. Do not add visual brand-kit/media editing to V1 UI.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/studio-state.test.mjs tests/studio-server.test.mjs
@@ -227,27 +227,27 @@ git commit -m "feat(studio): manage local projects sources and brand"
 - Transcript view: upload/paste SRT, show cue/timecode table, run supported Transcript operations and exact-source validation result.
 - Provider view: list provider ID/type/health/cost class/observed quality status, manual lock controls, paid API disabled by default, route preview.
 
-- [ ] **Step 1: Write pure view-model tests**
+- [x] **Step 1: Write pure view-model tests**
 
 Test revision ordering, audit grouping, transcript cue display preserving exact raw text, provider cost labels, `PAID_BLOCKED` warning, and route-preview reason display.
 
-- [ ] **Step 2: Implement Content editor workflow**
+- [x] **Step 2: Implement Content editor workflow**
 
 Do not make a browser-local draft canonical. Textarea/form state is temporary; clicking Save/Edit calls Runtime and displays returned `revisionId`.
 
-- [ ] **Step 3: Implement Audit UI with no auto-repair side effect**
+- [x] **Step 3: Implement Audit UI with no auto-repair side effect**
 
 Each finding displays `dimension`, `verdict/severity`, `reason`, evidence refs and `repairAction`; repair requires a separate user action.
 
-- [ ] **Step 4: Implement Transcript UI**
+- [x] **Step 4: Implement Transcript UI**
 
 Display raw cue text via `textContent`; timecodes from Runtime CueIR. Editor overlay/corrected caption is visually separate from authoritative raw transcript.
 
-- [ ] **Step 5: Implement Provider settings**
+- [x] **Step 5: Implement Provider settings**
 
 Manual locks may be set by project/workflow/stage where API supports them. Paid API toggle requires explicit user action and displays that it can incur provider charges.
 
-- [ ] **Step 6: Run and commit**
+- [x] **Step 6: Run and commit**
 
 ```bash
 node --test tests/studio-state.test.mjs

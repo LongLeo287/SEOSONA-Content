@@ -41,6 +41,7 @@ const STUDIO_ASSETS = new Map([
   ['/studio/app.mjs', ['app.mjs', JS_TYPE]],
   ['/studio/api-client.mjs', ['api-client.mjs', JS_TYPE]],
   ['/studio/state.mjs', ['state.mjs', JS_TYPE]],
+  ['/studio/dom.mjs', ['dom.mjs', JS_TYPE]],
   ['/studio/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/studio/views/projects.mjs', [join('views', 'projects.mjs'), JS_TYPE]],
   ['/studio/views/project-workspace.mjs', [join('views', 'project-workspace.mjs'), JS_TYPE]],
