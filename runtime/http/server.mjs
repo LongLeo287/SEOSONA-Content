@@ -4,6 +4,7 @@ import { createWorkspaceService } from '../domain/workspace-service.mjs';
 import { createContentService } from '../domain/content-service.mjs';
 import { createAuth } from './auth.mjs';
 import { createRouter } from './router.mjs';
+import { createBrowserJobBridge, createFileJobPersistence } from './extension-bridge.mjs';
 
 export const API_VERSION = 'v1';
 export const SCHEMA_VERSION = '1.0.0';
@@ -23,8 +24,15 @@ const STATUS_BY_CODE = {
   PROJECT_NOT_FOUND: 404,
   CONTENT_NOT_FOUND: 404,
   SOURCE_NOT_FOUND: 404,
+  TASK_NOT_FOUND: 404,
   SCOPE_MISMATCH: 409,
   IMMUTABLE_RECORD_CONFLICT: 409,
+  // Mất lease / job bị huỷ là XUNG ĐỘT TRẠNG THÁI, không phải lỗi xác thực: worker gửi
+  // đúng token nhưng thế giới đã đổi dưới chân nó.
+  LEASE_LOST: 409,
+  TASK_CANCELLED: 409,
+  CREDENTIAL_IN_QUEUE: 400,
+  EXTENSION_ONLY: 403,
 };
 
 function readJsonBody(req) {
@@ -79,6 +87,7 @@ export function createRuntimeServer({
   const content = createContentService({ store, now, idFactory });
   const auth = createAuth({ token, extensionOrigin });
   const router = createRouter();
+  const browserJobs = createBrowserJobBridge({ now, persistence: createFileJobPersistence({ rootDir }) });
 
   // Workspace mặc định được tạo lười, một lần — Runtime cục bộ chỉ phục vụ một máy.
   let ensured = null;
@@ -150,6 +159,45 @@ export function createRuntimeServer({
     return { status: 200, body: await content.getContentHistory(ws, match[1]) };
   });
 
+  // ---------------------------------------------------------------- cầu nối job trình duyệt
+  //
+  // CHỈ Extension được chạm vào hàng đợi này. Studio là một trang web mở trong trình duyệt;
+  // cho nó rút job ra nghĩa là một tab bất kỳ có thể chiếm job rồi không bao giờ trả về.
+  const extensionOnly = (handler) => async (ctx) => {
+    if (ctx.actor !== 'extension') {
+      const err = new Error('Only the extension may work the browser job queue.');
+      err.code = 'EXTENSION_ONLY';
+      throw err;
+    }
+    return handler(ctx);
+  };
+
+  router.add('POST', /^\/v1\/provider\/browser\/jobs$/, extensionOnly(async ({ body }) => ({
+    status: 201, body: await browserJobs.enqueue(body),
+  })));
+
+  router.add('GET', /^\/v1\/provider\/browser\/jobs\/next$/, extensionOnly(async () => {
+    // Lease token do Runtime phát và chính là danh tính chủ lease. Extension không tự đặt tên
+    // cho mình được, nên không giả làm worker khác.
+    const leaseToken = browserJobs.newLeaseToken();
+    const claimed = await browserJobs.claimNext({ claimant: leaseToken });
+    // Hàng đợi rỗng là chuyện bình thường và xảy ra liên tục khi poll: trả 204 cho rẻ,
+    // không phải 404 (404 nghĩa là gọi sai đường dẫn).
+    return claimed ? { status: 200, body: { ...claimed, leaseToken } } : { status: 204 };
+  }));
+
+  router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/lease$/, extensionOnly(async ({ body, match }) => ({
+    status: 200, body: await browserJobs.renewLease(match[1], { claimant: body.leaseToken }),
+  })));
+
+  router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/result$/, extensionOnly(async ({ body, match }) => ({
+    status: 200, body: await browserJobs.submitResult(match[1], body.result, { claimant: body.leaseToken }),
+  })));
+
+  router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/cancel$/, extensionOnly(async ({ match }) => ({
+    status: 200, body: await browserJobs.cancel(match[1]),
+  })));
+
   const server = createServer(async (req, res) => {
     const send = (status, payload, headers = {}) => {
       const raw = JSON.stringify(payload);
@@ -185,7 +233,11 @@ export function createRuntimeServer({
       if (!route) return send(404, errorEnvelope('NOT_FOUND', 'Unknown endpoint.'));
 
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readJsonBody(req) : {};
-      const result = await route.handler({ body, match: route.match, query: url.searchParams });
+      const result = await route.handler({
+        body, match: route.match, query: url.searchParams, actor: decision.actor,
+      });
+      // 204 không mang thân phản hồi — gửi kèm JSON là sai giao thức.
+      if (result.status === 204) { res.writeHead(204); return res.end(); }
       return send(result.status, result.body);
     } catch (err) {
       const code = err && err.code ? String(err.code) : 'INTERNAL';

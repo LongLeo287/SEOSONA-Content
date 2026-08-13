@@ -244,19 +244,19 @@ git commit -m "feat(providers): add quality first auto router"
 - `POST /v1/provider/browser/jobs/:taskId/cancel` — Runtime marks task cancelled; Extension observes on next lease/result call.
 - Claim is idempotent by `taskId`; one active lease owner.
 
-- [ ] **Step 1: Write failing queue/lease tests**
+- [x] **Step 1: Write failing queue/lease tests**
 
 Cover valid extension auth, wrong origin/token, claim-once behavior, lease expiry, result idempotency, cancellation, and no browser credentials in persisted queue records.
 
-- [ ] **Step 2: Implement an in-process V1 queue behind an interface**
+- [x] **Step 2: Implement an in-process V1 queue behind an interface**
 
 Create `createBrowserJobBridge({ now, leaseMs = 30000 })`. Queue state may be file-persisted via Runtime store in this task or immediately in Task 6; tests must prove restart behavior before plan completion.
 
-- [ ] **Step 3: Mount endpoints behind existing Runtime extension auth**
+- [x] **Step 3: Mount endpoints behind existing Runtime extension auth**
 
 Do not allow Studio cookies to claim browser provider jobs; this endpoint is extension-only.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/provider-browser-bridge.test.mjs
