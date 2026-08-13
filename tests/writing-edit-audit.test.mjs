@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createWriter } from '../runtime/writing/writer.mjs';
 import { createEditor } from '../runtime/writing/editor.mjs';
+import { createEvaluator } from '../runtime/writing/evaluator.mjs';
 import { createJobPackRegistry } from '../runtime/writing/job-packs/registry.mjs';
 import { articlePack } from '../runtime/writing/job-packs/article.mjs';
 import { productPack } from '../runtime/writing/job-packs/product.mjs';
@@ -348,6 +349,179 @@ test('a generic edit cannot change an authoritative product number', async () =>
     const history = await contentService.getContentHistory(WS, created.content.contentId);
     assert.equal(history.at(-1).payload.fields.specs[0].value, '1');
   }, { gateway });
+});
+
+// ================================================================ Evaluator
+
+const auditOutput = (verdict, findings = []) => JSON.stringify({ dimension: 'brand', verdict, findings });
+
+async function withEvaluator(fn, { writeGateway, auditGateway } = {}) {
+  const write = writeGateway || fakeGateway({ output: ARTICLE_OUTPUT });
+  await harness(async (ctx) => {
+    const created = await ctx.writer.write({ ...writeRequest(), projectId: ctx.project.projectId });
+    const evaluator = createEvaluator({
+      gateway: auditGateway || fakeGateway({ output: auditOutput('PASS') }),
+      packRegistry: ctx.packRegistry, contentService: ctx.contentService,
+      now: () => NOW, idFactory: (p) => `${p}_ev_${Math.random().toString(36).slice(2, 8)}`,
+    });
+    await fn({ ...ctx, created, evaluator });
+  }, { gateway: write });
+}
+
+// Người viết và người chấm là hai hãng khác nhau — cùng một model thì cùng một điểm mù.
+test('the auditor can run on a different provider than the writer', async () => {
+  const writeGateway = fakeGateway({ output: ARTICLE_OUTPUT, providerId: 'chatgpt-web' });
+  const auditGateway = fakeGateway({ output: auditOutput('PASS'), providerId: 'api-v1' });
+  await withEvaluator(async ({ created, evaluator }) => {
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    assert.equal(results[0].evaluatorId, 'provider:api-v1');
+    assert.equal(writeGateway.tasks[0].task.taskType, 'WRITE');
+    assert.equal(auditGateway.tasks[0].task.taskType, 'AUDIT');
+  }, { writeGateway, auditGateway });
+});
+
+// Người chấm chỉ được thấy bản ĐÃ LƯU, không thấy quá trình của người viết.
+test('the evaluator reads the persisted revision, not the writer state', async () => {
+  const auditGateway = fakeGateway({ output: auditOutput('PASS') });
+  await withEvaluator(async ({ created, evaluator }) => {
+    await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    const prompt = auditGateway.tasks[0].task.contextBundle.prompt;
+    assert.ok(prompt.includes(ARTICLE_OUTPUT.title), 'it sees the saved draft');
+    assert.ok(!prompt.includes('providerattempt'), 'it does not see the writer run');
+    assert.ok(prompt.includes('ĐÁNH GIÁ'));
+  }, { auditGateway });
+});
+
+test('evaluating a revision that does not exist is refused', async () => {
+  await withEvaluator(async ({ created, evaluator }) => {
+    await assert.rejects(
+      () => evaluator.evaluate({ workspaceId: WS, contentId: created.content.contentId, revisionId: 'revision_ma' }),
+      (e) => e.code === 'REVISION_NOT_FOUND',
+    );
+  });
+});
+
+// Bài kiểm tất định chạy trước, và nếu nó đã chặn thì không tốn thêm một lượt provider nào.
+test('deterministic checks run first and a block skips the model evaluators', async () => {
+  const auditGateway = fakeGateway({ output: auditOutput('PASS') });
+  await withEvaluator(async ({ created, evaluator, contentService }) => {
+    // Bản thảo nói tới một luận điểm không có bằng chứng nào.
+    await contentService.appendRevision({
+      workspaceId: WS, contentId: created.content.contentId, operation: 'EDIT',
+      payload: {
+        contentId: created.content.contentId, jobType: 'article', fields: ARTICLE_OUTPUT,
+        claims: [{ claimId: 'c1', proposition: 'Giao nhanh tăng doanh thu gấp đôi.', type: 'CLAIM', strength: 'ABSOLUTE', evidenceRefs: [] }],
+      },
+    });
+    const history = await contentService.getContentHistory(WS, created.content.contentId);
+
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: history.at(-1).revisionId,
+      evaluatorSet: ['claim-support', 'brand'], context: { evidenceById: EVIDENCE },
+    });
+
+    const claimSupport = results.find((r) => r.dimension === 'claim-support');
+    assert.equal(claimSupport.verdict, 'BLOCK');
+    assert.equal(claimSupport.findings[0].code, 'CLAIM_UNSUPPORTED');
+    assert.equal(claimSupport.evaluatorId, 'deterministic:claim-support');
+
+    const brand = results.find((r) => r.dimension === 'brand');
+    assert.equal(brand.verdict, 'REVIEW');
+    assert.equal(brand.findings[0].code, 'EVALUATION_SKIPPED');
+    assert.equal(auditGateway.tasks.length, 0, 'no provider run is spent on a draft already known to be broken');
+  }, { auditGateway });
+});
+
+// Đánh giá không chạy được KHÔNG phải là đạt.
+test('an evaluator that fails to answer yields REVIEW, never PASS', async () => {
+  const auditGateway = fakeGateway({ status: 'FAILED', error: { code: 'TIMEOUT', message: 'hết giờ', retryable: true } });
+  await withEvaluator(async ({ created, evaluator }) => {
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    assert.equal(results[0].verdict, 'REVIEW');
+    assert.equal(results[0].findings[0].code, 'EVALUATION_UNAVAILABLE');
+  }, { auditGateway });
+});
+
+test('an unparseable verdict is REVIEW, not silently ignored', async () => {
+  const auditGateway = fakeGateway({ output: 'bài này ổn đấy' });
+  await withEvaluator(async ({ created, evaluator }) => {
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    assert.equal(results[0].verdict, 'REVIEW');
+    assert.equal(results[0].findings[0].code, 'EVALUATION_UNPARSEABLE');
+  }, { auditGateway });
+});
+
+test('a finding may only request a known repair action', async () => {
+  const auditGateway = fakeGateway({
+    output: auditOutput('WARN', [{ code: 'TOO_LONG', message: 'dài quá', repairAction: 'JUST_FIX_IT' }]),
+  });
+  await withEvaluator(async ({ created, evaluator }) => {
+    await assert.rejects(
+      () => evaluator.evaluate({
+        workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+        evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+      }),
+      /repairAction/,
+    );
+  }, { auditGateway });
+});
+
+// Chấm bài không được làm thay đổi bài.
+test('evaluations are stored as immutable records and never touch the revision', async () => {
+  await withEvaluator(async ({ created, evaluator, contentService }) => {
+    const before = await contentService.getContentHistory(WS, created.content.contentId);
+    await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    const after = await contentService.getContentHistory(WS, created.content.contentId);
+    assert.deepEqual(after, before, 'scoring a draft does not alter it');
+
+    const stored = await contentService.listEvaluations(WS, created.revision.revisionId);
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].dimension, 'brand');
+    assert.equal(stored[0].verdict, 'PASS');
+  });
+});
+
+test('the evaluator proposes repairs but performs none', async () => {
+  const auditGateway = fakeGateway({
+    output: auditOutput('WARN', [{ code: 'HYPE', message: 'giọng thổi phồng', repairAction: 'REWRITE_SECTION' }]),
+  });
+  await withEvaluator(async ({ created, evaluator, contentService }) => {
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      evaluatorSet: ['brand'], context: { evidenceById: EVIDENCE },
+    });
+    assert.equal(results[0].findings[0].repairAction, 'REWRITE_SECTION');
+    assert.equal((await contentService.getContentHistory(WS, created.content.contentId)).length, 1, 'nothing was rewritten');
+  }, { auditGateway });
+});
+
+test('the whole required evaluator set of the pack can be run at once', async () => {
+  const auditGateway = fakeGateway({ output: auditOutput('PASS') });
+  await withEvaluator(async ({ created, evaluator }) => {
+    const results = await evaluator.evaluate({
+      workspaceId: WS, contentId: created.content.contentId, revisionId: created.revision.revisionId,
+      context: { evidenceById: EVIDENCE, claimsById: {} },
+    });
+    assert.deepEqual(
+      results.map((r) => r.dimension).sort(),
+      [...articlePack.requiredEvaluators].sort(),
+    );
+  }, { auditGateway });
 });
 
 test('the editor sends the current draft as data, not as a new instruction', async () => {

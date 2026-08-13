@@ -130,5 +130,25 @@ export function createContentService({ store, now = () => new Date().toISOString
     return ordered;
   }
 
-  return { addSource, addEvidence, addClaim, createContent, appendRevision, getContent, getContentHistory };
+  // Kết quả đánh giá gắn với ĐÚNG một revision và là bản ghi BẤT BIẾN: nó là nhận định về
+  // một bản cụ thể tại một thời điểm. Sửa bài rồi giữ nguyên điểm cũ là nói dối về bản mới.
+  async function addEvaluation({ workspaceId, revisionId, contentId, evaluator, dimension, verdict, score = null, findings = [] }) {
+    const revision = await store.get('revision', workspaceId, revisionId);
+    if (!revision) throw err('REVISION_NOT_FOUND', `Revision not found: ${revisionId}`);
+    const evaluationId = idFactory('evaluation');
+    return store.put('evaluation', workspaceId, {
+      evaluationId, revisionId, contentId: contentId || revision.contentId,
+      evaluator, dimension: dimension || null, verdict, score, findings, createdAt: now(),
+    });
+  }
+
+  async function listEvaluations(workspaceId, revisionId) {
+    const all = await store.list('evaluation', workspaceId);
+    return revisionId ? all.filter((e) => e.revisionId === revisionId) : all;
+  }
+
+  return {
+    addSource, addEvidence, addClaim, createContent, appendRevision,
+    getContent, getContentHistory, addEvaluation, listEvaluations,
+  };
 }

@@ -558,23 +558,23 @@ git commit -m "feat(writing): add provider neutral writer and editor"
 - Deterministic evaluators execute before model evaluators.
 - Required dimensions available: `factuality`, `claim-support`, `claim-strength`, `brand`, `audience`, `structure`, `readability`, `concision`, `deslop`, `redundancy`, `cta`, `seo`, `geo`, `target-fit`, `job-specific`.
 
-- [ ] **Step 1: Write failing independence tests**
+- [x] **Step 1: Write failing independence tests**
 
 Prove writer provider may be `chatgpt-web` while auditor provider is `api-v1`; evaluator receives the persisted revision and frozen context, not the Writer's private chain/state.
 
-- [ ] **Step 2: Implement deterministic evaluator registry**
+- [x] **Step 2: Implement deterministic evaluator registry**
 
 At minimum V1 deterministic checks include schema, unsupported claims, product fact fidelity, transcript exactness, required fields, duplicate headings/sections, and target hard constraints.
 
-- [ ] **Step 3: Implement model evaluator execution**
+- [x] **Step 3: Implement model evaluator execution**
 
 Create an `AUDIT` ProviderTask with an evaluation output contract. Persist each result as immutable `EvaluationResult`; do not mutate the revision being scored.
 
-- [ ] **Step 4: Define repair actions explicitly**
+- [x] **Step 4: Define repair actions explicitly**
 
 Findings may return `repairAction` values such as `REWRITE_SECTION`, `QUALIFY_CLAIM`, `ADD_EVIDENCE`, `RESTORE_SOURCE_FACT`, `HUMAN_REVIEW`; evaluator does not silently edit content.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-edit-audit.test.mjs
