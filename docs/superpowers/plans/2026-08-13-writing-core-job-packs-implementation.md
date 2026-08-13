@@ -175,11 +175,11 @@ git commit -m "feat(writing): define shared writing contracts"
 - `compareClaimStrength(before, after): { changed, direction, reason }`
 - `assertClaimStrengthPreserved(beforeClaims, afterClaims, evidenceById): { ok, issues }`
 
-- [ ] **Step 1: Write failing tests for evidence classes**
+- [x] **Step 1: Write failing tests for evidence classes**
 
 Cover exact statistic, verbatim quote, factual statement, source claim, opinion, and inference. Classification input must retain source locator and source ID.
 
-- [ ] **Step 2: Write failing support-status tests**
+- [x] **Step 2: Write failing support-status tests**
 
 Required cases:
 
@@ -191,7 +191,7 @@ evidence contradicts proposition -> CONTRADICTED
 ambiguous source/locator -> NEEDS_REVIEW
 ```
 
-- [ ] **Step 3: Implement deterministic support resolver first**
+- [x] **Step 3: Implement deterministic support resolver first**
 
 The resolver does not call a model. It operates on already-normalized claim/evidence relations and explicit comparison metadata.
 
@@ -202,7 +202,7 @@ if (!claim.evidenceRefs?.length) return { status: 'UNSUPPORTED', supportingEvide
 if (claim.evidenceRefs.some(id => evidenceById[id]?.relation === 'CONTRADICTS')) return { status: 'CONTRADICTED', supportingEvidenceRefs: [], reasons: ['CONTRADICTING_EVIDENCE'] };
 ```
 
-- [ ] **Step 4: Implement claim-strength preservation**
+- [x] **Step 4: Implement claim-strength preservation**
 
 Use an ordered vocabulary:
 
@@ -212,7 +212,7 @@ const STRENGTH = ['QUALIFIED','LIKELY','DIRECT','EXACT','ABSOLUTE'];
 
 An edit that increases strength without newly supporting evidence yields issue `CLAIM_STRENGTH_INCREASE_UNSUPPORTED`.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-evidence-claims.test.mjs
