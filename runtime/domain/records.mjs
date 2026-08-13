@@ -42,6 +42,16 @@ const SPEC = {
 
 export const RECORD_TYPES = Object.freeze(Object.keys(SPEC));
 
+// Khóa chính của mỗi loại = trường string đầu tiên trong khai báo.
+// Kho lưu trữ dùng bảng này để biết tên file, không tự đoán.
+export const RECORD_ID_FIELD = Object.freeze(
+  Object.fromEntries(Object.entries(SPEC).map(([type, s]) => [type, s.strings[0]])),
+);
+
+// Các loại BẤT BIẾN: ghi rồi thì nội dung khác không được đè lên (25_LOCAL_DATA_MODEL).
+// Ghi lại y hệt thì chấp nhận (idempotent); khác byte thì báo IMMUTABLE_RECORD_CONFLICT.
+export const IMMUTABLE_TYPES = Object.freeze(['revision', 'sourceBlock', 'providerReceipt', 'contextSnapshot']);
+
 function requireString(value, field, type) {
   const v = value[field];
   if (typeof v !== 'string' || v.length === 0) {

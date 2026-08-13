@@ -4,6 +4,10 @@
 node_modules/
 Thumbs.db
 
+# Dữ liệu Local Runtime: workspace/blob/token của người dùng — không bao giờ đưa lên git.
+.seosona-content/
+.runtime-token
+
 # Tài sản nội dung (ảnh carousel...) — để trên máy, không đưa vào git.
 # Ảnh nhị phân đưa lên sẽ nằm vĩnh viễn trong lịch sử repo và làm mọi lần clone nặng thêm.
 data/

@@ -219,7 +219,7 @@ git commit -m "feat(runtime): define local record contracts"
 - Record writes are atomic temp-file -> rename.
 - Existing immutable `revision`, `sourceBlock`, `providerReceipt`, `contextSnapshot`, and blobs cannot be overwritten with different content.
 
-- [ ] **Step 1: Write failing atomic-store tests using a temp directory**
+- [x] **Step 1: Write failing atomic-store tests using a temp directory**
 
 Cover create/read/list, path traversal rejection, immutable overwrite rejection, same-content idempotent write, blob digest, and no absolute path returned in `blobRef`.
 
@@ -230,11 +230,11 @@ assert.equal((await store.get('project', 'workspace_1', 'project_1')).name, 'A')
 assert.deepEqual((await store.list('project', 'workspace_1')).map(x => x.projectId), ['project_1']);
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `node --test tests/runtime-store.test.mjs`
 
-- [ ] **Step 3: Implement `writeJsonAtomic()`**
+- [x] **Step 3: Implement `writeJsonAtomic()`**
 
 Use sibling temp files and rename:
 
@@ -249,7 +249,7 @@ export async function writeJsonAtomic(file, value) {
 
 On error, unlink the temp file best-effort.
 
-- [ ] **Step 4: Implement portable record/blob layout**
+- [x] **Step 4: Implement portable record/blob layout**
 
 Use:
 
@@ -260,11 +260,11 @@ Use:
 
 `blobRef` is `seosona-local://<workspaceId>/blobs/<sha256>`; callers never receive `<root>`.
 
-- [ ] **Step 5: Enforce traversal and immutable-record rules**
+- [x] **Step 5: Enforce traversal and immutable-record rules**
 
 Only IDs matching `/^[a-z][a-z0-9_:-]{1,159}$/` enter storage paths. For immutable types, existing different bytes produce `IMMUTABLE_RECORD_CONFLICT`.
 
-- [ ] **Step 6: Ignore local Runtime data**
+- [x] **Step 6: Ignore local Runtime data**
 
 Add:
 
@@ -273,7 +273,7 @@ Add:
 .runtime-token
 ```
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 ```bash
 node --test tests/runtime-store.test.mjs
