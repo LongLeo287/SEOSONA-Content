@@ -7,7 +7,7 @@ function coded(code, message) {
 }
 
 export function createContentService({ store, now = () => new Date().toISOString(), idFactory }) {
-  if (!store || typeof store.put !== 'function') throw new Error('store is required.');
+  if (!store || typeof store.put !== 'function' || typeof store.putBatch !== 'function') throw new Error('store with put/putBatch is required.');
   if (typeof idFactory !== 'function') throw new Error('idFactory is required.');
 
   async function requireProject(workspaceId, projectId) {
@@ -21,9 +21,7 @@ export function createContentService({ store, now = () => new Date().toISOString
       await requireProject(workspaceId, projectId);
       const sourceId = idFactory('source');
       const blob = bytes === null ? {} : await store.putBlob(workspaceId, sourceId, bytes);
-      const record = assertRecord('source', {
-        sourceId, projectId, kind, title, canonicalUrl, mimeType, parserVersion, retrievedAt: now(), ...blob,
-      });
+      const record = assertRecord('source', { sourceId, projectId, kind, title, canonicalUrl, mimeType, parserVersion, retrievedAt: now(), ...blob });
       return store.put('source', workspaceId, record);
     },
 
@@ -31,9 +29,7 @@ export function createContentService({ store, now = () => new Date().toISOString
       await requireProject(workspaceId, projectId);
       const source = await store.get('source', workspaceId, sourceId);
       if (!source || source.projectId !== projectId) throw coded('SCOPE_MISMATCH', 'Evidence source is outside the project.');
-      const record = assertRecord('evidence', {
-        evidenceId: idFactory('evidence'), projectId, sourceId, statement, type, locator, authority, verifiedAt,
-      });
+      const record = assertRecord('evidence', { evidenceId: idFactory('evidence'), projectId, sourceId, statement, type, locator, authority, verifiedAt });
       return store.put('evidence', workspaceId, record);
     },
 
@@ -43,9 +39,7 @@ export function createContentService({ store, now = () => new Date().toISOString
         const content = await store.get('content', workspaceId, contentId);
         if (!content || content.projectId !== projectId) throw coded('SCOPE_MISMATCH', 'Claim content is outside the project.');
       }
-      const record = assertRecord('claim', {
-        claimId: idFactory('claim'), ...(contentId ? { contentId } : { brandId }), proposition, type, strength, status, qualification, evidenceRefs,
-      });
+      const record = assertRecord('claim', { claimId: idFactory('claim'), ...(contentId ? { contentId } : { brandId }), proposition, type, strength, status, qualification, evidenceRefs });
       return store.put('claim', workspaceId, record);
     },
 
@@ -54,14 +48,12 @@ export function createContentService({ store, now = () => new Date().toISOString
       const contentId = idFactory('content');
       const revisionId = idFactory('revision');
       const createdAt = now();
-      const revision = assertRecord('revision', {
-        revisionId, contentId, parentRevisionId: null, operation: 'CREATE', payload, actor, createdAt,
-      });
-      const content = assertRecord('content', {
-        contentId, projectId, jobType, title, status, currentRevisionId: revisionId, targetSpecRef,
-      });
-      await store.put('revision', workspaceId, revision);
-      await store.put('content', workspaceId, content);
+      const revision = assertRecord('revision', { revisionId, contentId, parentRevisionId: null, operation: 'CREATE', payload, actor, createdAt });
+      const content = assertRecord('content', { contentId, projectId, jobType, title, status, currentRevisionId: revisionId, targetSpecRef });
+      await store.putBatch([
+        { type: 'revision', scopeId: workspaceId, record: revision },
+        { type: 'content', scopeId: workspaceId, record: content },
+      ]);
       return { content, revision };
     },
 
@@ -69,12 +61,12 @@ export function createContentService({ store, now = () => new Date().toISOString
       const content = await store.get('content', workspaceId, contentId);
       if (!content) throw coded('CONTENT_NOT_FOUND', `Content ${contentId} does not exist.`);
       await requireProject(workspaceId, content.projectId);
-      const revision = assertRecord('revision', {
-        revisionId: idFactory('revision'), contentId, parentRevisionId: content.currentRevisionId, operation, payload, actor, createdAt: now(),
-      });
-      await store.put('revision', workspaceId, revision);
+      const revision = assertRecord('revision', { revisionId: idFactory('revision'), contentId, parentRevisionId: content.currentRevisionId, operation, payload, actor, createdAt: now() });
       const nextContent = { ...content, currentRevisionId: revision.revisionId, ...(status ? { status } : {}) };
-      await store.put('content', workspaceId, nextContent);
+      await store.putBatch([
+        { type: 'revision', scopeId: workspaceId, record: revision },
+        { type: 'content', scopeId: workspaceId, record: nextContent },
+      ]);
       return { content: nextContent, revision };
     },
 
