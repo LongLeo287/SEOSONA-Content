@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProviderRegistry, SEED_PROVIDERS } from '../runtime/providers/registry.mjs';
 import { createQualityTracker } from '../runtime/providers/quality-signals.mjs';
+import { routeProvider, NEUTRAL_QUALITY_BAND } from '../runtime/providers/router.mjs';
 
 const AT = '2026-08-13T00:00:00.000Z';
 
@@ -153,4 +154,208 @@ test('registry exposes recorded quality per content job', () => {
     () => registry.recordQualitySignal({ providerId: 'ghost', contentJob: 'article', at: AT }),
     (e) => e.code === 'PROVIDER_NOT_FOUND',
   );
+});
+
+// ================================================================ Auto Router
+
+function provider(providerId, overrides = {}) {
+  const { quality, health, ...rest } = overrides;
+  return {
+    providerId,
+    adapterType: 'BROWSER',
+    costClass: 'ZERO_INCREMENTAL',
+    enabled: true,
+    authStatus: 'AUTHENTICATED',
+    capabilities: [],
+    latencyMs: 1000,
+    qualityByJob: quality === undefined ? {} : { article: { score: quality, observations: 5 } },
+    health: {
+      availability: 'UP', auth: 'AUTHENTICATED', timeoutRate: 0, rateLimitRate: 0,
+      selectorHealth: 1, parseFailureRate: 0, retryRate: 0, lastUpdatedAt: AT, ...health,
+    },
+    ...rest,
+  };
+}
+
+const task = (overrides = {}) => ({ contentJob: 'article', taskType: 'WRITE', requiredCapabilities: [], ...overrides });
+const route = (providers, policy = {}, t = task()) => routeProvider({ task: t, providers, policy });
+
+// ---------------------------------------------------------------- khóa tay
+
+test('a manual lock overrides Auto even when the locked provider is worse', () => {
+  const providers = [provider('best', { quality: 0.95 }), provider('locked', { quality: 0.2 })];
+  const result = route(providers, { manualLocks: { global: 'locked' } });
+  assert.equal(result.providerId, 'locked');
+  assert.equal(result.reason, 'MANUAL_LOCK');
+});
+
+test('manual lock precedence is run over stage over workflow over project over global', () => {
+  const providers = ['a', 'b', 'c', 'd', 'e'].map((id) => provider(id));
+  const locks = { run: 'a', stage: 'b', workflow: 'c', project: 'd', global: 'e' };
+  const order = ['a', 'b', 'c', 'd', 'e'];
+  for (let i = 0; i < order.length; i += 1) {
+    const scoped = Object.fromEntries(Object.entries(locks).slice(i));
+    assert.equal(route(providers, { manualLocks: scoped }).providerId, order[i]);
+  }
+});
+
+test('a task provider preference acts as the run-level lock', () => {
+  const providers = [provider('a', { quality: 0.9 }), provider('b', { quality: 0.1 })];
+  assert.equal(route(providers, {}, task({ providerPreference: 'b' })).providerId, 'b');
+  assert.equal(route(providers, { manualLocks: { run: 'a' } }, task({ providerPreference: 'b' })).providerId, 'a');
+});
+
+// Khóa tay hỏng thì phải BÁO, không được lặng lẽ chạy sang hãng khác: người dùng khóa là
+// vì họ có lý do, tự ý đổi hãng còn tệ hơn là dừng lại.
+test('a broken manual lock never silently falls back to another provider', () => {
+  const providers = [provider('a'), provider('down', { enabled: false })];
+  const missing = route(providers, { manualLocks: { global: 'ghost' } });
+  assert.equal(missing.providerId, null);
+  assert.equal(missing.reason, 'MANUAL_LOCK_UNAVAILABLE');
+  assert.equal(route(providers, { manualLocks: { global: 'down' } }).providerId, null);
+});
+
+// ---------------------------------------------------------------- lọc ứng viên
+
+test('deny list, disabled, missing capability, auth and outage all remove candidates', () => {
+  const good = provider('good', { quality: 0.5 });
+  const providers = [
+    good,
+    provider('denied', { quality: 0.99 }),
+    provider('off', { quality: 0.99, enabled: false }),
+    provider('loggedout', { quality: 0.99, authStatus: 'AUTH_REQUIRED' }),
+    provider('down', { quality: 0.99, health: { availability: 'DOWN' } }),
+    provider('excluded', { quality: 0.99 }),
+  ];
+  const policy = { denyProviders: ['denied'], excluded: ['excluded'] };
+  const needsCapability = task({ requiredCapabilities: ['long-form'] });
+  assert.equal(route(providers, policy, needsCapability).providerId, null, 'nobody has the required capability');
+
+  const withCapability = [...providers, provider('capable', { quality: 0.4, capabilities: ['long-form'] })];
+  assert.equal(route(withCapability, policy, needsCapability).providerId, 'capable');
+  assert.equal(good.enabled, true, 'input records are not mutated');
+});
+
+test('the considered list explains why each candidate was kept or dropped', () => {
+  const result = route([provider('a', { quality: 0.8 }), provider('b', { enabled: false })]);
+  const byId = Object.fromEntries(result.considered.map((c) => [c.providerId, c]));
+  assert.equal(byId.a.eligible, true);
+  assert.equal(byId.b.eligible, false);
+  assert.equal(byId.b.reason, 'DISABLED');
+  assert.ok(Array.isArray(byId.a.sortKey), 'the sort key is visible for route preview');
+});
+
+// ---------------------------------------------------------------- thứ tự từ điển
+
+test('higher observed quality wins even when that provider is slower', () => {
+  const result = route([
+    provider('slow-good', { quality: 0.9, latencyMs: 9000 }),
+    provider('fast-poor', { quality: 0.3, latencyMs: 100 }),
+  ]);
+  assert.equal(result.providerId, 'slow-good');
+  assert.equal(result.reason, 'AUTO_ROUTED');
+});
+
+// Ràng buộc quan trọng nhất: miễn phí KHÔNG được thắng khi chất lượng thua thấy rõ.
+test('a materially better paid provider beats a free but clearly worse one', () => {
+  const result = route([
+    provider('free-worse', { quality: 0.3 }),
+    provider('paid-better', { quality: 0.9, adapterType: 'API', costClass: 'PAID_ALLOWED' }),
+  ], { paidApi: true });
+  assert.equal(result.providerId, 'paid-better');
+});
+
+test('at equal quality the zero incremental provider beats a paid one', () => {
+  const result = route([
+    provider('paid', { quality: 0.85, adapterType: 'API', costClass: 'PAID_ALLOWED', latencyMs: 10 }),
+    provider('free', { quality: 0.85 }),
+  ], { paidApi: true });
+  assert.equal(result.providerId, 'free', 'cost only decides after quality is equal');
+});
+
+test('a healthy zero incremental candidate beats an equally qualified free quota one', () => {
+  const result = route([
+    provider('quota', { quality: 0.7, costClass: 'FREE_QUOTA', latencyMs: 10 }),
+    provider('session', { quality: 0.7 }),
+  ]);
+  assert.equal(result.providerId, 'session');
+});
+
+test('free quota is selected when no zero incremental provider qualifies', () => {
+  const result = route([
+    provider('session', { quality: 0.7, enabled: false }),
+    provider('quota', { quality: 0.7, costClass: 'FREE_QUOTA' }),
+  ]);
+  assert.equal(result.providerId, 'quota');
+});
+
+test('stability outranks speed but never outranks quality', () => {
+  const shaky = { timeoutRate: 0.4, retryRate: 0.5, parseFailureRate: 0.3 };
+  assert.equal(
+    route([
+      provider('shaky', { quality: 0.7, latencyMs: 10, health: shaky }),
+      provider('steady', { quality: 0.7, latencyMs: 5000 }),
+    ]).providerId,
+    'steady',
+  );
+  assert.equal(
+    route([
+      provider('shaky-better', { quality: 0.95, health: shaky }),
+      provider('steady-worse', { quality: 0.4 }),
+    ]).providerId,
+    'shaky-better',
+  );
+});
+
+test('speed decides only when quality, cost and stability are all equal', () => {
+  const result = route([
+    provider('slow', { quality: 0.7, latencyMs: 5000 }),
+    provider('fast', { quality: 0.7, latencyMs: 200 }),
+  ]);
+  assert.equal(result.providerId, 'fast');
+  // …và chênh lệch chất lượng cỡ nhiễu thì không được lật ngược kết quả.
+  const nearTie = route([
+    provider('slow', { quality: 0.72, latencyMs: 5000 }),
+    provider('fast', { quality: 0.70, latencyMs: 200 }),
+  ]);
+  assert.equal(nearTie.providerId, 'fast', 'noise-level quality differences must not decide routing');
+});
+
+// ---------------------------------------------------------------- chặn chi phí
+
+test('a blocked paid provider is never selected automatically', () => {
+  const result = route(
+    [provider('blocked', { quality: 0.99, adapterType: 'API', costClass: 'PAID_BLOCKED' })],
+    { paidApi: true },
+  );
+  assert.equal(result.providerId, null);
+  assert.equal(result.reason, 'PAID_PROVIDER_BLOCKED');
+});
+
+test('paid providers require an explicit opt-in', () => {
+  const providers = [provider('paid', { quality: 0.9, adapterType: 'API', costClass: 'PAID_ALLOWED' })];
+  const blocked = route(providers, { paidApi: false });
+  assert.equal(blocked.providerId, null);
+  assert.equal(blocked.reason, 'PAID_PROVIDER_BLOCKED');
+  assert.equal(route(providers, { paidApi: true }).providerId, 'paid');
+});
+
+// Không biết giá thì không được đoán là miễn phí — và cũng không được tự tiện chạy.
+test('unknown cost is never treated as free and never auto-selected', () => {
+  const providers = [provider('mystery', { quality: 0.99, adapterType: 'API', costClass: 'UNKNOWN_COST' })];
+  assert.equal(route(providers, { paidApi: true }).providerId, null);
+  assert.equal(route(providers).considered.find((c) => c.providerId === 'mystery').reason, 'UNKNOWN_COST');
+  // Khóa tay vẫn chạy được: đó là quyết định có ý thức của người dùng.
+  assert.equal(route(providers, { manualLocks: { global: 'mystery' } }).providerId, 'mystery');
+});
+
+// ---------------------------------------------------------------- provider chưa có quan sát
+
+test('an unmeasured provider is neither assumed best nor frozen out forever', () => {
+  const proven = provider('proven', { quality: 0.95 });
+  const poor = provider('poor', { quality: 0.2 });
+  const fresh = provider('fresh');
+  assert.equal(route([proven, fresh]).providerId, 'proven', 'proven quality beats an unknown');
+  assert.equal(route([poor, fresh]).providerId, 'fresh', 'an unknown beats a provider observed to be bad');
+  assert.ok(NEUTRAL_QUALITY_BAND > 0, 'the neutral band is a declared policy constant, not a measurement');
 });

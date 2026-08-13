@@ -183,7 +183,7 @@ git commit -m "feat(providers): track provider health and quality"
 - Policy contains `manualLocks`, `paidApi`, `denyProviders`, and optional minimum-health rules.
 - Manual lock precedence: run -> stage -> workflow -> project -> global.
 
-- [ ] **Step 1: Write failing routing tests for the exact policy**
+- [x] **Step 1: Write failing routing tests for the exact policy**
 
 Required cases:
 
@@ -200,11 +200,11 @@ PAID_ALLOWED is selectable only when explicit paidApi=true
 speed is only the final tie-breaker
 ```
 
-- [ ] **Step 2: Implement candidate filtering**
+- [x] **Step 2: Implement candidate filtering**
 
 Filter disabled, denied, missing required capabilities, unhealthy, auth-required, and policy-disallowed candidates before sorting.
 
-- [ ] **Step 3: Implement lexicographic comparator**
+- [x] **Step 3: Implement lexicographic comparator**
 
 Conceptual key:
 
@@ -219,7 +219,7 @@ Conceptual key:
 
 Quality eligibility must use observed/job capability signals and must not allow a known materially lower-quality provider to win solely because it is free.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/provider-router.test.mjs
