@@ -64,6 +64,10 @@
       <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
       <span>Hub</span>
     </button>
+    <button data-view="workspace">
+      <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9h18M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg></span>
+      <span>Workspace</span>
+    </button>
   </nav>
 
   <main class="content">
@@ -686,6 +690,66 @@
           <button id="historyClear" class="btn-danger">Xóa toàn bộ lịch sử</button>
         </div>
 
+      </div>
+    </section>
+
+    <!-- ================= VIEW: WORKSPACE (Local Runtime) =================
+         Đây là đường tới KHO DỮ LIỆU GỐC. Các view phía trên là công cụ cũ vẫn dùng được
+         trong lúc di trú; view này là nơi nội dung thật sự được lưu và truy vết. -->
+    <section class="view" id="view-workspace">
+      <div class="card">
+        <div class="card-h">
+          <span>Local Runtime</span>
+          <span class="rt-state" id="rtState" data-state="unknown">đang kiểm tra…</span>
+        </div>
+        <div class="card-b">
+          <p class="muted" id="rtHint">Studio giữ dữ liệu gốc trên máy bạn. Extension là màn hình thứ hai của cùng kho đó.</p>
+
+          <!-- Chưa ghép cặp -->
+          <div id="rtPairBox" hidden>
+            <label class="lbl">Mã ghép cặp (mở Studio → Ghép cặp Extension)</label>
+            <div class="row">
+              <input type="text" id="rtPairCode" placeholder="VÍ DỤ: K7QM2XPD" maxlength="12" autocomplete="off">
+              <button id="rtPairBtn" class="btn-primary">Ghép cặp</button>
+            </div>
+            <p class="muted sm" id="rtPairMsg"></p>
+          </div>
+
+          <!-- Đã ghép cặp -->
+          <div id="rtReadyBox" hidden>
+            <label class="lbl">Dự án đang làm</label>
+            <div class="row">
+              <select id="rtProject"></select>
+              <button id="rtRefresh" class="btn-ghost" title="Tải lại danh sách dự án">↻</button>
+              <button id="rtOpenStudio" class="btn-ghost" title="Mở Studio">Mở Studio</button>
+            </div>
+            <p class="muted sm" id="rtProjectMsg">Hành động ngữ cảnh sẽ lưu vào dự án này.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kết quả một hành động ngữ cảnh: xem TRƯỚC khi áp dụng -->
+      <div class="card" id="rtResultCard" hidden>
+        <div class="card-h"><span>Kết quả</span><span class="rt-state" id="rtResultState"></span></div>
+        <div class="card-b">
+          <div class="diff-pane">
+            <div class="diff-col">
+              <div class="diff-h">Hiện tại</div>
+              <div class="diff-body verbatim" id="rtCurrent"></div>
+            </div>
+            <div class="diff-col">
+              <div class="diff-h">Đề xuất</div>
+              <div class="diff-body verbatim" id="rtSuggested"></div>
+            </div>
+          </div>
+          <!-- Ghi vào trang là hành động RIÊNG, sau khi đã xem. Không có đường nào tự áp dụng. -->
+          <div class="row rt-actions">
+            <button id="rtAccept" class="btn-primary">Chấp nhận</button>
+            <button id="rtReject" class="btn-ghost">Từ chối</button>
+            <button id="rtApply" class="btn-ghost" title="Ghi đè đoạn đang chọn trên trang">Áp dụng lên trang</button>
+          </div>
+          <p class="muted sm" id="rtResultMsg"></p>
+        </div>
       </div>
     </section>
 

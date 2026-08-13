@@ -2668,3 +2668,228 @@ syncKnowledgeUI();
 showView('home');
 maybeOnboard();
 consumeQuickPending();
+
+/* ============================================================================
+   WORKSPACE — companion của Local Runtime
+   ============================================================================
+   Phần này KHÔNG sao chép bản ghi của Runtime xuống storage. Thứ duy nhất được nhớ là
+   projectId đang chọn (một tùy chọn giao diện). Danh sách dự án, nội dung, revision đều
+   lấy tươi: giữ bản sao ở đây sẽ tạo ra phiên bản sự thật thứ hai, và bản trên side panel
+   sẽ lệch dần khỏi bản trên đĩa mà không ai biết lúc nào.
+*/
+const rt = {
+  state: $('#rtState'), hint: $('#rtHint'),
+  pairBox: $('#rtPairBox'), pairCode: $('#rtPairCode'), pairBtn: $('#rtPairBtn'), pairMsg: $('#rtPairMsg'),
+  readyBox: $('#rtReadyBox'), project: $('#rtProject'), refresh: $('#rtRefresh'),
+  openStudio: $('#rtOpenStudio'), projectMsg: $('#rtProjectMsg'),
+  resultCard: $('#rtResultCard'), resultState: $('#rtResultState'), resultMsg: $('#rtResultMsg'),
+  current: $('#rtCurrent'), suggested: $('#rtSuggested'),
+  accept: $('#rtAccept'), reject: $('#rtReject'), apply: $('#rtApply'),
+};
+
+let rtPending = null;   // hành động ngữ cảnh đang chờ
+let rtResult = null;    // kết quả Runtime trả về, chưa áp dụng
+
+const rtSend = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+
+function rtSetState(state, text, hint) {
+  if (!rt.state) return;
+  rt.state.dataset.state = state;
+  rt.state.textContent = text;
+  if (hint && rt.hint) rt.hint.textContent = hint;
+}
+
+async function rtRefreshStatus() {
+  if (!rt.state) return;
+  const status = await rtSend({ action: 'runtime:status' });
+
+  if (!status || status.state === 'NOT_PAIRED') {
+    rtSetState('not-paired', 'chưa ghép cặp', 'Mở Studio trên máy bạn, lấy mã ghép cặp rồi dán vào đây.');
+    if (rt.pairBox) rt.pairBox.hidden = false;
+    if (rt.readyBox) rt.readyBox.hidden = true;
+    return;
+  }
+  if (status.state !== 'READY') {
+    // "Runtime chưa chạy" và "chưa ghép cặp" là hai việc khác nhau, cần hai cách xử lý khác
+    // nhau — gộp lại thành "lỗi" sẽ khiến người dùng đi sai hướng.
+    rtSetState('offline', 'Runtime chưa chạy', 'Chạy lệnh runtime:start trên máy rồi thử lại.');
+    if (rt.pairBox) rt.pairBox.hidden = true;
+    if (rt.readyBox) rt.readyBox.hidden = true;
+    return;
+  }
+
+  rtSetState('ready', 'sẵn sàng', 'Dữ liệu gốc nằm trên máy bạn. Side panel chỉ là màn hình.');
+  if (rt.pairBox) rt.pairBox.hidden = true;
+  if (rt.readyBox) rt.readyBox.hidden = false;
+  await rtLoadProjects();
+}
+
+async function rtLoadProjects() {
+  if (!rt.project) return;
+  const response = await rtSend({ action: 'runtime:listProjects' });
+  rt.project.replaceChildren();
+  if (!response || !response.ok) {
+    rt.projectMsg.textContent = response && response.error
+      ? response.error.code + ' — ' + response.error.message
+      : 'Không tải được danh sách dự án.';
+    return;
+  }
+  if (!response.projects.length) {
+    rt.projectMsg.textContent = 'Chưa có dự án nào. Tạo một dự án trong Studio trước.';
+    return;
+  }
+  const { seosonaProjectId } = await chrome.storage.local.get('seosonaProjectId');
+  for (const project of response.projects) {
+    const option = document.createElement('option');
+    option.value = project.projectId;
+    option.textContent = project.name;
+    if (project.projectId === seosonaProjectId) option.selected = true;
+    rt.project.append(option);
+  }
+  rt.projectMsg.textContent = 'Hành động ngữ cảnh sẽ lưu vào dự án này.';
+  if (!seosonaProjectId && response.projects[0]) {
+    await chrome.storage.local.set({ seosonaProjectId: response.projects[0].projectId });
+  }
+}
+
+if (rt.pairBtn) {
+  rt.pairBtn.addEventListener('click', async () => {
+    rt.pairBtn.disabled = true;
+    rt.pairMsg.textContent = 'Đang ghép cặp…';
+    const result = await rtSend({ action: 'runtime:pair', code: rt.pairCode.value });
+    rt.pairMsg.textContent = result && result.ok
+      ? 'Đã ghép cặp (' + result.credentialId + ').'
+      : ((result && result.error && result.error.code) || 'LỖI') + ' — ' + ((result && result.error && result.error.message) || 'Không ghép cặp được.');
+    rt.pairBtn.disabled = false;
+    if (result && result.ok) rtRefreshStatus();
+  });
+}
+
+if (rt.refresh) rt.refresh.addEventListener('click', rtRefreshStatus);
+
+if (rt.project) {
+  rt.project.addEventListener('change', async () => {
+    // Chỉ nhớ MỘT tùy chọn giao diện, không phải bản ghi dự án.
+    await chrome.storage.local.set({ seosonaProjectId: rt.project.value });
+  });
+}
+
+if (rt.openStudio) {
+  rt.openStudio.addEventListener('click', async () => {
+    const stored = await chrome.storage.local.get(['seosonaRuntime', 'seosonaProjectId']);
+    const base = String((stored.seosonaRuntime && stored.seosonaRuntime.url) || 'http://127.0.0.1:43118').replace(/\/$/, '');
+    // Chỉ mở loopback. Một URL khác ở đây sẽ đưa người dùng ra khỏi máy của chính họ.
+    if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(base)) {
+      rt.projectMsg.textContent = 'Runtime URL không hợp lệ (chỉ chấp nhận loopback).';
+      return;
+    }
+    const hash = stored.seosonaProjectId ? '#/projects/' + stored.seosonaProjectId + '/content' : '#/projects';
+    chrome.tabs.create({ url: base + '/' + hash });
+  });
+}
+
+function rtShowResult(view) {
+  if (!rt.resultCard) return;
+  rt.resultCard.hidden = false;
+  rt.resultState.textContent = view.state || '';
+  rt.resultState.dataset.state = view.state === 'lỗi' ? 'error' : 'ready';
+  // textContent: đoạn văn này đến từ một trang web bất kỳ.
+  rt.current.textContent = view.currentText || '';
+  rt.suggested.textContent = view.suggestedText || '';
+  rt.resultMsg.textContent = view.message || '';
+}
+
+async function rtConsumePendingAction() {
+  const response = await rtSend({ action: 'runtime:getPendingAction' });
+  const pending = response && response.pending;
+  if (!pending) return;
+  await chrome.storage.session.remove('seosonaPendingAction');
+
+  showView('workspace');
+  if (pending.error) {
+    // Lý do cụ thể ngay lúc mở panel: người dùng biết phải sửa gì, thay vì bấm chạy rồi mới biết.
+    rtShowResult({ state: 'lỗi', message: pending.error.code + ' — ' + pending.error.message });
+    return;
+  }
+
+  rtPending = pending.payload;
+  rtShowResult({
+    currentText: rtPending.selectionText,
+    suggestedText: '',
+    state: 'đang chạy',
+    message: rtPending.action + ' · nội dung sẽ được gửi tới nhà cung cấp đã cấu hình.',
+  });
+
+  const result = await rtSend({ action: 'runtime:runContextAction', payload: rtPending });
+  if (!result || !result.ok) {
+    rtShowResult({
+      currentText: rtPending.selectionText, suggestedText: '', state: 'lỗi',
+      message: ((result && result.error && result.error.code) || 'RUNTIME_ERROR') + ' — ' + ((result && result.error && result.error.message) || 'Không chạy được.'),
+    });
+    return;
+  }
+
+  rtResult = result.result;
+  const fields = (rtResult && rtResult.fields) || {};
+  rtShowResult({
+    currentText: rtPending.selectionText,
+    suggestedText: fields.body || fields.title || JSON.stringify(rtResult, null, 2).slice(0, 4000),
+    state: 'chờ duyệt',
+    message: rtResult && rtResult.contentId ? 'Runtime đã lưu ' + rtResult.contentId + '.' : 'Runtime đã nhận yêu cầu.',
+  });
+}
+
+if (rt.accept) {
+  rt.accept.addEventListener('click', async () => {
+    // Chấp nhận là một TÍN HIỆU, không phải một lần ghi vào trang. Hai việc tách rời.
+    if (!rtResult || !rtResult.contentId) { rt.resultMsg.textContent = 'Chưa có kết quả để chấp nhận.'; return; }
+    const response = await rtSend({
+      action: 'runtime:signal',
+      payload: { contentId: rtResult.contentId, revisionId: rtResult.revisionId, type: 'ACCEPT' },
+    });
+    rt.resultMsg.textContent = response && response.ok ? 'Đã ghi nhận chấp nhận.' : 'Không ghi nhận được tín hiệu.';
+  });
+}
+
+if (rt.reject) {
+  rt.reject.addEventListener('click', async () => {
+    if (!rtResult || !rtResult.contentId) { rt.resultMsg.textContent = 'Chưa có kết quả để từ chối.'; return; }
+    await rtSend({
+      action: 'runtime:signal',
+      payload: { contentId: rtResult.contentId, revisionId: rtResult.revisionId, type: 'REJECT' },
+    });
+    rt.resultMsg.textContent = 'Đã ghi nhận từ chối. Bản này vẫn còn trong lịch sử.';
+  });
+}
+
+if (rt.apply) {
+  rt.apply.addEventListener('click', async () => {
+    const suggested = rt.suggested.textContent;
+    if (!suggested.trim()) { rt.resultMsg.textContent = 'Chưa có bản đề xuất để áp dụng.'; return; }
+
+    // Chụp lại ô đang sửa NGAY TRƯỚC khi ghi, rồi để content script tự so lần nữa.
+    const target = await rtSend({ action: 'context:getEditableTarget' });
+    if (!target || !target.ok) {
+      rt.resultMsg.textContent = 'Không tìm thấy ô nhập trên trang (' + ((target && (target.code || target.reason)) || 'NO_TARGET') + ').';
+      return;
+    }
+    const applied = await rtSend({ action: 'context:replaceField', replacement: suggested });
+    if (!applied || !applied.ok) {
+      rt.resultMsg.textContent = applied && applied.code === 'PAGE_CONTENT_CHANGED'
+        ? 'Trang đã thay đổi từ lúc chụp. Hãy xem lại rồi chạy lại — không ghi đè để tránh mất chữ bạn vừa gõ.'
+        : 'Không áp dụng được (' + ((applied && applied.code) || 'UNKNOWN') + ').';
+      return;
+    }
+    rt.resultMsg.textContent = 'Đã áp dụng ' + applied.replacedChars + ' ký tự lên trang.';
+    // Chỉ ghi tín hiệu APPLIED_TO_PAGE khi việc ghi đã THẬT SỰ thành công.
+    if (rtResult && rtResult.contentId) {
+      await rtSend({
+        action: 'runtime:signal',
+        payload: { contentId: rtResult.contentId, revisionId: rtResult.revisionId, type: 'APPLIED_TO_PAGE' },
+      });
+    }
+  });
+}
+
+rtRefreshStatus();
+rtConsumePendingAction();

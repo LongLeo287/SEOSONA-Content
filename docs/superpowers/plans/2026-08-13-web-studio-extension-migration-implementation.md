@@ -411,27 +411,27 @@ git commit -m "feat(extension): add explicit contextual page replacement"
 - New controls: Runtime status, current project selector, quick action result, Current/Suggested diff, Accept, Reject, Apply to Page, Open in Studio.
 - Old SRT Studio sections remain accessible under a `Legacy / Transcript` route until Runtime Transcript acceptance passes.
 
-- [ ] **Step 1: Add migration contract test scanning sidepanel resources**
+- [x] **Step 1: Add migration contract test scanning sidepanel resources**
 
 Assert new Runtime client/action assets are loaded and existing SRT parser/providers remain referenced until the retirement task.
 
-- [ ] **Step 2: Add Runtime status/project header**
+- [x] **Step 2: Add Runtime status/project header**
 
 Side panel fetches canonical project list through `RuntimeClient`; it does not clone project records into local storage beyond selected `projectId` preference.
 
-- [ ] **Step 3: Add Current vs Suggested review component**
+- [x] **Step 3: Add Current vs Suggested review component**
 
 Show immutable original selection and suggested revision. `Accept` records user signal/approved revision in Runtime; `Apply to Page` is a second explicit action invoking context-editor replacement.
 
-- [ ] **Step 4: Add Open in Studio action**
+- [x] **Step 4: Add Open in Studio action**
 
 Open `http://127.0.0.1:<configured-port>/#/projects/<projectId>/content/<contentId>` using Runtime-configured loopback URL only.
 
-- [ ] **Step 5: Keep Browser Provider Adapter controls separate**
+- [x] **Step 5: Keep Browser Provider Adapter controls separate**
 
 Provider execution status may be shown, but no provider response becomes canonical until Runtime workflow validates/persists it.
 
-- [ ] **Step 6: Run and commit**
+- [x] **Step 6: Run and commit**
 
 ```bash
 node --test tests/migration-contract.test.mjs tests/extension-*.test.cjs tests/context-editor-contract.test.cjs

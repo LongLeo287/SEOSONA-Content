@@ -937,3 +937,26 @@ textarea:focus-visible, .icon-btn:focus-visible {
   .sectionnav button { font-size: 12px; padding: 8px 7px; }
   .card { padding: 16px; }
 }
+
+/* ============ WORKSPACE (Local Runtime) ============
+   Trạng thái Runtime phải nhìn thấy ngay: người dùng cần biết việc họ sắp bấm sẽ được lưu
+   ở đâu, hay không được lưu chút nào. */
+.rt-state { font-size: 11px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line, #2a2f3a); }
+.rt-state[data-state="ready"] { color: #3fbf7f; border-color: #3fbf7f; }
+.rt-state[data-state="offline"], .rt-state[data-state="not-paired"] { color: #e0a53a; border-color: #e0a53a; }
+.rt-state[data-state="error"] { color: #e05a5a; border-color: #e05a5a; }
+
+/* Hiện tại vs Đề xuất luôn cạnh nhau. Chỉ hiện bản mới thì người dùng không có gì để so,
+   và "chấp nhận" trở thành bấm cho xong. */
+.diff-pane { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.diff-col { border: 1px solid var(--line, #2a2f3a); border-radius: 6px; overflow: hidden; }
+.diff-h { font-size: 11px; padding: 4px 8px; background: rgba(127,127,127,.12); }
+.diff-body { padding: 8px; font-size: 12px; max-height: 220px; overflow: auto; }
+.diff-col:first-child .diff-h { color: #98a0b0; }
+.diff-col:last-child .diff-h { color: #4f8cff; }
+
+/* Chữ nguyên văn hiển thị font đều: khoảng trắng và ký tự lạ phải nhìn thấy được. */
+.verbatim { font-family: ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+
+.rt-actions { margin-top: 8px; gap: 6px; }
+.muted.sm { font-size: 11px; }
