@@ -634,23 +634,23 @@ git commit -m "feat(writing): adapt and repurpose content with lineage"
 - Stage types: `BRIEF`, `WRITE`, `DETERMINISTIC_VALIDATE`, `AUDIT`, `REPAIR_OPTIONAL`, `TARGET_ADAPT`, `COMPLETE`.
 - Workflow checkpoints include `contentId`, `revisionId`, `evaluationIds`, and provider attempt refs; no prompt bodies in job state.
 
-- [ ] **Step 1: Write failing happy-path workflow test**
+- [x] **Step 1: Write failing happy-path workflow test**
 
 Use fake Gateway providers and a temp store. Assert project -> article content -> immutable revision -> independent audit -> completed job.
 
-- [ ] **Step 2: Write failing recovery tests**
+- [x] **Step 2: Write failing recovery tests**
 
 Cover provider timeout then fallback, invalid draft output, audit `REVIEW_REQUIRED`, cancellation, restart from persisted checkpoint, and manual provider lock on the Audit stage.
 
-- [ ] **Step 3: Implement workflow around generic JobState**
+- [x] **Step 3: Implement workflow around generic JobState**
 
 No Facebook draft/visual statuses are permitted. Each completed stage persists a checkpoint before moving on.
 
-- [ ] **Step 4: Prove the same workflow runs all three V1 packs**
+- [x] **Step 4: Prove the same workflow runs all three V1 packs**
 
 Run one Article, one Product, and one Transcript operation using fake provider adapters. Only the pack/schema/evaluators differ.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-workflow.test.mjs
