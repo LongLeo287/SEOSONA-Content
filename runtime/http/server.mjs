@@ -411,6 +411,18 @@ export function createRuntimeServer({
     body: { evaluations: await evaluator.evaluate({ ...body, workspaceId: await ensureWorkspace(), contentId: match[1] }) },
   }));
 
+  // Tín hiệu là QUAN SÁT, chỉ nối thêm. Không có endpoint sửa hay xóa: lịch sử phản hồi mà
+  // sửa được thì nó không còn là bằng chứng về điều đã thật sự xảy ra.
+  router.add('POST', /^\/v1\/content\/([^/]+)\/signals$/, async ({ body, match }) => ({
+    status: 201,
+    body: await content.addSignal({ ...body, workspaceId: await ensureWorkspace(), contentId: match[1] }),
+  }));
+
+  router.add('GET', /^\/v1\/content\/([^/]+)\/signals$/, async ({ match }) => ({
+    status: 200,
+    body: { signals: await content.listSignals(await ensureWorkspace(), { contentId: match[1] }) },
+  }));
+
   router.add('POST', /^\/v1\/content\/([^/]+)\/repurpose$/, async ({ body, match }) => ({
     status: 201,
     body: await repurposer.repurpose({ ...body, workspaceId: await ensureWorkspace(), fromContentId: match[1] }),

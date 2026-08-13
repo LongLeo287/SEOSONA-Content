@@ -147,8 +147,52 @@ export function createContentService({ store, now = () => new Date().toISOString
     return revisionId ? all.filter((e) => e.revisionId === revisionId) : all;
   }
 
+  // Tín hiệu người dùng: chấp nhận, từ chối, đã áp dụng lên trang…
+  //
+  // Đây là QUAN SÁT, không phải luật. Một lần từ chối nghĩa là "lần này không hợp", không
+  // phải "cấm vĩnh viễn cách viết này". Biến tín hiệu thành luật cứng ngay lập tức sẽ khiến
+  // hệ thống học sai từ một lần bấm nhầm, và người dùng không có cách nào lấy lại.
+  //
+  // Mỗi tín hiệu mang đủ PHẠM VI để sau này dùng đúng chỗ: dự án, thương hiệu, loại nội dung.
+  // Thiếu phạm vi thì một câu bị từ chối ở thương hiệu A sẽ âm thầm ảnh hưởng thương hiệu B.
+  const SIGNAL_TYPES = ['ACCEPT', 'REJECT', 'MANUAL_EDIT', 'AUDIT_REPAIR', 'APPLIED_TO_PAGE', 'PROVIDER_PREFERENCE'];
+
+  async function addSignal({
+    workspaceId, contentId, revisionId, type, value = null,
+    projectId = null, brandId = null, providerId = null, jobType = null,
+  }) {
+    if (!SIGNAL_TYPES.includes(type)) {
+      throw err('INVALID_SIGNAL_TYPE', `Signal type must be one of ${SIGNAL_TYPES.join(', ')}.`);
+    }
+    const revision = revisionId ? await store.get('revision', workspaceId, revisionId) : null;
+    if (revisionId && !revision) throw err('REVISION_NOT_FOUND', `Revision not found: ${revisionId}`);
+
+    const content = contentId ? await store.get('content', workspaceId, contentId) : null;
+    if (contentId && !content) throw err('CONTENT_NOT_FOUND', `Content not found: ${contentId}`);
+
+    return store.put('signal', workspaceId, {
+      signalId: idFactory('signal'),
+      type,
+      at: now(),
+      contentId: contentId || null,
+      revisionId: revisionId || null,
+      // Phạm vi lấy từ chính bản ghi khi có, để một tín hiệu không thể tự khai sai chỗ nó thuộc về.
+      projectId: projectId || content?.projectId || null,
+      brandId: brandId || null,
+      providerId: providerId || null,
+      jobType: jobType || content?.contentJob || null,
+      value,
+    });
+  }
+
+  async function listSignals(workspaceId, filter = {}) {
+    const all = await store.list('signal', workspaceId);
+    return all.filter((signal) => Object.entries(filter).every(([key, value]) => value === undefined || signal[key] === value));
+  }
+
   return {
     addSource, addEvidence, addClaim, createContent, appendRevision,
     getContent, getContentHistory, addEvaluation, listEvaluations,
+    addSignal, listSignals, SIGNAL_TYPES,
   };
 }

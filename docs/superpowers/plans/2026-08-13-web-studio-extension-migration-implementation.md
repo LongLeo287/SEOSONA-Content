@@ -456,19 +456,19 @@ git commit -m "feat(extension): add runtime backed contextual companion"
 - `ObservedSignal` includes `signalId`, `projectId`, `brandId?`, `contentId`, `revisionId`, `providerId?`, `jobType`, `type`, `value`, `createdAt`.
 - Signals are observations; none automatically becomes a factual Brand rule.
 
-- [ ] **Step 1: Write failing signal-scope tests**
+- [x] **Step 1: Write failing signal-scope tests**
 
 Prove a rejected phrase in Brand A does not alter Brand B, one rejection does not create a hard negative rule, and provider preference signal is scoped by job type.
 
-- [ ] **Step 2: Implement append-only signal persistence**
+- [x] **Step 2: Implement append-only signal persistence**
 
 No update/delete of historical signals through normal workflow API.
 
-- [ ] **Step 3: Wire Studio/Extension actions**
+- [x] **Step 3: Wire Studio/Extension actions**
 
 Accept/reject and explicit page application produce signals after successful canonical action. A page replacement failure does not produce `APPLIED_TO_PAGE`.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/feedback-signals.test.mjs

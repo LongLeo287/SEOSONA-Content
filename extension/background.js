@@ -603,6 +603,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   }
+  if (msg.action === 'runtime:signal') {
+    const payload = msg.payload || {};
+    runtimeClient.request(`/v1/content/${encodeURIComponent(payload.contentId)}/signals`, { method: 'POST', body: payload })
+      .then((signal) => sendResponse({ ok: true, signal }))
+      .catch((e) => sendResponse({ ok: false, error: { code: e.code || 'RUNTIME_ERROR', message: e.message } }));
+    return true;
+  }
   if (msg.action === 'runtime:getPendingAction') {
     chrome.storage.session.get('seosonaPendingAction').then(({ seosonaPendingAction }) => {
       sendResponse({ ok: true, pending: seosonaPendingAction || null });
