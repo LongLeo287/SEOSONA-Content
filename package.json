@@ -3,7 +3,9 @@
   "private": true,
   "description": "SEOSONA Content — bound to SEOSONA OS via seosona.project.json",
   "scripts": {
-    "test": "node --test tests/facebook-*.test.*",
+    "test": "node --test tests/*.test.cjs tests/*.test.mjs",
+    "runtime:start": "node runtime/index.mjs",
+    "runtime:verify": "node --test tests/runtime-*.test.mjs",
     "facebook:companion": "node scripts/companion/facebook-companion.mjs",
     "facebook:audit": "node scripts/audit/facebook-factory-audit.mjs",
     "facebook:audit:strict": "node scripts/audit/facebook-factory-audit.mjs --strict",

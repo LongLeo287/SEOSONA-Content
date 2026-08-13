@@ -61,7 +61,7 @@
 - Produces: `npm run runtime:start` -> `node runtime/index.mjs`.
 - Preserves: existing `facebook:*` scripts.
 
-- [ ] **Step 1: Add a failing package-script contract test**
+- [x] **Step 1: Add a failing package-script contract test**
 
 Create `tests/package-scripts.test.mjs`:
 
@@ -78,13 +78,13 @@ test('package scripts keep legacy verification and expose generic test/runtime c
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `node --test tests/package-scripts.test.mjs`
 
 Expected: FAIL because `test` is Facebook-only and `runtime:start` is absent.
 
-- [ ] **Step 3: Make the minimal package script change**
+- [x] **Step 3: Make the minimal package script change**
 
 Set:
 
@@ -98,7 +98,7 @@ Set:
 
 Keep all existing `facebook:*` and `seosona:*` scripts.
 
-- [ ] **Step 4: Run focused and full tests**
+- [x] **Step 4: Run focused and full tests**
 
 Run:
 
@@ -109,7 +109,7 @@ npm test
 
 Expected: PASS, including all legacy Facebook tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json tests/package-scripts.test.mjs
