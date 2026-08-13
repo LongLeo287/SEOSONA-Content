@@ -22,9 +22,7 @@ function requestBody(req) {
     const chunks = [];
     req.on('data', (chunk) => {
       bytes += chunk.length;
-      if (bytes > JSON_LIMIT) {
-        const error = new Error('Request payload is too large.'); error.code = 'PAYLOAD_TOO_LARGE'; error.status = 413; reject(error); return;
-      }
+      if (bytes > JSON_LIMIT) { const error = new Error('Request payload is too large.'); error.code = 'PAYLOAD_TOO_LARGE'; error.status = 413; reject(error); return; }
       chunks.push(chunk);
     });
     req.once('error', reject);
@@ -36,11 +34,37 @@ function requestBody(req) {
   });
 }
 
-export function createRuntimeServer({ token, extensionOrigin, workspaceId, workspaceService, contentService, studioHtml = '<!doctype html><title>SEOSONA Content</title>' }) {
+export function createRuntimeServer({ token, extensionOrigin, workspaceId, workspaceService, contentService, browserBridge = null, studioHtml = '<!doctype html><title>SEOSONA Content</title>' }) {
   if (!workspaceId) throw new Error('workspaceId is required.');
   if (!workspaceService || !contentService) throw new Error('workspaceService and contentService are required.');
   const auth = createRuntimeAuth({ token, extensionOrigin });
   const router = createRouter();
+
+  if (browserBridge) {
+    const extensionOnly = (authState) => {
+      if (authState.kind !== 'extension') { const error = new Error('Browser provider bridge is extension-only.'); error.code = 'EXTENSION_ONLY'; error.status = 403; throw error; }
+    };
+    const owner = (req) => {
+      const value = String(req.headers['x-seosona-bridge-owner'] || '');
+      if (!value) { const error = new Error('x-seosona-bridge-owner is required.'); error.code = 'BRIDGE_OWNER_REQUIRED'; throw error; }
+      return value;
+    };
+    router.add('POST', /^\/v1\/provider\/browser\/jobs$/, async ({ body }) => ({ status: 202, body: browserBridge.enqueue(body) }));
+    router.add('GET', /^\/v1\/provider\/browser\/jobs\/next$/, async ({ req, auth: authState }) => {
+      extensionOnly(authState);
+      const claimed = browserBridge.claimNext(owner(req));
+      return claimed ? { status: 200, body: claimed } : { status: 204, body: null };
+    });
+    router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/lease$/, async ({ match, req, auth: authState }) => {
+      extensionOnly(authState);
+      return { status: 200, body: browserBridge.renewLease(match[1], owner(req)) };
+    });
+    router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/result$/, async ({ match, req, body, auth: authState }) => {
+      extensionOnly(authState);
+      return { status: 200, body: browserBridge.submitResult(match[1], owner(req), body) };
+    });
+    router.add('POST', /^\/v1\/provider\/browser\/jobs\/([^/]+)\/cancel$/, async ({ match }) => ({ status: 200, body: browserBridge.cancel(match[1]) }));
+  }
 
   router.add('GET', /^\/v1\/health$/, async () => ({ status: 200, body: { ok: true, runtime: { version: '1.0.0', workspaceId } } }));
   router.add('GET', /^\/v1\/projects$/, async () => ({ status: 200, body: await workspaceService.listProjects(workspaceId) }));
@@ -52,10 +76,7 @@ export function createRuntimeServer({ token, extensionOrigin, workspaceId, works
   router.add('POST', /^\/v1\/brands$/, async ({ body }) => ({ status: 201, body: await workspaceService.createBrand({ workspaceId, ...body }) }));
   router.add('POST', /^\/v1\/projects\/([^/]+)\/sources$/, async ({ match, body }) => ({
     status: 201,
-    body: await contentService.addSource({
-      workspaceId, projectId: match[1], kind: body.kind, title: body.title, canonicalUrl: body.canonicalUrl || null,
-      bytes: body.text === undefined ? null : Buffer.from(String(body.text), 'utf8'), parserVersion: body.parserVersion || '1.0', mimeType: body.mimeType || 'text/plain',
-    }),
+    body: await contentService.addSource({ workspaceId, projectId: match[1], kind: body.kind, title: body.title, canonicalUrl: body.canonicalUrl || null, bytes: body.text === undefined ? null : Buffer.from(String(body.text), 'utf8'), parserVersion: body.parserVersion || '1.0', mimeType: body.mimeType || 'text/plain' }),
   }));
   router.add('POST', /^\/v1\/projects\/([^/]+)\/content$/, async ({ match, body }) => ({ status: 201, body: await contentService.createContent({ workspaceId, projectId: match[1], ...body }) }));
   router.add('POST', /^\/v1\/content\/([^/]+)\/revisions$/, async ({ match, body }) => ({ status: 201, body: await contentService.appendRevision({ workspaceId, contentId: match[1], ...body }) }));
@@ -67,17 +88,12 @@ export function createRuntimeServer({ token, extensionOrigin, workspaceId, works
   return http.createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
       const session = auth.newStudioSession();
-      res.writeHead(200, {
-        'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': session.cookie,
-        'content-security-policy': "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-      });
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': session.cookie, 'content-security-policy': "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" });
       return res.end(studioHtml);
     }
-
     if (!String(req.url || '').startsWith('/v1/')) return json(res, 404, errorEnvelope('ENDPOINT_NOT_FOUND', 'Unknown Runtime endpoint.'));
     const authorized = auth.authorize(req);
     if (!authorized.ok) return json(res, authorized.status, { error: authorized.error });
-
     try {
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await requestBody(req) : undefined;
       const routed = await router.dispatch(req.method, req.url, { req, body, auth: authorized });
