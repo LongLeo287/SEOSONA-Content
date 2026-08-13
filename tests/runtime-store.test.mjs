@@ -31,10 +31,7 @@ test('immutable records allow idempotent same content but reject different conte
   const first = { revisionId: 'revision_1', contentId: 'content_1', operation: 'CREATE', payload: { body: 'A', meta: { b: 2, a: 1 } }, createdAt: 'now' };
   await store.put('revision', 'workspace_1', first);
   await store.put('revision', 'workspace_1', { ...first, payload: { meta: { a: 1, b: 2 }, body: 'A' } });
-  await assert.rejects(
-    () => store.put('revision', 'workspace_1', { ...first, payload: { body: 'B' } }),
-    (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT'
-  );
+  await assert.rejects(() => store.put('revision', 'workspace_1', { ...first, payload: { body: 'B' } }), (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT');
 });
 
 test('blobs are content addressed and return portable refs only', async () => {
@@ -79,4 +76,40 @@ test('each concurrent same-content blob writer resolves only after its portable 
   }));
   const receipts = await Promise.all(writes);
   assert.equal(new Set(receipts.map((r) => r.sha256)).size, 1);
+});
+
+test('putBatch commits content metadata and immutable revision as one recoverable transaction', async () => {
+  const { store } = await tempStore();
+  const revision = { revisionId: 'revision_batch', contentId: 'content_batch', operation: 'CREATE', payload: { body: 'v1' }, createdAt: 'now' };
+  const content = { contentId: 'content_batch', projectId: 'project_1', jobType: 'article', title: 'A', status: 'draft', currentRevisionId: 'revision_batch' };
+  await store.putBatch([
+    { type: 'revision', scopeId: 'workspace_1', record: revision },
+    { type: 'content', scopeId: 'workspace_1', record: content },
+  ]);
+  assert.deepEqual(await store.get('revision', 'workspace_1', 'revision_batch'), revision);
+  assert.deepEqual(await store.get('content', 'workspace_1', 'content_batch'), content);
+});
+
+test('putBatch validates the whole batch before writing any record', async () => {
+  const { store } = await tempStore();
+  const good = { contentId: 'content_partial', projectId: 'project_1', jobType: 'article', title: 'A', status: 'draft', currentRevisionId: 'revision_missing' };
+  await assert.rejects(() => store.putBatch([
+    { type: 'content', scopeId: 'workspace_1', record: good },
+    { type: 'revision', scopeId: '../bad', record: { revisionId: 'revision_bad', contentId: 'content_partial', operation: 'CREATE', payload: {}, createdAt: 'now' } },
+  ]), /Invalid scope id/);
+  assert.equal(await store.get('content', 'workspace_1', 'content_partial'), null);
+});
+
+test('a pending transaction journal is completed before later reads', async () => {
+  const { rootDir, store } = await tempStore();
+  const txDir = join(rootDir, 'workspaces', 'workspace_1', 'transactions');
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  await mkdir(txDir, { recursive: true });
+  const revision = { revisionId: 'revision_recover', contentId: 'content_recover', operation: 'CREATE', payload: { body: 'v1' }, createdAt: 'now' };
+  const content = { contentId: 'content_recover', projectId: 'project_1', jobType: 'article', title: 'Recovered', status: 'draft', currentRevisionId: 'revision_recover' };
+  await writeFile(join(txDir, 'tx_manual.json'), JSON.stringify({ version: 1, scopeId: 'workspace_1', entries: [
+    { type: 'revision', record: revision }, { type: 'content', record: content },
+  ] }));
+  assert.deepEqual(await store.get('content', 'workspace_1', 'content_recover'), content);
+  assert.deepEqual(await store.get('revision', 'workspace_1', 'revision_recover'), revision);
 });
