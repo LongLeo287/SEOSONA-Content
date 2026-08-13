@@ -1,0 +1,36 @@
+{
+  "name": "Bản cắt ngắn chọn cue không theo thứ tự, chữ và mốc thời gian giữ nguyên",
+  "jobType": "transcript",
+  "brief": { "objective": "Cắt một đoạn ngắn nêu bật số liệu", "intent": "INFORMATIONAL" },
+  "fixtureSrt": "transcript-exact.srt",
+  "providerOutput": {
+    "operation": "SHORT_CUT",
+    "selections": [
+      {
+        "cueIds": ["cue_0003"],
+        "sourceStartMs": 9500,
+        "sourceEndMs": 13750,
+        "rawTranscript": "Theo số liệu nội bộ, 87% khách bỏ giỏ khi chờ quá 3 ngày.",
+        "editorOverlay": "87% bỏ giỏ sau 3 ngày"
+      },
+      {
+        "cueIds": ["cue_0001"],
+        "sourceStartMs": 1000,
+        "sourceEndMs": 4250,
+        "rawTranscript": "Chào bạn, hôm nay chúng ta nói về tốc độ giao hàng."
+      }
+    ]
+  },
+  "tamperedOutput": {
+    "operation": "SHORT_CUT",
+    "selections": [
+      {
+        "cueIds": ["cue_0005"],
+        "sourceStartMs": 18200,
+        "sourceEndMs": 22000,
+        "rawTranscript": "Lưu ý: từ \"logistics\" trong slide gốc bị viết sai, đúng phải là logistics."
+      }
+    ]
+  },
+  "expect": { "valid": true, "tamperedIssue": "TRANSCRIPT_SOURCE_MISMATCH", "nonLinear": true }
+}

@@ -137,8 +137,38 @@ cùng trả `ProviderResult`. Auto chọn theo **thứ tự từ điển**: ch�
 - **Bí mật chỉ lưu tham chiếu**; biên nhận giữ digest của prompt, không giữ prompt.
 - SEOSONA **không đọc cookie** của các trang AI — chỉ lái phiên bạn đã đăng nhập sẵn.
 
-Chi tiết: [runtime/providers/README.md](runtime/providers/README.md). Còn thiếu: Writing Core chưa
-gọi vào tầng này, nên chưa có đường "một bài viết → nhiều ProviderTask".
+Chi tiết: [runtime/providers/README.md](runtime/providers/README.md).
+
+### Writing Core — ba loại nội dung V1
+
+Quy trình chuẩn: **Brief → Viết → Kiểm tất định → Đánh giá độc lập → (Sửa) → Theo nơi đăng → Xong**,
+chạy tiếp được sau khi đứt giữa chừng. Cùng một quy trình chạy cả ba loại; chỉ **Job Pack** khác nhau.
+
+| Pack | Nguồn sự thật | Ràng buộc riêng |
+|---|---|---|
+| **Blog/Article** | Bằng chứng có nguồn | Dàn bài khớp bài viết; trích dẫn phải trỏ về bằng chứng có thật; SEO chỉ bắt buộc khi nơi đăng đòi |
+| **Product** | `ProductFact` từ catalog | Thông số sao **đúng nguyên văn** (không quy đổi đơn vị); lợi ích phải có bằng chứng riêng; giá/khuyến mãi/tồn kho không có trong nguồn thì **chặn** |
+| **Transcript/SRT** | Lời thoại + mốc thời gian gốc | Chọn bằng `cueId`, không dùng timecode tự do; `rawTranscript` đúng từng chữ (kể cả lỗi chính tả); trích dẫn nguyên văn trừ khi đánh dấu diễn giải |
+
+Bốn điều được ép bằng luật, không phải bằng lời nhắc trong prompt:
+
+- **Văn bản nguồn là dữ liệu, không phải mệnh lệnh.** Câu "bỏ qua hướng dẫn phía trên" nằm trong
+  một trang nguồn không bao giờ chạm được vào phần luật.
+- **Sửa văn không được nâng mức khẳng định.** "Có thể giúp" thành "bảo đảm" mà không có bằng
+  chứng mới thì bị chặn.
+- **Người viết và người chấm tách rời**, chạy được trên hai hãng khác nhau — cùng một model là
+  cùng một điểm mù.
+- **Thiếu chỗ dựa không bao giờ được vá bằng bằng chứng bịa ra.** Cách sửa hợp lệ chỉ có ba:
+  tìm bằng chứng thật, hạ giọng, hoặc bỏ câu đó.
+
+```bash
+npm run writing:verify
+```
+
+Thêm một loại nội dung mới = thêm một file trong `runtime/writing/job-packs/`. Không đụng tới
+Provider Gateway, không đụng tới Local Runtime.
+
+Còn thiếu: Studio và side panel chưa gọi vào tầng này (Plan D).
 
 ## Bảo trì selector
 

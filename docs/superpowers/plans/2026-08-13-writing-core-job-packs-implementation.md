@@ -709,7 +709,7 @@ git commit -m "feat(writing): expose writing workflow api"
 - Produces `npm run writing:verify`.
 - Golden fixtures are source/evidence/input/output expectations, not provider snapshots that depend on a live vendor response.
 
-- [ ] **Step 1: Create three deterministic golden cases**
+- [x] **Step 1: Create three deterministic golden cases**
 
 Article: evidence-backed Vietnamese article with heading/SEO checks.
 
@@ -717,17 +717,17 @@ Product: catalog facts with one tempting unsupported benefit that must be blocke
 
 Transcript: exact SRT selection with non-linear cues and immutable raw text/timecodes.
 
-- [ ] **Step 2: Add `writing:verify`**
+- [x] **Step 2: Add `writing:verify`**
 
 ```json
 "writing:verify": "node --test tests/writing-*.test.mjs tests/job-pack-*.test.mjs"
 ```
 
-- [ ] **Step 3: Run provider-neutrality acceptance**
+- [x] **Step 3: Run provider-neutrality acceptance**
 
 Against fake adapters, execute the same Article job once through `browser-fake` and once through `api-fake`; compare normalized ContentIR schema and assert Writer/Article pack code paths contain no provider branch.
 
-- [ ] **Step 4: Run all regression suites**
+- [x] **Step 4: Run all regression suites**
 
 ```bash
 npm run writing:verify
@@ -738,7 +738,7 @@ npm test
 
 Expected: all legacy and new tests PASS.
 
-- [ ] **Step 5: Document V1 pack boundaries and commit**
+- [x] **Step 5: Document V1 pack boundaries and commit**
 
 ```bash
 git add tests/fixtures package.json README.md

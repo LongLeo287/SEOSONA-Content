@@ -1,0 +1,59 @@
+{
+  "name": "Bài blog có bằng chứng, kèm ràng buộc SEO của nơi đăng",
+  "jobType": "article",
+  "brief": {
+    "objective": "Giúp chủ shop nhỏ rút ngắn thời gian giao hàng",
+    "intent": "INFORMATIONAL",
+    "angle": "thực dụng, có số liệu",
+    "language": "vi-VN"
+  },
+  "sources": [
+    { "sourceId": "s_report", "kind": "html", "sha256": "ab12", "title": "Báo cáo giao vận 2026" }
+  ],
+  "evidence": [
+    {
+      "evidenceId": "e_abandon",
+      "sourceId": "s_report",
+      "type": "STATISTIC",
+      "text": "87% khách bỏ giỏ khi thời gian giao dự kiến vượt 3 ngày.",
+      "locator": { "page": 12 },
+      "relation": "SUPPORTS"
+    }
+  ],
+  "target": {
+    "id": "target.blog",
+    "fieldSet": ["metaTitle", "metaDescription"],
+    "lengthRules": { "metaTitle": { "max": 60 } }
+  },
+  "providerOutput": {
+    "title": "Rút ngắn thời gian giao hàng cho cửa hàng nhỏ",
+    "metaTitle": "Rút ngắn thời gian giao hàng",
+    "metaDescription": "Ba việc làm được ngay để giao nhanh hơn.",
+    "outline": ["Vì sao ba ngày là ngưỡng", "Ba việc làm được ngay"],
+    "sections": [
+      {
+        "heading": "Vì sao ba ngày là ngưỡng",
+        "level": 2,
+        "body": "Theo báo cáo giao vận 2026, 87% khách bỏ giỏ khi thời gian giao dự kiến vượt 3 ngày.",
+        "evidenceRefs": ["e_abandon"]
+      },
+      {
+        "heading": "Ba việc làm được ngay",
+        "level": 2,
+        "body": "Gom đơn theo khu vực, chốt cắt đơn sớm hơn một tiếng, và hiển thị ngày giao dự kiến ngay ở giỏ hàng."
+      }
+    ],
+    "body": "Theo báo cáo giao vận 2026, 87% khách bỏ giỏ khi thời gian giao dự kiến vượt 3 ngày.\n\nGom đơn theo khu vực, chốt cắt đơn sớm hơn một tiếng, và hiển thị ngày giao dự kiến ngay ở giỏ hàng.",
+    "claims": [
+      {
+        "claimId": "c_abandon",
+        "proposition": "87% khách bỏ giỏ khi thời gian giao dự kiến vượt 3 ngày.",
+        "type": "STATISTIC",
+        "strength": "EXACT",
+        "status": "SUPPORTED",
+        "evidenceRefs": ["e_abandon"]
+      }
+    ]
+  },
+  "expect": { "valid": true, "claimStatus": { "c_abandon": "SUPPORTED" } }
+}

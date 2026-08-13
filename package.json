@@ -13,7 +13,8 @@
     "facebook:verify:release": "npm test && npm run seosona:doctor && npm run facebook:audit:strict",
     "seosona:doctor": "node scripts/seosona-project.mjs doctor",
     "seosona:log": "node scripts/seosona-project.mjs log",
-    "providers:verify": "node --test tests/provider-*.test.mjs tests/browser-provider-adapter.test.cjs"
+    "providers:verify": "node --test tests/provider-*.test.mjs tests/browser-provider-adapter.test.cjs",
+    "writing:verify": "node --test tests/writing-*.test.mjs tests/job-pack-*.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0"

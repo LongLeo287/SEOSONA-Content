@@ -1,0 +1,32 @@
+{
+  "name": "Mô tả sản phẩm với một lợi ích nghe rất hợp lý nhưng không có gì chống lưng",
+  "jobType": "product",
+  "brief": { "objective": "Viết mô tả cho đèn bàn Aurora", "intent": "TRANSACTIONAL" },
+  "productFacts": [
+    { "factId": "f_weight", "name": "Khối lượng", "value": "1", "unit": "kg", "sourceRef": "s_catalog", "locator": { "row": 4 } },
+    { "factId": "f_material", "name": "Chất liệu", "value": "nhôm", "sourceRef": "s_catalog", "locator": { "row": 5 } },
+    { "factId": "f_battery", "name": "Thời lượng pin", "value": "12", "unit": "giờ", "sourceRef": "s_catalog", "locator": { "row": 6 } }
+  ],
+  "evidence": [],
+  "providerOutput": {
+    "title": "Đèn bàn Aurora",
+    "longDescription": "Đèn bàn vỏ nhôm, pin dùng 12 giờ.",
+    "specs": [
+      { "name": "Khối lượng", "value": "1", "unit": "kg", "factRef": "f_weight" },
+      { "name": "Chất liệu", "value": "nhôm", "factRef": "f_material" },
+      { "name": "Thời lượng pin", "value": "12", "unit": "giờ", "factRef": "f_battery" }
+    ],
+    "features": [
+      { "text": "Vỏ nhôm nguyên khối", "factRef": "f_material" },
+      { "text": "Pin 12 giờ", "factRef": "f_battery" }
+    ],
+    "benefits": [
+      { "text": "Bền hơn hẳn các mẫu vỏ nhựa cùng tầm giá" }
+    ]
+  },
+  "expect": {
+    "valid": false,
+    "issues": ["UNSUPPORTED_BENEFIT"],
+    "repairOptions": ["ADD_EVIDENCE", "QUALIFY_CLAIM", "REMOVE_CLAIM"]
+  }
+}
