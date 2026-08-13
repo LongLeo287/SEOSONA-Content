@@ -1,4 +1,7 @@
 import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createWorkspaceStore } from '../storage/workspace-store.mjs';
 import { createWorkspaceService } from '../domain/workspace-service.mjs';
 import { createContentService } from '../domain/content-service.mjs';
@@ -25,6 +28,29 @@ export const API_VERSION = 'v1';
 export const SCHEMA_VERSION = '1.0.0';
 const JSON_LIMIT = 1024 * 1024; // 1 MB
 const DEFAULT_WORKSPACE = 'workspace_local';
+
+// Studio được phục vụ qua một BẢNG LIỆT KÊ TƯỜNG MINH, không phải một trình phục vụ thư mục.
+// Runtime chạy ngay trong thư mục dự án của người dùng; một trình phục vụ file "tiện tay" ở
+// đây sẽ phát tán mọi thứ nó với tới được — mã nguồn, cấu hình, và cả dữ liệu đã lưu.
+// Đường dẫn nào không có trong bảng này thì không tồn tại, nên không có đường vượt thư mục.
+const STUDIO_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'studio');
+const JS_TYPE = 'text/javascript; charset=utf-8';
+const STUDIO_ASSETS = new Map([
+  ['/', ['index.html', 'text/html; charset=utf-8']],
+  ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/studio/app.mjs', ['app.mjs', JS_TYPE]],
+  ['/studio/api-client.mjs', ['api-client.mjs', JS_TYPE]],
+  ['/studio/state.mjs', ['state.mjs', JS_TYPE]],
+  ['/studio/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/studio/views/projects.mjs', [join('views', 'projects.mjs'), JS_TYPE]],
+  ['/studio/views/project-workspace.mjs', [join('views', 'project-workspace.mjs'), JS_TYPE]],
+  ['/studio/views/sources.mjs', [join('views', 'sources.mjs'), JS_TYPE]],
+  ['/studio/views/brand.mjs', [join('views', 'brand.mjs'), JS_TYPE]],
+  ['/studio/views/content-editor.mjs', [join('views', 'content-editor.mjs'), JS_TYPE]],
+  ['/studio/views/audit.mjs', [join('views', 'audit.mjs'), JS_TYPE]],
+  ['/studio/views/transcript.mjs', [join('views', 'transcript.mjs'), JS_TYPE]],
+  ['/studio/views/providers.mjs', [join('views', 'providers.mjs'), JS_TYPE]],
+]);
 
 // Vỏ lỗi ổn định cho MỌI lỗi: { error: { code, message, retryable } }.
 // Client chỉ cần biết đúng một hình dạng, và không bao giờ nhận stack trace hay token.
@@ -452,13 +478,21 @@ export function createRuntimeServer({
       }
 
       // Studio do Runtime tự phục vụ; lần tải HTML đầu tiên phát cookie phiên.
-      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-        const sessionId = auth.issueSession();
-        res.writeHead(200, {
-          'content-type': 'text/html; charset=utf-8',
-          'set-cookie': auth.sessionCookieHeader(sessionId),
-        });
-        return res.end('<!doctype html><meta charset="utf-8"><title>SEOSONA Content</title><h1>SEOSONA Content Runtime</h1>');
+      if (req.method === 'GET' && STUDIO_ASSETS.has(url.pathname)) {
+        const [file, contentType] = STUDIO_ASSETS.get(url.pathname);
+        let body;
+        try {
+          body = await readFile(join(STUDIO_DIR, file));
+        } catch {
+          return send(404, errorEnvelope('NOT_FOUND', 'Studio asset not found.'));
+        }
+        const headers = { 'content-type': contentType, 'cache-control': 'no-store' };
+        // Chỉ trang HTML mới phát cookie phiên; file js/css không cần và không nên.
+        if (url.pathname === '/' || url.pathname === '/index.html') {
+          headers['set-cookie'] = auth.sessionCookieHeader(auth.issueSession());
+        }
+        res.writeHead(200, headers);
+        return res.end(body);
       }
 
       const decision = auth.authorize(req, { selfOrigins });

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEOSONA Content — Studio</title>
+  <link rel="stylesheet" href="/studio/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>SEOSONA Content</strong>
+      <span class="muted">Studio cục bộ</span>
+    </div>
+    <div class="status" id="runtime-status" data-state="unknown">
+      <span class="dot"></span>
+      <span id="runtime-status-text">Đang kiểm tra Runtime…</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Khu vực làm việc">
+      <a href="#/projects" data-section="projects">Projects</a>
+      <a href="#/sources" data-section="sources">Sources</a>
+      <a href="#/brand" data-section="brand">Brand</a>
+      <a href="#/content" data-section="content">Content</a>
+      <a href="#/audit" data-section="audit">Audit</a>
+      <a href="#/transcript" data-section="transcript">Transcript</a>
+      <a href="#/providers" data-section="providers">Providers</a>
+    </nav>
+
+    <main id="studio-main" aria-live="polite">
+      <p class="muted">Đang tải…</p>
+    </main>
+  </div>
+
+  <footer class="footnote">
+    <!--
+      Dữ liệu gốc nằm trên máy này. Studio là CLIENT của Local Runtime, không phải nơi giữ
+      sự thật: mọi thay đổi đi qua API và bản ghi trả về mới là bản chính thức.
+    -->
+    Dữ liệu nằm trên máy bạn. Studio chỉ là màn hình; bản ghi gốc do Local Runtime giữ.
+  </footer>
+
+  <script type="module" src="/studio/app.mjs"></script>
+</body>
+</html>

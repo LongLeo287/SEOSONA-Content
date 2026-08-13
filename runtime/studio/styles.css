@@ -1,0 +1,113 @@
+/* Studio cục bộ — CSS thuần, không build step, không phụ thuộc mạng.
+   Studio nằm cùng origin với Runtime nên không tải font/script từ đâu khác: một trang chỉ
+   hiển thị dữ liệu trên máy người dùng thì không có lý do gì phải gọi ra ngoài. */
+
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1e222b;
+  --line: #2a2f3a;
+  --text: #e6e8ee;
+  --muted: #98a0b0;
+  --accent: #4f8cff;
+  --ok: #3fbf7f;
+  --warn: #e0a53a;
+  --block: #e05a5a;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --line: #dfe3ea;
+    --text: #1a1d23; --muted: #5c6474;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+
+.brand { display: flex; gap: 10px; align-items: baseline; }
+.muted { color: var(--muted); }
+
+.status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.status[data-state="ready"] .dot { background: var(--ok); }
+.status[data-state="offline"] .dot { background: var(--block); }
+
+.layout { display: grid; grid-template-columns: 190px 1fr; min-height: calc(100vh - 92px); }
+
+.sidebar {
+  display: flex; flex-direction: column; padding: 12px 8px; gap: 2px;
+  border-right: 1px solid var(--line); background: var(--panel);
+}
+.sidebar a {
+  padding: 8px 10px; border-radius: var(--radius); color: var(--text);
+  text-decoration: none; font-weight: 500;
+}
+.sidebar a:hover { background: var(--panel-2); }
+.sidebar a[aria-current="page"] { background: var(--accent); color: #fff; }
+
+main { padding: 18px 20px; max-width: 980px; }
+
+h1 { font-size: 19px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 22px 0 8px; }
+
+.card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 12px;
+}
+
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+button {
+  padding: 7px 13px; border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); cursor: pointer; font-size: 13px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+input, textarea, select {
+  padding: 7px 9px; border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit; width: 100%;
+}
+textarea { min-height: 120px; resize: vertical; }
+label { display: block; margin-bottom: 10px; }
+label > span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 12px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
+
+/* Chữ nguyên văn (lời thoại, trích dẫn từ nguồn) hiển thị bằng font đều để khoảng trắng
+   và ký tự lạ nhìn thấy được — nếu nó khác nguồn, người đọc phải nhận ra. */
+.verbatim { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; white-space: pre-wrap; }
+
+.badge {
+  display: inline-block; padding: 1px 7px; border-radius: 99px;
+  font-size: 11px; border: 1px solid var(--line);
+}
+.badge.pass { color: var(--ok); border-color: var(--ok); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.review { color: var(--warn); border-color: var(--warn); }
+.badge.block { color: var(--block); border-color: var(--block); }
+.badge.cost-paid { color: var(--warn); border-color: var(--warn); }
+.badge.cost-free { color: var(--ok); border-color: var(--ok); }
+
+.notice { padding: 9px 12px; border-radius: var(--radius); margin-bottom: 12px; }
+.notice.error { background: rgba(224, 90, 90, .12); border: 1px solid var(--block); }
+.notice.info { background: rgba(79, 140, 255, .1); border: 1px solid var(--accent); }
+
+.footnote { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+.empty { color: var(--muted); padding: 18px 0; }

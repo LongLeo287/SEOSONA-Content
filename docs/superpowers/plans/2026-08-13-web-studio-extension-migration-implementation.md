@@ -87,7 +87,7 @@
 - `createStudioApiClient({ fetchImpl = fetch })` exposes `health`, `listProjects`, `getProject`, `createProject`, `listProviders`, `runWrite`, `runEdit`, `runAudit`, `getJob`.
 - Studio calls `/v1/*` with same-origin credentials; no API token is embedded in static JS.
 
-- [ ] **Step 1: Write failing static-serving and same-origin tests**
+- [x] **Step 1: Write failing static-serving and same-origin tests**
 
 ```js
 const html = await fetch(`${base}/`).then(r => r.text());
@@ -98,7 +98,7 @@ assert.doesNotMatch(html, /Bearer|api[_-]?key/i);
 
 Test path traversal (`/studio/../../package.json`) returns 404/400.
 
-- [ ] **Step 2: Implement explicit static asset map**
+- [x] **Step 2: Implement explicit static asset map**
 
 Do not expose arbitrary repo files. Map only the Studio files:
 
@@ -111,11 +111,11 @@ const STUDIO_ASSETS = new Map([
 ]);
 ```
 
-- [ ] **Step 3: Create minimal semantic Studio shell**
+- [x] **Step 3: Create minimal semantic Studio shell**
 
 HTML contains navigation targets `Projects`, `Sources`, `Brand`, `Content`, `Audit`, `Transcript`, `Providers` and one `<main id="studio-main">`. No duplicate business logic or fake data.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/studio-server.test.mjs
