@@ -406,11 +406,11 @@ git commit -m "feat(runtime): add generic resumable job reducer"
 - Snapshot includes `contextSnapshotId`, `hash`, source/evidence revision refs, job/target pack versions, and provider policy.
 - Mid-job edits create a new snapshot; they never mutate the active snapshot.
 
-- [ ] **Step 1: Write failing deterministic-hash and mutation tests**
+- [x] **Step 1: Write failing deterministic-hash and mutation tests**
 
 The same canonical input must hash identically regardless of object key order; changing a source/evidence/job-pack revision must change the hash.
 
-- [ ] **Step 2: Implement canonicalization + SHA-256**
+- [x] **Step 2: Implement canonicalization + SHA-256**
 
 ```js
 function canonicalize(value) {
@@ -425,7 +425,7 @@ function canonicalize(value) {
 
 Persist snapshots as immutable records through `WorkspaceStore`.
 
-- [ ] **Step 3: Run tests and commit**
+- [x] **Step 3: Run tests and commit**
 
 ```bash
 node --test tests/runtime-domain.test.mjs

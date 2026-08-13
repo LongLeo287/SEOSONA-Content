@@ -123,3 +123,39 @@ test('readBlob rejects a foreign or malformed ref', async () => {
     await assert.rejects(() => store.readBlob(`seosona-local://${WS}/blobs/../escape`), /blobRef/i);
   });
 });
+
+// Hồi quy: loại bản ghi viết camelCase (contextSnapshot, sourceBlock…) từng bị kho từ chối
+// vì `type` bị kiểm bằng regex chữ-thường-only. Mọi loại đã khai báo phải đi trọn vòng.
+test('every declared record type round-trips through the store', async () => {
+  const { RECORD_TYPES, RECORD_ID_FIELD } = await import('../runtime/domain/records.mjs');
+  const SAMPLE = {
+    workspace: { workspaceId: 'workspace_1', name: 'W', createdAt: NOW },
+    project: project(),
+    brand: { brandId: 'brand_1', workspaceId: WS, name: 'B', createdAt: NOW },
+    source: { sourceId: 'source_1', projectId: 'project_1', sha256: 'abc', retrievedAt: NOW },
+    sourceBlock: { blockId: 'sourceblock_1', sourceId: 'source_1', locator: { page: 1 } },
+    evidence: { evidenceId: 'evidence_1', sourceId: 'source_1', statement: 'X' },
+    claim: { claimId: 'claim_1', proposition: 'P', strength: 'ASSOCIATED' },
+    content: { contentId: 'content_1', projectId: 'project_1', contentJob: 'article', createdAt: NOW },
+    revision: revision(),
+    job: { jobId: 'job_1', projectId: 'project_1', contextSnapshotId: 'contextsnapshot_1', status: 'PENDING', createdAt: NOW },
+    jobStage: { stageId: 'jobstage_1', jobId: 'job_1', stage: 'WRITE', status: 'PENDING' },
+    providerAttempt: { attemptId: 'providerattempt_1', jobId: 'job_1', provider: 'p', startedAt: NOW },
+    providerReceipt: { receiptId: 'providerreceipt_1', provider: 'p', at: NOW },
+    evaluation: { evaluationId: 'evaluation_1', revisionId: 'revision_1', evaluator: 'fact', verdict: 'PASS' },
+    contextSnapshot: { contextSnapshotId: 'contextsnapshot_1', hash: 'abc', compiledAt: NOW },
+    providerConfig: { providerConfigId: 'providerconfig_1', provider: 'p' },
+    signal: { signalId: 'signal_1', type: 'ACCEPT', at: NOW },
+    appliedPageEvent: { eventId: 'appliedpageevent_1', revisionId: 'revision_1', url: 'https://x.test', surface: 'extension', action: 'INSERT', at: NOW },
+  };
+  await withStore(async (store) => {
+    for (const type of RECORD_TYPES) {
+      const rec = SAMPLE[type];
+      assert.ok(rec, `missing sample for record type "${type}"`);
+      await store.put(type, WS, rec);
+      const id = rec[RECORD_ID_FIELD[type]];
+      assert.ok(await store.get(type, WS, id), `${type} must be readable after write`);
+      assert.equal((await store.list(type, WS)).length, 1, `${type} must be listable`);
+    }
+  });
+});

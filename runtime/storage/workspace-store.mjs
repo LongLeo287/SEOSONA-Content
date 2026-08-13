@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, writeFile, rename, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { assertRecord, RECORD_ID_FIELD, IMMUTABLE_TYPES } from '../domain/records.mjs';
+import { assertRecord, RECORD_ID_FIELD, IMMUTABLE_TYPES, RECORD_TYPES } from '../domain/records.mjs';
 import { writeJsonAtomic, readJsonOrNull } from '../lib/atomic-json.mjs';
 
 // Bố cục trên đĩa (cố tình phẳng và dễ đọc bằng mắt):
@@ -32,7 +32,15 @@ export function createWorkspaceStore({ rootDir }) {
   if (!rootDir) throw new TypeError('createWorkspaceStore requires rootDir.');
 
   const wsDir = (scopeId) => join(rootDir, 'workspaces', assertSafeId(scopeId, 'scopeId'));
-  const typeDir = (scopeId, type) => join(wsDir(scopeId), 'records', assertSafeId(type, 'type'));
+
+  // `type` KHÔNG kiểm bằng regex id: loại bản ghi là một tập đóng đã khai báo, và nhiều
+  // loại viết camelCase (contextSnapshot, sourceBlock…). Kiểm theo danh sách cho phép
+  // vừa đúng hơn vừa an toàn hơn — không tên nào ngoài danh sách chạm được vào đường dẫn.
+  const assertKnownType = (type) => {
+    if (!RECORD_TYPES.includes(type)) throw new TypeError(`Unknown record type: ${type}`);
+    return type;
+  };
+  const typeDir = (scopeId, type) => join(wsDir(scopeId), 'records', assertKnownType(type));
   const recordFile = (scopeId, type, id) => join(typeDir(scopeId, type), `${assertSafeId(id, 'id')}.json`);
   const blobFile = (scopeId, sha256) => join(wsDir(scopeId), 'blobs', `${sha256}.bin`);
 

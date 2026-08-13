@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { createWorkspaceStore } from '../runtime/storage/workspace-store.mjs';
 import { createWorkspaceService } from '../runtime/domain/workspace-service.mjs';
 import { createContentService } from '../runtime/domain/content-service.mjs';
+import { createContextSnapshot, canonicalize } from '../runtime/domain/context-snapshot.mjs';
 
 const NOW = '2026-08-12T00:00:00.000Z';
 
@@ -209,5 +210,105 @@ test('evidence must reference a stored source, claim keeps its strength', async 
       () => content.addClaim({ workspaceId: ws.workspaceId, proposition: 'p', strength: 'ENORMOUS' }),
       /strength/,
     );
+  });
+});
+
+// ---------------------------------------------------------------- ContextSnapshot (Task 6)
+
+const CTX_INPUT = () => ({
+  project: { projectId: 'project_1', workspaceId: 'workspace_1' },
+  brand: { brandId: 'brand_1', revision: 3 },
+  audience: { segment: 'smb' },
+  sourceRefs: [{ sourceId: 'source_1', sha256: 'aaa' }],
+  evidenceRefs: [{ evidenceId: 'evidence_1', revision: 1 }],
+  jobPack: { id: 'job.article', version: '1.2.0' },
+  targetPack: { id: 'target.blog', version: '0.3.0' },
+  policy: { paid: 'PAID_BLOCKED' },
+  providerPolicy: { lock: null },
+});
+
+test('snapshot hash is stable regardless of object key order', async () => {
+  await withServices(async (_svc, store) => {
+    const deps = { store, now: () => NOW, idFactory: () => 'contextsnapshot_1' };
+    const a = await createContextSnapshot(CTX_INPUT(), { ...deps, workspaceId: 'workspace_1' });
+
+    // same content, keys written in a different order
+    const reordered = {
+      providerPolicy: { lock: null },
+      policy: { paid: 'PAID_BLOCKED' },
+      targetPack: { version: '0.3.0', id: 'target.blog' },
+      jobPack: { version: '1.2.0', id: 'job.article' },
+      evidenceRefs: [{ revision: 1, evidenceId: 'evidence_1' }],
+      sourceRefs: [{ sha256: 'aaa', sourceId: 'source_1' }],
+      audience: { segment: 'smb' },
+      brand: { revision: 3, brandId: 'brand_1' },
+      project: { workspaceId: 'workspace_1', projectId: 'project_1' },
+    };
+    const b = await createContextSnapshot(reordered, { ...deps, idFactory: () => 'contextsnapshot_2', workspaceId: 'workspace_1' });
+    assert.equal(a.hash, b.hash, 'key order must not change the hash');
+  });
+});
+
+test('canonicalize sorts keys deeply but keeps array order', () => {
+  assert.deepEqual(
+    JSON.stringify(canonicalize({ b: 1, a: { d: 2, c: 3 } })),
+    JSON.stringify({ a: { c: 3, d: 2 }, b: 1 }),
+  );
+  assert.deepEqual(canonicalize([3, 1, 2]), [3, 1, 2], 'array order is meaningful and must survive');
+});
+
+test('changing any pinned revision changes the hash', async () => {
+  await withServices(async (_svc, store) => {
+    const deps = { store, now: () => NOW, workspaceId: 'workspace_1' };
+    const base = await createContextSnapshot(CTX_INPUT(), { ...deps, idFactory: () => 'contextsnapshot_base' });
+
+    const variants = {
+      source: { ...CTX_INPUT(), sourceRefs: [{ sourceId: 'source_1', sha256: 'bbb' }] },
+      evidence: { ...CTX_INPUT(), evidenceRefs: [{ evidenceId: 'evidence_1', revision: 2 }] },
+      jobPack: { ...CTX_INPUT(), jobPack: { id: 'job.article', version: '1.3.0' } },
+      targetPack: { ...CTX_INPUT(), targetPack: { id: 'target.blog', version: '0.4.0' } },
+      policy: { ...CTX_INPUT(), policy: { paid: 'PAID_ALLOWED' } },
+    };
+    for (const [label, input] of Object.entries(variants)) {
+      // id phải chữ thường — chính kho ép luật này, test không được lách
+      const v = await createContextSnapshot(input, { ...deps, idFactory: () => `contextsnapshot_${label.toLowerCase()}` });
+      assert.notEqual(v.hash, base.hash, `changing ${label} must change the hash`);
+    }
+  });
+});
+
+test('snapshot is persisted immutably and a mid-job edit creates a new one', async () => {
+  await withServices(async (_svc, store) => {
+    const deps = { store, now: () => NOW, workspaceId: 'workspace_1' };
+    const first = await createContextSnapshot(CTX_INPUT(), { ...deps, idFactory: () => 'contextsnapshot_1' });
+    assert.equal((await store.get('contextSnapshot', 'workspace_1', 'contextsnapshot_1')).hash, first.hash);
+
+    // rewriting the same id with different content is refused by the store
+    await assert.rejects(
+      () => store.put('contextSnapshot', 'workspace_1', { ...first, hash: 'tampered' }),
+      (e) => e.code === 'IMMUTABLE_RECORD_CONFLICT',
+    );
+
+    // an edit during the job produces a separate snapshot; the first survives untouched
+    const second = await createContextSnapshot(
+      { ...CTX_INPUT(), brand: { brandId: 'brand_1', revision: 4 } },
+      { ...deps, idFactory: () => 'contextsnapshot_2' },
+    );
+    assert.notEqual(second.hash, first.hash);
+    assert.equal((await store.get('contextSnapshot', 'workspace_1', 'contextsnapshot_1')).hash, first.hash);
+  });
+});
+
+test('snapshot records the refs a run must be reproducible from', async () => {
+  await withServices(async (_svc, store) => {
+    const snap = await createContextSnapshot(CTX_INPUT(), {
+      store, now: () => NOW, idFactory: () => 'contextsnapshot_1', workspaceId: 'workspace_1',
+    });
+    assert.equal(snap.compiledAt, NOW);
+    assert.equal(snap.jobPack.version, '1.2.0');
+    assert.equal(snap.targetPack.version, '0.3.0');
+    assert.deepEqual(snap.sourceRefs, [{ sourceId: 'source_1', sha256: 'aaa' }]);
+    assert.deepEqual(snap.evidenceRefs, [{ evidenceId: 'evidence_1', revision: 1 }]);
+    assert.equal(snap.providerPolicy.lock, null);
   });
 });
