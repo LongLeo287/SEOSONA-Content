@@ -275,19 +275,19 @@ git commit -m "feat(studio): add writing audit transcript provider workspace"
 - Extension: `POST /v1/session` with pairing credential returns short-lived bearer token; bearer token stays in `chrome.storage.session`.
 - Existing extension request nonce rule remains required for bearer-authenticated calls.
 
-- [ ] **Step 1: Write failing pairing security tests**
+- [x] **Step 1: Write failing pairing security tests**
 
 Cover code expiry, one-time use, wrong extension origin, wrong code, secret hash storage, credential revocation, session expiry, replayed nonce, and no raw credential in Runtime project records.
 
-- [ ] **Step 2: Implement pairing code generation**
+- [x] **Step 2: Implement pairing code generation**
 
 Use `randomBytes()` and an unambiguous alphabet such as `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; persist only a hash of the one-time code while active.
 
-- [ ] **Step 3: Implement credential exchange + session minting**
+- [x] **Step 3: Implement credential exchange + session minting**
 
 Session token contains at least 256 bits of randomness, expires after a bounded duration (V1: 12 hours), and is stored server-side hashed or in an in-memory/session record suitable for revocation.
 
-- [ ] **Step 4: Implement `RuntimeClient`**
+- [x] **Step 4: Implement `RuntimeClient`**
 
 Methods:
 
@@ -302,7 +302,7 @@ runAction(action, payload)
 
 `request()` adds current bearer token + fresh random nonce. On `SESSION_EXPIRED`, call `openSession()` once and retry exactly once.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/runtime-pairing.test.mjs tests/extension-runtime-client.test.cjs

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createWorkspaceStore } from '../storage/workspace-store.mjs';
 import { createWorkspaceService } from '../domain/workspace-service.mjs';
 import { createContentService } from '../domain/content-service.mjs';
-import { createAuth } from './auth.mjs';
+import { createAuth, createPairing } from './auth.mjs';
 import { createRouter } from './router.mjs';
 import { createBrowserJobBridge, createFileJobPersistence } from './extension-bridge.mjs';
 import { createProviderRegistry, SEED_PROVIDERS } from '../providers/registry.mjs';
@@ -85,6 +85,12 @@ const STATUS_BY_CODE = {
   TASK_CANCELLED: 409,
   CREDENTIAL_IN_QUEUE: 400,
   EXTENSION_ONLY: 403,
+  STUDIO_ONLY: 403,
+  PAIRING_NOT_FOUND: 404,
+  PAIRING_CODE_INVALID: 401,
+  PAIRING_CODE_EXPIRED: 401,
+  PAIRING_REVOKED: 401,
+  SESSION_EXPIRED: 401,
 };
 
 function readJsonBody(req) {
@@ -138,7 +144,9 @@ export function createRuntimeServer({
   const store = createWorkspaceStore({ rootDir });
   const workspaces = createWorkspaceService({ store, now, idFactory });
   const content = createContentService({ store, now, idFactory });
-  const auth = createAuth({ token, extensionOrigin });
+  // Ghép cặp dựng TRƯỚC auth: auth cần hỏi nó xem một bearer token có phải phiên hợp lệ không.
+  const pairing = createPairing({ extensionOrigin, store, workspaceId });
+  const auth = createAuth({ token, extensionOrigin, bearerVerifier: (bearer) => pairing.verifySession(bearer) });
   const router = createRouter();
   const browserJobs = createBrowserJobBridge({ now, persistence: createFileJobPersistence({ rootDir }) });
 
@@ -338,6 +346,34 @@ export function createRuntimeServer({
     return { status: result.status === 'BLOCKED' ? 409 : 200, body: result };
   });
 
+  // ---------------------------------------------------------------- ghép cặp
+  // Mở mã ghép cặp là việc của Studio: người đang ngồi trước máy mới được cấp quyền cho
+  // một extension. Extension tự mở mã cho chính nó thì cả cơ chế còn lại vô nghĩa.
+  const studioOnly = (handler) => async (ctx) => {
+    if (ctx.actor !== 'studio') {
+      const err = new Error('Only the local Studio may manage extension pairing.');
+      err.code = 'STUDIO_ONLY';
+      throw err;
+    }
+    return handler(ctx);
+  };
+
+  router.add('POST', /^\/v1\/pairing\/start$/, studioOnly(async () => ({ status: 200, body: pairing.startPairing() })));
+
+  router.add('GET', /^\/v1\/pairing\/credentials$/, studioOnly(async () => ({
+    status: 200, body: { credentials: await pairing.listCredentials() },
+  })));
+
+  router.add('POST', /^\/v1\/pairing\/credentials\/([^/]+)\/revoke$/, studioOnly(async ({ match }) => {
+    const revoked = await pairing.revokeCredential(match[1]);
+    if (!revoked) {
+      const err = new Error(`Unknown pairing credential "${match[1]}".`);
+      err.code = 'PAIRING_NOT_FOUND';
+      throw err;
+    }
+    return { status: 200, body: { credentialId: match[1], revoked: true } };
+  }));
+
   // ---------------------------------------------------------------- writing endpoints
 
   router.add('GET', /^\/v1\/job-packs$/, async () => ({
@@ -494,6 +530,22 @@ export function createRuntimeServer({
         }
         res.writeHead(200, headers);
         return res.end(body);
+      }
+
+      // Hai endpoint ghép cặp nằm TRƯỚC lớp xác thực, và phải như vậy: extension chưa có
+      // chứng chỉ nào để tự chứng minh. Thứ bảo vệ chúng là origin khớp tuyệt đối cộng một
+      // mã dùng-một-lần, ngắn hạn, do người dùng đọc từ Studio.
+      if (req.method === 'POST' && (url.pathname === '/v1/pairing/exchange' || url.pathname === '/v1/session')) {
+        const body = await readJsonBody(req);
+        const origin = req.headers.origin || '';
+        try {
+          const result = url.pathname === '/v1/pairing/exchange'
+            ? await pairing.exchangePairing({ code: body.code, origin })
+            : await pairing.openSession({ credentialId: body.credentialId, credentialSecret: body.credentialSecret, origin });
+          return send(200, result);
+        } catch (err) {
+          return send(err.httpStatus || 401, errorEnvelope(err.code || 'AUTH_REQUIRED', err.message));
+        }
       }
 
       const decision = auth.authorize(req, { selfOrigins });
