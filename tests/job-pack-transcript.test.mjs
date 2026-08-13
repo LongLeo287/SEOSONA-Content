@@ -10,6 +10,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const RAW = readFileSync(join(here, 'fixtures/transcript-exact.srt'), 'utf8');
 const cues = parseSrt(RAW);
 
+// exporter.js là script trình duyệt và dựa vào SrtLib toàn cục. Nạp cả hai trong một phạm vi
+// thay vì sửa file production chỉ để test chạy được.
+async function loadExporter() {
+  const srtLib = readFileSync(join(here, '../extension/lib/srt-parser.js'), 'utf8');
+  const exporter = readFileSync(join(here, '../extension/lib/exporter.js'), 'utf8')
+    .replace(/if \(typeof module[\s\S]*$/, '');
+  // eslint-disable-next-line no-new-func
+  return new Function(`${srtLib}\n${exporter}\nreturn { Exporter, RuntimeExportSource };`)();
+}
+
 // ================================================================ Timecode
 
 test('timecodes parse with either a comma or a dot', () => {
@@ -405,6 +415,75 @@ test('the final gate refuses a transcript that is not the one the cut came from'
   const result = transcriptPack.assertSourceFidelity(approved, other);
   assert.equal(result.ok, false);
   assert.equal(result.issues[0].code, 'TRANSCRIPT_SOURCE_MISMATCH');
+});
+
+// ================================================================ Nguồn xuất file
+
+// Trước đây exporter nhận thẳng segment dựng từ chuỗi AI trả về: một file .edl có thể sinh
+// ra từ timecode model tự nghĩ, và chỉ lộ ra lúc dựng phim.
+test('exporting a cut requires cues that resolve back to the transcript', async () => {
+  const { RuntimeExportSource, Exporter } = await loadExporter();
+
+  const approved = [{
+    cueIds: [cues[2].cueId, cues[0].cueId],
+    sourceStartMs: cues[2].startMs,
+    sourceEndMs: cues[0].endMs,
+    rawTranscript: `${cues[2].rawText}\n${cues[0].rawText}`,
+    editorOverlay: 'Số liệu bỏ giỏ',
+  }];
+
+  const { segments, sourceCues } = RuntimeExportSource.fromApprovedTranscript(transcript, approved);
+  assert.equal(segments.length, 1);
+  assert.deepEqual(segments[0].cueIndexes, [3, 1], 'the original cue numbering is kept, not renumbered');
+  assert.equal(segments[0].label, 'Số liệu bỏ giỏ');
+
+  // Các hàm xuất cũ vẫn dùng được, chỉ khác là nguồn đã qua cổng kiểm.
+  const srt = Exporter.buildSplicedSrt(segments, sourceCues);
+  assert.ok(srt.includes(cues[2].rawText), 'the exported cut carries the exact source line');
+  assert.ok(Exporter.buildCsv(segments, sourceCues).length > 0);
+});
+
+// Thà không xuất còn hơn xuất một bản cắt lệch khỏi video.
+test('a tampered timecode or text blocks the export entirely', async () => {
+  const { RuntimeExportSource } = await loadExporter();
+
+  const valid = {
+    cueIds: [cues[0].cueId],
+    sourceStartMs: cues[0].startMs,
+    sourceEndMs: cues[0].endMs,
+    rawTranscript: cues[0].rawText,
+  };
+
+  assert.ok(RuntimeExportSource.fromApprovedTranscript(transcript, [valid]));
+
+  for (const [label, broken] of [
+    ['start moved', { ...valid, sourceStartMs: valid.sourceStartMs + 1 }],
+    ['end moved', { ...valid, sourceEndMs: valid.sourceEndMs - 1 }],
+    ['text tidied', { ...valid, rawTranscript: 'Chào bạn.' }],
+    ['unknown cue', { ...valid, cueIds: ['cue_9999'] }],
+    ['no cue', { ...valid, cueIds: [] }],
+  ]) {
+    assert.throws(
+      () => RuntimeExportSource.fromApprovedTranscript(transcript, [broken]),
+      (e) => e.code === 'TRANSCRIPT_SOURCE_MISMATCH',
+      label,
+    );
+  }
+});
+
+// Bản không phải bản cắt được dùng chữ đã dọn, nhưng vẫn phải mang xuất xứ.
+test('a writing export uses corrected text but keeps its provenance', async () => {
+  const { RuntimeExportSource } = await loadExporter();
+
+  const result = RuntimeExportSource.fromApprovedWriting({
+    revisionId: 'revision_9', createdAt: '2026-08-13T00:00:00.000Z',
+    payload: { contentId: 'content_1', fields: { title: 'Tiêu đề', body: 'Nội dung đã dọn.' } },
+  });
+  assert.equal(result.body, 'Nội dung đã dọn.');
+  assert.equal(result.provenance.revisionId, 'revision_9');
+
+  assert.throws(() => RuntimeExportSource.fromApprovedWriting(null), (e) => e.code === 'NO_APPROVED_REVISION');
+  assert.throws(() => RuntimeExportSource.fromApprovedWriting({ payload: {} }), (e) => e.code === 'NO_APPROVED_REVISION');
 });
 
 test('a transcript job is done only when its required evaluations pass', () => {

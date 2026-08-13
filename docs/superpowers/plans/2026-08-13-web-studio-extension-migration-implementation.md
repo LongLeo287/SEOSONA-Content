@@ -492,19 +492,19 @@ git commit -m "feat(learning): record scoped writing feedback signals"
 - Existing useful exports remain available where semantically valid: `.cut.srt`, `.cutlist.csv`, `.edl`, `.fcpxml`, `.captions.txt`, `.script.md`, `.metadata.txt`, `.project.json`.
 - Export source must be approved Runtime revision/Transcript selection, not an unvalidated provider string.
 
-- [ ] **Step 1: Add failing export-source tests**
+- [x] **Step 1: Add failing export-source tests**
 
 A cut export must reject modified raw transcript/timecode mismatch. Non-cut writing exports may use corrected display text but retain provenance.
 
-- [ ] **Step 2: Point SRT analysis actions at Runtime**
+- [x] **Step 2: Point SRT analysis actions at Runtime**
 
 Legacy parser may still be used for immediate local preview, but canonical ingest/selection validation comes from Runtime and returned IDs.
 
-- [ ] **Step 3: Adapt exporter input**
+- [x] **Step 3: Adapt exporter input**
 
 Create a small adapter from approved Runtime Transcript result to existing exporter shape; do not rewrite every export format in this task.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/job-pack-transcript.test.mjs tests/migration-contract.test.mjs

@@ -215,3 +215,90 @@ ${clips}
     buildChapters, buildChaptersTxt, clockYt,
   };
 })();
+
+/* ============================================================================
+   Nguồn xuất file: bản cắt ĐÃ ĐƯỢC RUNTIME DUYỆT
+   ============================================================================
+   Trước đây, exporter nhận thẳng segment do side panel dựng từ chuỗi AI trả về. Nghĩa là một
+   file .edl có thể được sinh ra từ timecode model tự nghĩ, và chỉ đến lúc dựng phim mới lộ.
+
+   Bộ chuyển đổi này là CỔNG DUY NHẤT để một bản cắt trở thành file: nó nhận TranscriptIR và
+   các selection Runtime đã kiểm, đối chiếu lại từng cue, rồi mới dựng segment cho các hàm
+   xuất cũ. Không khớp thì KHÔNG có file — thà không xuất còn hơn xuất một bản cắt lệch.
+*/
+const RuntimeExportSource = (() => {
+  function fail(code, detail) {
+    const error = new Error(code + (detail ? ': ' + detail : ''));
+    error.code = code;
+    return error;
+  }
+
+  /**
+   * TranscriptIR + selections đã duyệt -> hình dạng mà exporter cũ hiểu.
+   * @returns {{ segments: Array, sourceCues: Array }}
+   */
+  function fromApprovedTranscript(transcript, selections) {
+    const cues = (transcript && transcript.cues) || [];
+    if (!cues.length) throw fail('NO_TRANSCRIPT', 'transcript has no cue');
+    if (!Array.isArray(selections) || !selections.length) throw fail('NO_SELECTION', 'nothing was selected');
+
+    const byId = new Map(cues.map((cue) => [cue.cueId, cue]));
+    // Exporter cũ định vị cue bằng `index`, nên giữ nguyên index gốc — KHÔNG đánh số lại,
+    // vì đánh số lại là mất đường về cue thật.
+    const sourceCues = cues.map((cue) => ({
+      index: cue.index,
+      start: cue.startMs,
+      end: cue.endMs,
+      text: cue.rawText,
+    }));
+
+    const segments = selections.map((selection, position) => {
+      const resolved = (selection.cueIds || []).map((cueId) => {
+        const cue = byId.get(cueId);
+        if (!cue) throw fail('TRANSCRIPT_SOURCE_MISMATCH', 'unknown cue ' + cueId);
+        return cue;
+      });
+      if (!resolved.length) throw fail('TRANSCRIPT_SOURCE_MISMATCH', 'selection ' + position + ' has no cue');
+
+      // Đối chiếu lại NGAY TRƯỚC KHI XUẤT. Bản thảo đã qua kiểm ở Runtime, nhưng giữa lúc đó
+      // và lúc bấm xuất file, dữ liệu trên màn hình còn có thể đã bị sửa.
+      const expectedStart = resolved[0].startMs;
+      const expectedEnd = resolved[resolved.length - 1].endMs;
+      const expectedText = resolved.map((cue) => cue.rawText).join('\n');
+
+      if (selection.sourceStartMs !== expectedStart || selection.sourceEndMs !== expectedEnd) {
+        throw fail('TRANSCRIPT_SOURCE_MISMATCH', 'timecode does not match the source cue boundary');
+      }
+      if (selection.rawTranscript !== expectedText) {
+        throw fail('TRANSCRIPT_SOURCE_MISMATCH', 'raw transcript does not match the source');
+      }
+
+      return {
+        label: selection.editorOverlay || ('Đoạn ' + (position + 1)),
+        cueIndexes: resolved.map((cue) => cue.index),
+      };
+    });
+
+    return { segments, sourceCues };
+  }
+
+  /**
+   * Bản xuất KHÔNG PHẢI bản cắt (kịch bản, metadata) được dùng chữ đã dọn — nhưng vẫn phải
+   * mang theo xuất xứ, nếu không thì không ai truy ngược được câu chữ về nguồn.
+   */
+  function fromApprovedWriting(revision) {
+    if (!revision || !revision.revisionId) throw fail('NO_APPROVED_REVISION', 'export needs an approved revision');
+    const fields = (revision.payload && revision.payload.fields) || {};
+    return {
+      revisionId: revision.revisionId,
+      contentId: revision.payload && revision.payload.contentId,
+      title: fields.title || '',
+      body: fields.body || '',
+      provenance: { revisionId: revision.revisionId, createdAt: revision.createdAt || null },
+    };
+  }
+
+  return { fromApprovedTranscript, fromApprovedWriting };
+})();
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { Exporter, RuntimeExportSource };
