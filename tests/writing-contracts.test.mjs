@@ -16,6 +16,7 @@ import {
   ASSERTION_STRENGTH,
   VERDICTS,
 } from '../runtime/writing/contracts.mjs';
+import { createJobPackRegistry } from '../runtime/writing/job-packs/registry.mjs';
 
 // ---------------------------------------------------------------- từ vựng
 
@@ -228,4 +229,95 @@ test('a job pack validates its own fields on top of the shared contract', () => 
     () => assertSpecializedContent({ contentId: 'c1', jobType: 'product', providerId: 'x', fields: {} }, productValidator),
     /provider/i,
   );
+});
+
+// ================================================================ Sổ đăng ký Job Pack
+
+const pack = (overrides = {}) => ({
+  id: 'job.article',
+  version: '1.0.0',
+  jobType: 'article',
+  requiredBriefFields: ['objective', 'intent', 'angle'],
+  outputContract: { format: 'json', jsonSchema: { name: 'article', schema: { type: 'object' } } },
+  structureRules: { headings: ['H2'] },
+  requiredEvaluators: ['factuality', 'claim-support', 'structure'],
+  buildBrief: (input) => ({ ...input, jobType: 'article' }),
+  validateDraft: () => ({ ok: true, issues: [] }),
+  definitionOfDone: () => ({ done: true, blocking: [] }),
+  ...overrides,
+});
+
+test('a registered pack can be found by its job type', () => {
+  const registry = createJobPackRegistry();
+  registry.registerJobPack(pack());
+  assert.equal(registry.getJobPack('article').id, 'job.article');
+  assert.deepEqual(registry.listJobPacks().map((p) => p.jobType), ['article']);
+});
+
+test('an unknown job type is an error, not an empty result', () => {
+  const registry = createJobPackRegistry();
+  assert.throws(() => registry.getJobPack('podcast'), (e) => e.code === 'UNKNOWN_JOB_TYPE');
+});
+
+// Đăng ký trùng mà im lặng ghi đè thì một pack có thể bị thay lúc chạy mà không ai biết.
+test('registering the same pack twice is refused unless the version moves', () => {
+  const registry = createJobPackRegistry();
+  registry.registerJobPack(pack());
+  assert.throws(() => registry.registerJobPack(pack()), (e) => e.code === 'DUPLICATE_JOB_PACK');
+  registry.registerJobPack(pack({ version: '1.1.0' }));
+  assert.equal(registry.getJobPack('article').version, '1.1.0', 'a newer version replaces the old one');
+});
+
+test('two packs cannot claim the same id under different job types', () => {
+  const registry = createJobPackRegistry();
+  registry.registerJobPack(pack());
+  assert.throws(
+    () => registry.registerJobPack(pack({ jobType: 'newsletter' })),
+    (e) => e.code === 'DUPLICATE_JOB_PACK',
+  );
+});
+
+test('a pack without an output contract or evaluators is rejected', () => {
+  const registry = createJobPackRegistry();
+  assert.throws(() => registry.registerJobPack(pack({ outputContract: null })), /outputContract/);
+  assert.throws(() => registry.registerJobPack(pack({ requiredEvaluators: [] })), /requiredEvaluators/);
+  assert.throws(() => registry.registerJobPack(pack({ requiredEvaluators: ['vibes'] })), /vibes/);
+});
+
+test('a pack must implement the whole interface', () => {
+  const registry = createJobPackRegistry();
+  for (const missing of ['buildBrief', 'validateDraft', 'definitionOfDone']) {
+    assert.throws(() => registry.registerJobPack(pack({ [missing]: undefined })), new RegExp(missing));
+  }
+  assert.throws(() => registry.registerJobPack(pack({ jobType: '' })), /jobType/);
+  assert.throws(() => registry.registerJobPack(pack({ version: '' })), /version/);
+});
+
+// Pack mô tả VIỆC CẦN LÀM. Nói tên hãng ở đây là buộc một loại nội dung vào một nhà cung cấp,
+// và Auto Router mất quyền chọn.
+test('a pack may require capabilities but must never name a vendor', () => {
+  const registry = createJobPackRegistry();
+  registry.registerJobPack(pack({ requiredCapabilities: ['long-context', 'structured-output'] }));
+  assert.deepEqual(registry.getJobPack('article').requiredCapabilities, ['long-context', 'structured-output']);
+
+  for (const leak of [
+    { providerId: 'chatgpt-web' },
+    { preferredProvider: 'claude-web' },
+    { requiredCapabilities: ['gemini-pro'] },
+    { model: 'vendor-large' },
+  ]) {
+    assert.throws(
+      () => createJobPackRegistry().registerJobPack(pack({ ...leak, id: 'job.leak' })),
+      /provider|vendor|model/i,
+      JSON.stringify(leak),
+    );
+  }
+});
+
+test('packs are stored detached from the caller', () => {
+  const registry = createJobPackRegistry();
+  const original = pack();
+  registry.registerJobPack(original);
+  original.requiredEvaluators.push('seo');
+  assert.deepEqual(registry.getJobPack('article').requiredEvaluators, ['factuality', 'claim-support', 'structure']);
 });

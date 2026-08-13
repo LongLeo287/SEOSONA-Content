@@ -304,15 +304,15 @@ getJobPack(jobType)
 listJobPacks()
 ```
 
-- [ ] **Step 1: Write failing registry tests**
+- [x] **Step 1: Write failing registry tests**
 
 Reject duplicate IDs/versions, missing output contract, missing evaluators, unknown job type, and provider-specific fields in a pack.
 
-- [ ] **Step 2: Implement registry and pack validator**
+- [x] **Step 2: Implement registry and pack validator**
 
 Pack code may declare capability requirements (`long-context`, `structured-output`) but must not name a provider vendor.
 
-- [ ] **Step 3: Run and commit**
+- [x] **Step 3: Run and commit**
 
 ```bash
 node --test tests/writing-contracts.test.mjs
