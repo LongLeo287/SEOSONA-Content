@@ -105,19 +105,19 @@ ProviderResult shape:
 }
 ```
 
-- [ ] **Step 1: Write failing schema tests**
+- [x] **Step 1: Write failing schema tests**
 
 Test missing task ID, invalid task type, invalid cost class, provider-specific DOM field rejection at Core contract boundary, and successful structured task/result validation.
 
-- [ ] **Step 2: Run focused test and verify failure**
+- [x] **Step 2: Run focused test and verify failure**
 
 Run: `node --test tests/provider-contracts.test.mjs`
 
-- [ ] **Step 3: Implement strict contract validators**
+- [x] **Step 3: Implement strict contract validators**
 
 Reject fields named `selector`, `tabId`, `chrome`, `cookie`, or `apiKey` inside the top-level provider task contract to prevent layer leakage. Provider-specific adapters can keep those internally.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/provider-contracts.test.mjs
