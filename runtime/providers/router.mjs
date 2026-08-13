@@ -152,15 +152,14 @@ export function routeProvider({ task, providers = [], policy = {} } = {}) {
   const eligible = considered.filter((c) => c.eligible);
 
   if (!eligible.length) {
-    // Phân biệt "không có ai" với "chỉ còn hãng tốn tiền mà chưa được phép" — hai việc này
-    // cần hai câu trả lời khác nhau cho người dùng.
+    // Phân biệt "không có ai" với "có hãng chạy được nhưng tốn tiền và chưa được cho phép".
+    // Cái thứ hai HÀNH ĐỘNG ĐƯỢC: bật cho phép trả tiền là xong. Nên chỉ cần MỘT ứng viên bị
+    // loại đúng vì chính sách chi phí là đã phải nói ra, dù các hãng khác bị loại vì lý do khác
+    // (đã tắt, chưa đăng nhập, vừa hỏng trong lượt này) — người dùng cần biết cả hai việc.
     //
-    // Provider đã thử và hỏng trong chính lượt chạy này (EXCLUDED_THIS_RUN) không được tính:
-    // nếu tính, một lần trình duyệt hỏng sẽ che mất thông tin "thứ duy nhất còn lại là hãng
-    // tốn tiền" — đúng cái người dùng cần biết để quyết định.
-    const remaining = considered.filter((c) => c.reason !== 'EXCLUDED_THIS_RUN');
-    const paidReasons = ['PAID_NOT_ALLOWED', 'PAID_BLOCKED', 'UNKNOWN_COST'];
-    const paidOnly = remaining.length && remaining.every((c) => paidReasons.includes(c.reason));
+    // UNKNOWN_COST không tính vào đây: cho phép trả tiền cũng không mở khóa được nó, vì vấn đề
+    // là ta không biết nó tốn bao nhiêu.
+    const paidOnly = considered.some((c) => ['PAID_NOT_ALLOWED', 'PAID_BLOCKED'].includes(c.reason));
     return {
       providerId: null,
       reason: paidOnly ? 'PAID_PROVIDER_BLOCKED' : 'NO_ELIGIBLE_PROVIDER',

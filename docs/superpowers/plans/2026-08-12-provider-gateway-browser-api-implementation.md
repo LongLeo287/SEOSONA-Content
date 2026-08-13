@@ -515,15 +515,15 @@ git commit -m "feat(providers): orchestrate routed provider attempts"
 - `POST /v1/providers/route-preview` — returns selected provider/reason without execution.
 - `POST /v1/provider-tasks` — executes through Gateway for later Writing Core integration.
 
-- [ ] **Step 1: Add server tests for provider listing, route preview, paid blocking, and task execution with fake adapters**
+- [x] **Step 1: Add server tests for provider listing, route preview, paid blocking, and task execution with fake adapters**
 
-- [ ] **Step 2: Add `npm run providers:verify`**
+- [x] **Step 2: Add `npm run providers:verify`**
 
 ```json
 "providers:verify": "node --test tests/provider-*.test.mjs tests/browser-provider-adapter.test.cjs"
 ```
 
-- [ ] **Step 3: Run complete provider acceptance**
+- [x] **Step 3: Run complete provider acceptance**
 
 With fake adapters prove:
 
@@ -537,14 +537,14 @@ paid API cannot run automatically by default
 
 For live browser acceptance, use an already logged-in provider only if available; if not, record the external gate rather than weakening tests.
 
-- [ ] **Step 4: Run full regression suite**
+- [x] **Step 4: Run full regression suite**
 
 ```bash
 npm run providers:verify
 npm test
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add runtime/http/server.mjs runtime/providers/README.md README.md package.json tests/provider-*.test.mjs

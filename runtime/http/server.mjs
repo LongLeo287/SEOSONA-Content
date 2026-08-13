@@ -5,6 +5,11 @@ import { createContentService } from '../domain/content-service.mjs';
 import { createAuth } from './auth.mjs';
 import { createRouter } from './router.mjs';
 import { createBrowserJobBridge, createFileJobPersistence } from './extension-bridge.mjs';
+import { createProviderRegistry, SEED_PROVIDERS } from '../providers/registry.mjs';
+import { createProviderGateway, createRecordStores } from '../providers/gateway.mjs';
+import { createBrowserBridgeAdapter } from '../providers/browser-bridge-adapter.mjs';
+import { routeProvider } from '../providers/router.mjs';
+import { assertProviderTask } from '../providers/contracts.mjs';
 
 export const API_VERSION = 'v1';
 export const SCHEMA_VERSION = '1.0.0';
@@ -25,6 +30,9 @@ const STATUS_BY_CODE = {
   CONTENT_NOT_FOUND: 404,
   SOURCE_NOT_FOUND: 404,
   TASK_NOT_FOUND: 404,
+  PROVIDER_NOT_FOUND: 404,
+  SECRET_NOT_ACCEPTED: 400,
+  INVALID_TASK: 400,
   SCOPE_MISMATCH: 409,
   IMMUTABLE_RECORD_CONFLICT: 409,
   // Mất lease / job bị huỷ là XUNG ĐỘT TRẠNG THÁI, không phải lỗi xác thực: worker gửi
@@ -81,6 +89,7 @@ export function createRuntimeServer({
   workspaceId = DEFAULT_WORKSPACE,
   now,
   idFactory,
+  adapters = null,
 } = {}) {
   const store = createWorkspaceStore({ rootDir });
   const workspaces = createWorkspaceService({ store, now, idFactory });
@@ -88,6 +97,45 @@ export function createRuntimeServer({
   const auth = createAuth({ token, extensionOrigin });
   const router = createRouter();
   const browserJobs = createBrowserJobBridge({ now, persistence: createFileJobPersistence({ rootDir }) });
+
+  // ---------------------------------------------------------------- provider
+  const registry = createProviderRegistry(SEED_PROVIDERS);
+  const secretRefs = new Map(); // providerId -> secretRef (THAM CHIẾU, không phải khóa)
+
+  // Adapter mặc định: 4 provider trình duyệt chạy qua hàng đợi Extension. `api-v1` KHÔNG có
+  // adapter cho đến khi được cấu hình — chưa cấu hình mà đăng ký sẵn thì Gateway sẽ chọn
+  // trúng một thứ không chạy được.
+  const providerAdapters = adapters || new Map(
+    SEED_PROVIDERS.filter((p) => p.adapterType === 'BROWSER').map((p) => [
+      p.providerId, createBrowserBridgeAdapter({ providerId: p.providerId, bridge: browserJobs, now }),
+    ]),
+  );
+
+  const gateway = createProviderGateway({
+    registry,
+    adapters: providerAdapters,
+    ...createRecordStores({ store, workspaceId, now, idFactory }),
+    now,
+    idFactory,
+  });
+
+  // Cấu hình provider được ghi lại dưới dạng record, nên bật/tắt một hãng không biến mất
+  // sau khi tắt Runtime.
+  let configLoaded = null;
+  async function loadProviderConfig() {
+    if (!configLoaded) {
+      configLoaded = (async () => {
+        for (const config of await store.list('providerConfig', workspaceId)) {
+          const { providerConfigId, provider, secretRef, ...patch } = config;
+          if (secretRef) secretRefs.set(provider, secretRef);
+          try { registry.upsert({ ...patch, providerId: provider }); } catch { /* cấu hình cũ không còn hợp lệ */ }
+        }
+      })();
+    }
+    return configLoaded;
+  }
+
+  const publicProvider = (record) => ({ ...record, secretRef: secretRefs.get(record.providerId) || null });
 
   // Workspace mặc định được tạo lười, một lần — Runtime cục bộ chỉ phục vụ một máy.
   let ensured = null;
@@ -157,6 +205,78 @@ export function createRuntimeServer({
     const ws = await ensureWorkspace();
     if (!(await content.getContent(ws, match[1]))) notFound('Content');
     return { status: 200, body: await content.getContentHistory(ws, match[1]) };
+  });
+
+  // ---------------------------------------------------------------- provider endpoints
+
+  router.add('GET', /^\/v1\/providers$/, async () => {
+    await loadProviderConfig();
+    return { status: 200, body: { providers: registry.list().map(publicProvider) } };
+  });
+
+  // Tên trường mang bí mật. Cấu hình provider nằm trên đĩa, nên nhận khóa ở đây là tự tay
+  // tạo ra một file chứa bí mật. Chỉ nhận secretRef — con trỏ tới nơi giữ khóa thật.
+  const SECRET_FIELD = /^(apikey|api_key|token|accesstoken|secret|password|cookie|authorization|bearer|credential|credentials)$/i;
+
+  router.add('PATCH', /^\/v1\/providers\/([^/]+)$/, async ({ body, match }) => {
+    await loadProviderConfig();
+    const providerId = match[1];
+    const offender = Object.keys(body || {}).find((k) => SECRET_FIELD.test(k));
+    if (offender) {
+      const err = new Error(`Field "${offender}" looks like secret material; store a secretRef instead.`);
+      err.code = 'SECRET_NOT_ACCEPTED';
+      throw err;
+    }
+    if (!registry.get(providerId)) {
+      const err = new Error(`Unknown provider "${providerId}".`);
+      err.code = 'PROVIDER_NOT_FOUND';
+      throw err;
+    }
+
+    const { secretRef, ...settings } = body || {};
+    const updated = registry.upsert({ ...settings, providerId });
+    if (secretRef !== undefined) secretRefs.set(providerId, secretRef);
+
+    await store.put('providerConfig', workspaceId, {
+      providerConfigId: `providerconfig_${providerId}`,
+      provider: providerId,
+      enabled: updated.enabled,
+      costClass: updated.costClass,
+      capabilities: updated.capabilities,
+      latencyMs: updated.latencyMs,
+      secretRef: secretRefs.get(providerId) || null,
+      updatedAt: (now || (() => new Date().toISOString()))(),
+    });
+    return { status: 200, body: publicProvider(updated) };
+  });
+
+  // Xem trước quyết định định tuyến mà KHÔNG chạy. Người dùng nên biết Auto định chọn ai
+  // và vì sao trước khi bấm chạy, chứ không phải phát hiện sau khi việc đã xong.
+  // Task sai hình dạng là lỗi của người gọi (400), không phải sự cố Runtime (500).
+  const validTask = (value) => {
+    try {
+      return assertProviderTask(value);
+    } catch (e) {
+      const err = new Error(e.message);
+      err.code = 'INVALID_TASK';
+      throw err;
+    }
+  };
+
+  router.add('POST', /^\/v1\/providers\/route-preview$/, async ({ body }) => {
+    await loadProviderConfig();
+    return {
+      status: 200,
+      body: routeProvider({ task: validTask(body.task), providers: registry.list(), policy: body.policy || {} }),
+    };
+  });
+
+  router.add('POST', /^\/v1\/provider-tasks$/, async ({ body }) => {
+    await loadProviderConfig();
+    const result = await gateway.execute(validTask(body.task), body.policy || {});
+    // BLOCKED là câu trả lời hợp lệ của miền (thường là "chưa cho phép trả tiền"), không phải
+    // lỗi máy chủ — nhưng vẫn phải là mã 4xx để client không tưởng đã chạy xong.
+    return { status: result.status === 'BLOCKED' ? 409 : 200, body: result };
   });
 
   // ---------------------------------------------------------------- cầu nối job trình duyệt

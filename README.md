@@ -122,9 +122,23 @@ SEOSONA_CONTENT_RUNTIME_TOKEN=<chuỗi ít nhất 32 ký tự> npm run runtime:s
 - Ảnh chụp nguồn và revision **bất biến**: nguồn đổi thì sinh bản mới, không đè bản cũ.
 - Ghi **atomic** (file tạm → rename), blob đánh địa chỉ bằng SHA-256.
 - Không đồng bộ đám mây, không đăng bài, không chứa API key.
-- **Runtime V1 chưa chạy AI** — phần thực thi provider thuộc kế hoạch kế tiếp.
 
 Chi tiết ranh giới, API và cách kiểm thử: [runtime/README.md](runtime/README.md).
+
+### Provider Gateway — chọn AI nào chạy việc gì
+
+Runtime đối xử với "ChatGPT trên trình duyệt" và "một API HTTP" y hệt nhau: cùng nhận `ProviderTask`,
+cùng trả `ProviderResult`. Auto chọn theo **thứ tự từ điển**: chất lượng quan sát được → chi phí →
+độ ổn định → tốc độ. Chọn tay thì Auto phải nhường.
+
+- **Không có đường nào tự tiêu tiền.** Provider trả phí chỉ chạy khi được cho phép rõ ràng, và
+  trình duyệt hỏng **không** tự biến thành một lần gọi API tính tiền.
+- **Không hãng nào được gắn điểm sẵn** — chỉ số chưa đo là `null`, không phải `0`.
+- **Bí mật chỉ lưu tham chiếu**; biên nhận giữ digest của prompt, không giữ prompt.
+- SEOSONA **không đọc cookie** của các trang AI — chỉ lái phiên bạn đã đăng nhập sẵn.
+
+Chi tiết: [runtime/providers/README.md](runtime/providers/README.md). Còn thiếu: Writing Core chưa
+gọi vào tầng này, nên chưa có đường "một bài viết → nhiều ProviderTask".
 
 ## Bảo trì selector
 
