@@ -1,10 +1,56 @@
-# SEOSONA SRT Studio
+# SEOSONA Content — Writing Intelligence System
 
-Chrome extension (Manifest V3) **phân tích – đánh giá – cắt ghép nội dung từ file SRT** để làm video short-form (Shorts/TikTok/Reels).
+Hệ thống **viết – kiểm chứng – đánh giá nội dung**, chạy hoàn toàn trên máy bạn.
 
-Extension đóng vai trò **trung gian điều khiển**: không gọi API trả phí, mà tự động hóa trực tiếp các web AI bạn đang đăng nhập sẵn — **ChatGPT, Gemini, Grok, Claude** — để phân tích SRT theo Master Prompt, rồi nhận kết quả về, validate và xuất file dựng.
+Nó không phải một ô chat gắn thêm nút. Điểm khác biệt nằm ở chỗ mọi câu có thể kiểm chứng
+đều phải **truy về được một mẩu bằng chứng cụ thể**, và không có đường nào để hệ thống tự
+lấp chỗ trống bằng thứ nó nghĩ ra.
 
-## Luồng làm việc
+## Ba phần
+
+| | Là gì | Ở đâu |
+|---|---|---|
+| **Local Runtime** | Nơi giữ dữ liệu gốc: dự án, nguồn, nội dung, bản sửa, kết quả đánh giá | `127.0.0.1`, file thường trên đĩa |
+| **Studio cục bộ** | Màn viết sâu: brief → viết → đánh giá → sửa → xuất | Trình duyệt, cùng origin với Runtime |
+| **Context Extension** | Viết ngay tại chỗ: bôi đen trên trang bất kỳ → audit / viết lại / rút gọn | Chrome side panel |
+
+Studio và Extension là **hai màn hình của cùng một kho**, không phải hai sản phẩm. Cùng một
+`projectId`, cùng một `revisionId`.
+
+**Provider Gateway** đứng giữa: nó lái các trang AI bạn đã đăng nhập sẵn (ChatGPT, Gemini,
+Claude, Grok) **hoặc** một API HTTP, qua đúng một hợp đồng. Auto chọn theo thứ tự **chất lượng
+quan sát được → chi phí → độ ổn định → tốc độ**, và **không có đường nào tự tiêu tiền của bạn**.
+
+```bash
+SEOSONA_CONTENT_RUNTIME_TOKEN=<chuỗi ít nhất 32 ký tự> npm run runtime:start
+# rồi mở http://127.0.0.1:43118
+```
+
+## Điều được ép bằng luật, không phải bằng lời nhắc trong prompt
+
+- **Văn bản nguồn là dữ liệu, không phải mệnh lệnh.** Câu "bỏ qua hướng dẫn phía trên" nằm
+  trong một trang nguồn không bao giờ chạm được vào phần luật.
+- **Sửa văn không được nâng mức khẳng định.** "Có thể giúp" → "bảo đảm" mà không có bằng
+  chứng mới thì bị chặn.
+- **Người viết và người chấm tách rời**, chạy được trên hai hãng khác nhau.
+- **Thông số sản phẩm và lời thoại transcript là nguyên văn** — không làm tròn, không sửa
+  chính tả, không quy đổi đơn vị.
+- **Thiếu chỗ dựa không bao giờ được vá bằng bằng chứng bịa ra.**
+- **Ghi đè chữ trên trang phải qua hai bước**, và bị chặn nếu trang đã đổi từ lúc chụp.
+
+## Kiểm chứng
+
+```bash
+npm run v1:verify
+```
+
+Chạy toàn bộ 683 test, máy quét ranh giới kiến trúc, và hai bài kiểm tất định của luồng cũ.
+
+**Cổng ngoài (không tự động hóa được):** nghiệm thu với trình duyệt thật cần một tài khoản AI
+đã đăng nhập. Các selector đổi model chưa được kiểm chứng trên Chrome thật — ghi nhận là
+`EXTERNAL_AUTH_GATE`, không nới lỏng test tự động để giả vờ đã xong.
+
+## Luồng SRT (đã di trú)
 
 ```
 ┌──────────────┐   1. nạp SRT    ┌─────────────────────┐
@@ -30,7 +76,7 @@ Extension đóng vai trò **trung gian điều khiển**: không gọi API trả
 └──────────────┘
 ```
 
-## Cài đặt
+## Cài đặt Extension
 
 1. Mở `chrome://extensions`, bật **Developer mode**.
 2. **Load unpacked** → chọn thư mục [`extension/`](extension).
@@ -72,7 +118,7 @@ Extension bơm kiến thức content thật vào prompt thay vì để AI tự �
 
 File xuất tự thêm hậu tố angle (`.a1`, `.a2`…) khi có nhiều góc cắt.
 
-## Kiến trúc code
+## Kiến trúc code (extension)
 
 ```
 extension/
@@ -176,6 +222,19 @@ Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provid
 
 ## Roadmap
 
+**Writing Intelligence (lõi hiện tại)**
+
+- [x] Local Runtime: dữ liệu gốc trên máy, ghi atomic, bản ghi bất biến
+- [x] Provider Gateway: Auto Router chất lượng-trước, chặn chi phí ba tầng, biên nhận không chứa bí mật
+- [x] Writing Core + ba Job Pack V1: Blog/Article, Product, Transcript/SRT
+- [x] Studio cục bộ + Context Extension trên cùng một kho
+- [x] Ghép cặp thu hồi được, phiên ngắn hạn, ghi đè trang có canh gác
+- [x] Tín hiệu học có phạm vi (không tự biến thành luật)
+- [ ] Job Pack cho nội dung mạng xã hội (đi **vào** kiến trúc mới, không thăng cấp code cũ)
+- [ ] Kiểm chứng selector đổi model trên Chrome thật (cổng ngoài)
+
+**Luồng SRT (đã có, đang di trú)**
+
 - [x] Content Intelligence: bơm hook/formula/brand-voice vào prompt (đóng gói sẵn)
 - [x] Platform presets + multi-angle (1 SRT → N shorts)
 - [x] Chấm điểm AI: Hook/Flow/Retention/CTA (điểm số trực quan)
@@ -193,6 +252,10 @@ Khi một provider hỏng: mở **⚙ Settings** trong side panel, chọn provid
 
 ## Tài liệu
 
+- [runtime/README.md](runtime/README.md) — ranh giới Local Runtime, API, cách kiểm thử.
+- [runtime/providers/README.md](runtime/providers/README.md) — Provider Gateway: chọn hãng, chi phí, bí mật.
+- [docs/migration/facebook-legacy-boundary.md](docs/migration/facebook-legacy-boundary.md) — ranh giới với luồng Facebook/media cũ.
+- [docs/development/local-integrations.md](docs/development/local-integrations.md) — tích hợp cục bộ tùy chọn.
 - [docs/SOP.md](docs/SOP.md) — quy trình chuẩn dùng extension từ đầu đến cuối (nạp SRT → phân tích → cắt ghép → đánh giá, batch, thư viện prompt, override selector, xử lý sự cố).
 
 ## Prompt gốc

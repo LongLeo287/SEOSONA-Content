@@ -15,7 +15,9 @@
     "seosona:log": "node scripts/seosona-project.mjs log",
     "providers:verify": "node --test tests/provider-*.test.mjs tests/browser-provider-adapter.test.cjs",
     "writing:verify": "node --test tests/writing-*.test.mjs tests/job-pack-*.test.mjs",
-    "architecture:boundary": "node scripts/audit/writing-boundary-audit.mjs"
+    "architecture:boundary": "node scripts/audit/writing-boundary-audit.mjs",
+    "v1:verify": "npm test && npm run architecture:boundary && npm run seosona:doctor && npm run facebook:audit",
+    "v1:surfaces": "node --test tests/studio-*.test.mjs tests/runtime-pairing.test.mjs tests/extension-*.test.cjs tests/context-editor-contract.test.cjs tests/feedback-signals.test.mjs tests/migration-contract.test.mjs tests/v1-acceptance.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0"

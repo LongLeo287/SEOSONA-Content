@@ -30,12 +30,20 @@ function emptyHealth() {
 // Danh sách hạt giống. Provider trình duyệt là ZERO_INCREMENTAL vì dùng đúng phiên đăng nhập
 // người dùng đã trả tiền sẵn; chạy thêm một lần không phát sinh hóa đơn mới.
 // `api-v1` cố ý tắt và UNKNOWN_COST: chưa cấu hình thì không được đoán là miễn phí.
+// Năng lực phải KHAI RA, vì Job Pack đòi năng lực chứ không đòi tên hãng. Provider không khai
+// gì thì Auto Router loại nó khỏi mọi việc có yêu cầu — và người dùng thấy "không chọn được
+// nhà cung cấp nào" mà không hiểu vì sao, dù cả bốn hãng đang bật.
+// Cả bốn giao diện chat đều nhận ngữ cảnh dài và đều trả về được đầu ra có cấu trúc khi được
+// yêu cầu, nên khai hai năng lực này là đúng sự thật, không phải để cho qua bài kiểm.
+const BROWSER_CAPABILITIES = ['long-context', 'structured-output'];
+
 export const SEED_PROVIDERS = Object.freeze([
-  { providerId: 'chatgpt-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true },
-  { providerId: 'claude-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true },
-  { providerId: 'gemini-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true },
-  { providerId: 'grok-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true },
-  { providerId: 'api-v1', adapterType: 'API', costClass: 'UNKNOWN_COST', enabled: false },
+  { providerId: 'chatgpt-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true, capabilities: BROWSER_CAPABILITIES },
+  { providerId: 'claude-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true, capabilities: BROWSER_CAPABILITIES },
+  { providerId: 'gemini-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true, capabilities: BROWSER_CAPABILITIES },
+  { providerId: 'grok-web', adapterType: 'BROWSER', costClass: 'ZERO_INCREMENTAL', enabled: true, capabilities: BROWSER_CAPABILITIES },
+  // api-v1 chưa cấu hình: chỉ khai năng lực chắc chắn có ở một endpoint HTTP có json schema.
+  { providerId: 'api-v1', adapterType: 'API', costClass: 'UNKNOWN_COST', enabled: false, capabilities: ['structured-output'] },
 ]);
 
 function providerError(code, message) {

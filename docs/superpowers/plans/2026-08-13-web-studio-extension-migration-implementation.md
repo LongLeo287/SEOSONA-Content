@@ -527,7 +527,7 @@ git commit -m "refactor(transcript): use runtime as canonical srt source"
 - Legacy Facebook UI/actions remain behind `facebook:*` messages and existing companion process until separately retired.
 - `npm run architecture:boundary` scans prohibited imports/identifiers in `runtime/`.
 
-- [ ] **Step 1: Write failing boundary scanner**
+- [x] **Step 1: Write failing boundary scanner**
 
 Create `scripts/audit/writing-boundary-audit.mjs` that recursively scans `runtime/**/*.mjs` and fails on imports/references to:
 
@@ -616,7 +616,7 @@ git commit -m "chore: remove machine specific mcp configuration"
 - `npm run v1:verify` executes Runtime, Provider, Writing, Studio/Extension contract, boundary and legacy tests.
 - Acceptance proves shared state, not pixel-perfect UI.
 
-- [ ] **Step 1: Build a fake-provider E2E harness**
+- [x] **Step 1: Build a fake-provider E2E harness**
 
 Start Runtime on an ephemeral port/temp data root with fake browser/API adapters. Through HTTP APIs:
 
@@ -631,17 +631,17 @@ submit contextual Extension action against same project
 verify new Revision and signal share canonical IDs
 ```
 
-- [ ] **Step 2: Add Product and Transcript acceptance paths**
+- [x] **Step 2: Add Product and Transcript acceptance paths**
 
 Product: unsupported benefit must not reach approved state.
 
 Transcript: modified raw text/timecode must not reach approved cut/export state.
 
-- [ ] **Step 3: Add provider-routing acceptance**
+- [x] **Step 3: Add provider-routing acceptance**
 
 Browser fake preferred by observed quality/zero-incremental policy; browser unavailable -> eligible free API; only paid API -> blocked; explicit paid policy -> allowed.
 
-- [ ] **Step 4: Add package script**
+- [x] **Step 4: Add package script**
 
 ```json
 "v1:verify": "npm run runtime:verify && npm run providers:verify && npm run writing:verify && node --test tests/studio-*.test.mjs tests/extension-*.test.cjs tests/context-editor-contract.test.cjs tests/feedback-signals.test.mjs tests/migration-contract.test.mjs tests/v1-acceptance.test.mjs && npm run architecture:boundary && npm run facebook:verify"
@@ -649,7 +649,7 @@ Browser fake preferred by observed quality/zero-incremental policy; browser unav
 
 If legacy `facebook:verify` includes an external unavailable dependency in the actual environment, split its deterministic unit/audit portion from live acceptance before using it as a required local gate; never simply delete the regression gate.
 
-- [ ] **Step 5: Run full verification and record exact external gates**
+- [x] **Step 5: Run full verification and record exact external gates**
 
 Run:
 
@@ -659,11 +659,11 @@ npm run v1:verify
 
 All deterministic tests must pass. Live browser-provider acceptance is additional: if no logged-in web provider is available, record `EXTERNAL_AUTH_GATE` rather than weakening automated tests.
 
-- [ ] **Step 6: Update README product identity**
+- [x] **Step 6: Update README product identity**
 
 README must lead with `SEOSONA Content — Writing Intelligence System`, explain Local Studio + Context Extension + Provider Gateway, and move SRT Studio/Facebook Factory descriptions under migrated/legacy capabilities rather than main identity.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tests/v1-acceptance.test.mjs package.json README.md
