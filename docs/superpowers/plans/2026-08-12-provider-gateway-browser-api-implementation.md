@@ -418,11 +418,11 @@ git commit -m "refactor(extension): expose generic browser provider messages"
 - `credentialProvider(): Promise<string>` retrieves secret material at execution time.
 - `costResolver(responseMeta, task): CostClass` must return an allowed class; `UNKNOWN_COST` stays blocked for Auto unless explicit manual execution policy permits it.
 
-- [ ] **Step 1: Write failing HTTP adapter tests with mocked fetch**
+- [x] **Step 1: Write failing HTTP adapter tests with mocked fetch**
 
 Cover bearer injection, structured request mapping, HTTP 429 -> retryable `RATE_LIMITED`, 401 -> `AUTH_REQUIRED`, malformed JSON -> `INVALID_PROVIDER_OUTPUT`, timeout/AbortController, receipt redaction, and cost classification.
 
-- [ ] **Step 2: Implement adapter without vendor logic in Writing Core**
+- [x] **Step 2: Implement adapter without vendor logic in Writing Core**
 
 Use a small configured request mapping:
 
@@ -436,11 +436,11 @@ Use a small configured request mapping:
 
 If the chosen vendor's official endpoint differs, keep the vendor translation inside this adapter file or a vendor-specific child adapter; never leak it into Gateway/Core.
 
-- [ ] **Step 3: Implement credential indirection**
+- [x] **Step 3: Implement credential indirection**
 
 V1 may read a credential through an injected environment-backed provider in CLI/runtime startup, but persisted `ProviderConfig` stores only `secretRef`. Do not write secret values to `.seosona-content`.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/provider-api-adapter.test.mjs
