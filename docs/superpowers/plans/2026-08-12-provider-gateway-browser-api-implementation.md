@@ -140,7 +140,7 @@ git commit -m "feat(providers): define neutral provider contracts"
 - Provider record fields: `providerId`, `adapterType`, `capabilities`, `costClass`, `enabled`, `authStatus`, `health`, `qualityByJob`, `latencyMs`.
 - Quality signal fields: `providerId`, `contentJob`, `taskType`, `goldenEval`, `accept`, `reject`, `repair`, `schemaCompliance`, `evaluatorScore`, `at`.
 
-- [ ] **Step 1: Write failing tests for seed browser providers and rolling observations**
+- [x] **Step 1: Write failing tests for seed browser providers and rolling observations**
 
 Seed IDs:
 
@@ -154,15 +154,15 @@ api-v1
 
 Browser providers start with `ZERO_INCREMENTAL`, but `qualityByJob` must be empty/unknown rather than invented ratings.
 
-- [ ] **Step 2: Implement registry without static quality marketing claims**
+- [x] **Step 2: Implement registry without static quality marketing claims**
 
 `recordQualitySignal()` updates a bounded rolling window and exposes normalized comparison data only after at least one observation. No provider gets an arbitrary hardcoded “best” score.
 
-- [ ] **Step 3: Add health state updates**
+- [x] **Step 3: Add health state updates**
 
 Health includes `availability`, `auth`, `timeoutRate`, `rateLimitRate`, `selectorHealth`, `parseFailureRate`, `retryRate`, `lastUpdatedAt`.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```bash
 node --test tests/provider-router.test.mjs
