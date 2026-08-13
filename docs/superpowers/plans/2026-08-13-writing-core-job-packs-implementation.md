@@ -234,11 +234,11 @@ git commit -m "feat(writing): protect evidence and claim strength"
 - `composeProviderInput(bundle, operation): { system, sections, outputContract, promptDigest }`
 - Section order is stable: `CORE_RULES`, `JOB_RULES`, `BRAND`, `AUDIENCE`, `BRIEF`, `EVIDENCE`, `TARGET`, `USER_TASK`, `OUTPUT_CONTRACT`.
 
-- [ ] **Step 1: Write failing composition tests**
+- [x] **Step 1: Write failing composition tests**
 
 Prove each pack remains a separately addressable/versioned section, source content appears only under `EVIDENCE`/source sections, and source text containing “ignore previous instructions” remains quoted/marked as untrusted data rather than entering `CORE_RULES`.
 
-- [ ] **Step 2: Implement ContextBundle with explicit revision fields**
+- [x] **Step 2: Implement ContextBundle with explicit revision fields**
 
 ```js
 {
@@ -253,15 +253,15 @@ Prove each pack remains a separately addressable/versioned section, source conte
 }
 ```
 
-- [ ] **Step 3: Implement prompt composer with stable serialization**
+- [x] **Step 3: Implement prompt composer with stable serialization**
 
 Each section is delimited and source/evidence strings are escaped/serialized as data. `promptDigest` is SHA-256 of the canonical composed input; the complete prompt is not required in `ProviderReceipt`.
 
-- [ ] **Step 4: Migrate only reusable knowledge rules into structured pack inputs**
+- [x] **Step 4: Migrate only reusable knowledge rules into structured pack inputs**
 
 Create a test fixture mapping the current knowledge blocks to Core/Job/Audit categories. Do not concatenate all of `knowledge.js` blindly. The initial Core Pack should reference exact writing rules needed by V1: fact check, claim strength, editing rules, concision, deslop, audience research, content strategy, audit rubric.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/writing-context-prompt.test.mjs
