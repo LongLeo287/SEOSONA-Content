@@ -1153,10 +1153,11 @@ $('#btnContentRun').addEventListener('click', async () => {
   const provider = $('#contentProvider').value || state.provider;
   const knowledge = Knowledge.buildKnowledgeSection(state.blockIds || []);
   const kw = ($('#contentKeyword').value || '').trim() || '(chưa cung cấp)';
-  // Bơm LUẬT ĐỊNH DẠNG đầy đủ (không phải chỉ cái nhãn) để bài viết ra đúng khuôn
+  // Bơm LUẬT ĐỊNH DẠNG đầy đủ (không phải chỉ cái nhãn) để bài viết ra đúng khuôn.
+  // outputFormatPrompt() gắn kèm trạng thái xác minh cho các con số giới hạn.
   const fmtId = $('#contentFormat').value;
-  const fmtDef = (typeof OUTPUT_FORMATS !== 'undefined') ? OUTPUT_FORMATS[fmtId] : null;
-  const fmt = fmtDef ? (fmtDef.name + '\n' + fmtDef.spec) : (CONTENT_FORMATS[fmtId] || fmtId || '');
+  const fmt = (typeof outputFormatPrompt === 'function' && outputFormatPrompt(fmtId))
+    || (CONTENT_FORMATS[fmtId] || fmtId || '');
   const brandRaw = t.needsBrand ? ($('#contentBrand').value || '').trim() : '';
   const brand = brandRaw ? `\n## BRAND VOICE (BẮT BUỘC tuân theo, ưu tiên hơn chuẩn chung khi có xung đột về giọng)\n${brandRaw}\n` : '';
   const lit = (v) => () => v; // tránh $-pattern trong replacement khi input chứa $&, $1...

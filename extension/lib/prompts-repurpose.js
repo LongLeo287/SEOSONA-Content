@@ -19,6 +19,11 @@ const REPURPOSE_PROMPTS = (() => {
   for (const id of IDS) {
     const f = FORMATS[id];
     if (!f) continue;
+    // Dùng outputFormatPrompt() để giới hạn nền tảng đi kèm TRẠNG THÁI xác minh,
+    // tránh trình bày con số chưa kiểm chứng như luật cứng.
+    const formatBlock = (typeof outputFormatPrompt === 'function')
+      ? outputFormatPrompt(id)
+      : (f.name + '\n' + f.spec);
     out[id] = {
       name: f.name,
       body:
@@ -27,7 +32,7 @@ const REPURPOSE_PROMPTS = (() => {
 ${REPURPOSE_COMMON}
 
 ## ĐỊNH DẠNG CẦN TẠO
-${f.spec}
+${formatBlock}
 
 ===== NỘI DUNG NGUỒN =====
 {{SOURCE}}`,
