@@ -431,11 +431,11 @@ git commit -m "feat(writing): add source faithful product content pack"
 - `validateTranscriptSelection({ cues, selections }): { ok, issues }`
 - CueIR: `{ cueId, index, startMs, endMs, rawText }`.
 
-- [ ] **Step 1: Create an exact regression fixture**
+- [x] **Step 1: Create an exact regression fixture**
 
 The fixture must include Vietnamese diacritics, punctuation, a deliberate spelling/jargon error, multiline cue, comma/dot millisecond forms, and adjacent cues.
 
-- [ ] **Step 2: Write failing parse/serialize invariance tests**
+- [x] **Step 2: Write failing parse/serialize invariance tests**
 
 ```js
 const cues = parseSrt(raw);
@@ -446,19 +446,19 @@ assert.equal(cues[0].endMs, expectedEnd);
 
 Test that authoritative `rawText` is never spell-corrected or normalized in returned CueIR.
 
-- [ ] **Step 3: Port the pure parser logic into ESM**
+- [x] **Step 3: Port the pure parser logic into ESM**
 
 Preserve the legacy parser behavior where correct, but expose `rawText` instead of generic `text` in Runtime contracts. Keep normalization helpers separate and never use normalization as authoritative output.
 
-- [ ] **Step 4: Add selection validation**
+- [x] **Step 4: Add selection validation**
 
 A cut selection must reference exact cue IDs/start/end and exact raw transcript text. Non-linear ordering is allowed, but invented/merged timestamps or modified raw text yield `TRANSCRIPT_SOURCE_MISMATCH`.
 
-- [ ] **Step 5: Run parity tests against the legacy parser on compatible fixtures**
+- [x] **Step 5: Run parity tests against the legacy parser on compatible fixtures**
 
 Import legacy `srt-parser.js` through a VM/browser-safe harness only if needed; otherwise compare expected cue arrays generated from the same fixture. Do not modify the legacy parser until Runtime parity is green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 node --test tests/job-pack-transcript.test.mjs

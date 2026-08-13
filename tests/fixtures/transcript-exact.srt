@@ -1,0 +1,21 @@
+1
+00:00:01,000 --> 00:00:04,250
+Chào bạn, hôm nay chúng ta nói về tốc độ giao hàng.
+
+2
+00:00:04,250 --> 00:00:09,500
+Nhiều shop nghĩ rằng cứ gom đơn là xong,
+nhưng thực tế phức tạp hơn thế nhiều.
+
+3
+00:00:09.500 --> 00:00:13.750
+Theo số liệu nội bộ, 87% khách bỏ giỏ khi chờ quá 3 ngày.
+
+4
+00:00:14,000 --> 00:00:18,200
+Chúng tôi gọi đây là "cửa sổ kiên nhẫn" — khoảng thời gian
+khách còn sẵn sàng đợi.
+
+5
+00:00:18,200 --> 00:00:22,000
+Lưu ý: từ "logictics" trong slide gốc bị viết sai, đúng phải là logistics.
