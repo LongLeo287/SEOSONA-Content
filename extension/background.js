@@ -297,6 +297,28 @@ async function runContextAction(payload) {
   throw new Error(`Unsupported runtime kind: ${payload.runtimeKind}`);
 }
 
+// ---------------------------------------------------------------- đọc/ghi trang theo yêu cầu
+// context-editor.js được TIÊM TỪNG LẦN qua activeTab, không khai báo thường trú trong
+// manifest. Nghĩa là extension chỉ chạm được vào trang khi người dùng vừa yêu cầu một hành
+// động trên đúng tab đó — không có quyền đọc mọi trang họ mở.
+async function withContextEditor(tabId, message) {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content/context-editor.js'] });
+  } catch (error) {
+    return { ok: false, code: 'PAGE_NOT_ACCESSIBLE', message: String((error && error.message) || error) };
+  }
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch (error) {
+    return { ok: false, code: 'PAGE_NOT_ACCESSIBLE', message: String((error && error.message) || error) };
+  }
+}
+
+async function activeTabId() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab ? tab.id : null;
+}
+
 // ---------------------------------------------------------------- handlers
 // Chữ ký cũ được giữ nguyên (jobId/provider/timeout, lỗi là chuỗi) vì Facebook orchestrator
 // và side panel đang gọi đúng hình dạng này.
@@ -570,6 +592,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     runContextAction(msg.payload)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((e) => sendResponse({ ok: false, error: { code: e.code || 'RUNTIME_ERROR', message: e.message } }));
+    return true;
+  }
+  if (msg.action.startsWith('context:')) {
+    // Áp dụng lên trang là một hành động RIÊNG, người dùng bấm sau khi đã xem bản đề xuất.
+    // Không có đường nào ở đây tự chạy sau khi AI trả kết quả.
+    activeTabId().then((tabId) => {
+      if (tabId == null) return sendResponse({ ok: false, code: 'NO_ACTIVE_TAB' });
+      return withContextEditor(tabId, msg).then(sendResponse);
+    });
     return true;
   }
   if (msg.action === 'runtime:getPendingAction') {

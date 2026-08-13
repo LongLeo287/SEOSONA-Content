@@ -17,7 +17,8 @@
     "downloads",
     "notifications",
     "contextMenus",
-    "alarms"
+    "alarms",
+    "activeTab"
   ],
   "host_permissions": [
     "*://chatgpt.com/*",
@@ -45,23 +46,48 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://chatgpt.com/*"],
-      "js": ["lib/selectors-default.js", "content/common.js", "content/chatgpt.js"],
+      "matches": [
+        "*://chatgpt.com/*"
+      ],
+      "js": [
+        "lib/selectors-default.js",
+        "content/common.js",
+        "content/chatgpt.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["*://gemini.google.com/*"],
-      "js": ["lib/selectors-default.js", "content/common.js", "content/gemini.js"],
+      "matches": [
+        "*://gemini.google.com/*"
+      ],
+      "js": [
+        "lib/selectors-default.js",
+        "content/common.js",
+        "content/gemini.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://grok.com/*", "https://*.grok.com/*"],
-      "js": ["lib/selectors-default.js", "content/common.js", "content/grok.js"],
+      "matches": [
+        "https://grok.com/*",
+        "https://*.grok.com/*"
+      ],
+      "js": [
+        "lib/selectors-default.js",
+        "content/common.js",
+        "content/grok.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://claude.ai/*"],
-      "js": ["lib/selectors-default.js", "content/common.js", "content/claude.js"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "lib/selectors-default.js",
+        "content/common.js",
+        "content/claude.js"
+      ],
       "run_at": "document_idle"
     }
   ]

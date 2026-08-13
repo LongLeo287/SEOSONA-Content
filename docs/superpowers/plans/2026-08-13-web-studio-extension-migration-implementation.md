@@ -372,23 +372,23 @@ git commit -m "feat(extension): route contextual writing actions to runtime"
   - `context:replaceField`
 - Pure helpers exported for Node tests where possible: `classifyEditableElement`, `validateReplacement`, `buildEditableSnapshot`.
 
-- [ ] **Step 1: Write failing editor-contract tests**
+- [x] **Step 1: Write failing editor-contract tests**
 
 Cover textarea, input, contenteditable, non-editable element, replacement length, original-text mismatch, and unsupported password/file inputs.
 
-- [ ] **Step 2: Add `activeTab` only**
+- [x] **Step 2: Add `activeTab` only**
 
 Update manifest permissions. Provider hosts and localhost remain as explicit host permissions.
 
-- [ ] **Step 3: Implement target snapshot**
+- [x] **Step 3: Implement target snapshot**
 
 Snapshot contains a transient target descriptor and `originalText`. Do not persist DOM nodes/selectors as canonical project records.
 
-- [ ] **Step 4: Implement guarded replacement**
+- [x] **Step 4: Implement guarded replacement**
 
 Before replacement, re-read current target text and compare with `originalText`. If changed, return `PAGE_CONTENT_CHANGED` and require the user to re-run/review; never overwrite stale text.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/context-editor-contract.test.cjs
