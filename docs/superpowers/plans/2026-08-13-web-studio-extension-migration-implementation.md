@@ -329,23 +329,23 @@ git commit -m "feat(extension): pair securely with local runtime"
   - `quick_expand -> EXPAND_SELECTION`
   - `quick_grammar -> CLARIFY_SELECTION` only if UI label is also updated; otherwise define a dedicated `GRAMMAR_SELECTION` action.
 
-- [ ] **Step 1: Write failing payload tests**
+- [x] **Step 1: Write failing payload tests**
 
 Reject empty selection for selection-only actions, missing project ID when action requires persistence, unsupported URL scheme, oversized selection beyond configured context limit, and unknown action.
 
-- [ ] **Step 2: Implement pure action mapping**
+- [x] **Step 2: Implement pure action mapping**
 
 Payload contains page URL/title as provenance, but no DOM HTML and no unrelated browsing history.
 
-- [ ] **Step 3: Route current context menu through Runtime when paired**
+- [x] **Step 3: Route current context menu through Runtime when paired**
 
 On click: build payload -> save only a short pending UI reference if needed -> open side panel -> side panel/Background calls Runtime Writing API. If Runtime is unavailable, show a clear local-runtime unavailable state; do not silently fall back to a separate untracked content database.
 
-- [ ] **Step 4: Keep legacy actions isolated**
+- [x] **Step 4: Keep legacy actions isolated**
 
 Legacy SRT/old direct provider flows remain callable from their old UI during migration but generic context menu actions use Runtime path after this task.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/extension-context-actions.test.cjs tests/extension-runtime-client.test.cjs

@@ -4,6 +4,7 @@
 
 importScripts(
   'lib/provider-registry.js', 'lib/browser-provider-adapter.js',
+  'lib/runtime-client.js', 'lib/context-actions.js',
   'lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js',
   'lib/facebook-provider-lease.js', 'lib/facebook-orchestrator.js',
 );
@@ -41,12 +42,31 @@ if (chrome.contextMenus && chrome.contextMenus.onClicked) {
   chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const text = (info.selectionText || '').trim();
     if (!text || !info.menuItemId || info.menuItemId === 'seosona_root') return;
+
+    // Dựng payload NGAY, để nếu có gì sai (chưa chọn dự án, trang không hỗ trợ, đoạn quá dài)
+    // thì side panel mở ra đã biết vì sao — thay vì để người dùng bấm chạy rồi mới báo lỗi.
+    let pending;
     try {
-      await chrome.storage.local.set({ srtQuickPending: { action: info.menuItemId, text, ts: Date.now() } });
-    } catch (_) {}
-    try {
-      if (tab && tab.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId });
-    } catch (_) {}
+      const { seosonaProjectId } = await chrome.storage.local.get('seosonaProjectId');
+      pending = {
+        payload: ContextActions.buildContextActionPayload({
+          action: info.menuItemId,
+          selectionText: text,
+          pageUrl: (tab && tab.url) || info.pageUrl,
+          pageTitle: (tab && tab.title) || '',
+          projectId: seosonaProjectId || null,
+        }),
+        error: null,
+        ts: Date.now(),
+      };
+    } catch (error) {
+      pending = { payload: null, error: { code: error.code || 'CONTEXT_ACTION_FAILED', message: error.message }, ts: Date.now() };
+    }
+
+    // Chỉ lưu một THAM CHIẾU tạm cho giao diện. Đây không phải kho nội dung thứ hai:
+    // bản ghi chính thức do Runtime tạo khi hành động thật sự chạy.
+    try { await chrome.storage.session.set({ seosonaPendingAction: pending }); } catch (_) {}
+    try { if (tab && tab.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId }); } catch (_) {}
   });
 }
 
@@ -208,6 +228,73 @@ async function setRuntimeBridge({ url, token, enabled }) {
   await chrome.storage.session.set({ seosonaRuntimeToken: token });
   chrome.alarms.create(RUNTIME_POLL_ALARM, { periodInMinutes: 0.5 });
   return { ok: true, enabled: true };
+}
+
+// ---------------------------------------------------------------- client Local Runtime
+// Đây là đường ĐI TỚI KHO DỮ LIỆU GỐC. Nó tách hẳn với cầu nối provider phía trên: cầu nối
+// kia chỉ để lái tab AI, còn đường này mới là nơi bài viết được lưu.
+const runtimeClient = RuntimeClient.create({
+  fetchImpl: (url, init) => fetch(url, init),
+  storage: {
+    getLocal: (key) => chrome.storage.local.get(key),
+    setLocal: (patch) => chrome.storage.local.set(patch),
+    getSession: (key) => chrome.storage.session.get(key),
+    setSession: (patch) => chrome.storage.session.set(patch),
+  },
+  readUrl: async () => {
+    const { seosonaRuntime } = await chrome.storage.local.get('seosonaRuntime');
+    return (seosonaRuntime && seosonaRuntime.url) || 'http://127.0.0.1:43118';
+  },
+  newNonce: () => crypto.randomUUID().replace(/-/g, ''),
+});
+
+// Runtime chưa bật là một TRẠNG THÁI, không phải sự cố. Giao diện cần phân biệt được
+// "chưa ghép cặp", "Runtime chưa chạy" và "sẵn sàng" để nói đúng việc người dùng phải làm.
+async function runtimeStatus() {
+  if (!(await runtimeClient.isPaired())) return { state: 'NOT_PAIRED' };
+  try {
+    const health = await runtimeClient.health();
+    return { state: 'READY', health };
+  } catch (error) {
+    return { state: error.code === 'RUNTIME_URL_INVALID' ? 'RUNTIME_URL_INVALID' : 'RUNTIME_OFFLINE', message: error.message };
+  }
+}
+
+// Chạy một hành động ngữ cảnh qua Runtime. KHÔNG có đường dự phòng ghi vào một kho riêng:
+// lưu tạm ở đâu đó rồi hy vọng đồng bộ sau sẽ tạo ra một tập nội dung thứ hai mà không ai
+// biết bản nào đúng.
+async function runContextAction(payload) {
+  const projectId = payload.projectId;
+  if (payload.runtimeKind === 'SOURCE') {
+    return runtimeClient.request(`/v1/projects/${encodeURIComponent(projectId)}/sources`, {
+      method: 'POST',
+      body: {
+        kind: 'note',
+        title: payload.provenance.pageTitle || null,
+        canonicalUrl: payload.provenance.pageUrl,
+        bytesBase64: btoa(unescape(encodeURIComponent(payload.selectionText))),
+      },
+    });
+  }
+  if (payload.runtimeKind === 'EDIT' || payload.runtimeKind === 'AUDIT' || payload.runtimeKind === 'REPURPOSE') {
+    // V1: hành động trên đoạn bôi đen chạy qua luồng viết của Runtime, với chính đoạn đó
+    // làm nguồn. Runtime cấp contentId/revisionId — extension không tự đặt.
+    return runtimeClient.request(`/v1/projects/${encodeURIComponent(projectId)}/write`, {
+      method: 'POST',
+      body: {
+        jobType: 'article',
+        brief: {
+          objective: `Xử lý đoạn văn từ ${payload.provenance.pageUrl}`,
+          intent: 'INFORMATIONAL',
+          angle: payload.operation || payload.action,
+        },
+        contextSnapshotId: `contextsnapshot_${Date.now()}`,
+        context: { evidenceById: {}, claimsById: {} },
+        userInstruction: payload.selectionText,
+      },
+    });
+  }
+  throw new Error(`Unsupported runtime kind: ${payload.runtimeKind}`);
 }
 
 // ---------------------------------------------------------------- handlers
@@ -458,6 +545,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'provider:listBrowserProviders') {
     sendResponse({ ok: true, providers: BrowserProviderRegistry.list() });
     return;
+  }
+  if (msg.action === 'runtime:status') {
+    runtimeStatus().then(sendResponse);
+    return true;
+  }
+  if (msg.action === 'runtime:pair') {
+    runtimeClient.pair(msg.code)
+      .then((r) => sendResponse({ ok: true, ...r }))
+      .catch((e) => sendResponse({ ok: false, error: { code: e.code, message: e.message } }));
+    return true;
+  }
+  if (msg.action === 'runtime:forget') {
+    runtimeClient.forget().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.action === 'runtime:listProjects') {
+    runtimeClient.listProjects()
+      .then((projects) => sendResponse({ ok: true, projects }))
+      .catch((e) => sendResponse({ ok: false, error: { code: e.code, message: e.message } }));
+    return true;
+  }
+  if (msg.action === 'runtime:runContextAction') {
+    runContextAction(msg.payload)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((e) => sendResponse({ ok: false, error: { code: e.code || 'RUNTIME_ERROR', message: e.message } }));
+    return true;
+  }
+  if (msg.action === 'runtime:getPendingAction') {
+    chrome.storage.session.get('seosonaPendingAction').then(({ seosonaPendingAction }) => {
+      sendResponse({ ok: true, pending: seosonaPendingAction || null });
+    });
+    return true;
   }
   if (msg.action === 'provider:setRuntimeBridge') {
     setRuntimeBridge(msg).then(sendResponse);
