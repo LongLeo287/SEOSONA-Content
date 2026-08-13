@@ -130,7 +130,7 @@ git commit -m "test: generalize content test runner"
 - Produces: `assertRecord(type, value): object`.
 - Produces allowed types: `workspace`, `project`, `brand`, `source`, `sourceBlock`, `evidence`, `claim`, `content`, `revision`, `job`, `jobStage`, `providerAttempt`, `providerReceipt`, `evaluation`, `contextSnapshot`, `providerConfig`, `signal`, `appliedPageEvent`.
 
-- [ ] **Step 1: Write failing contract tests**
+- [x] **Step 1: Write failing contract tests**
 
 ```js
 import test from 'node:test';
@@ -153,11 +153,11 @@ test('revision requires contentId and immutable payload', () => {
 });
 ```
 
-- [ ] **Step 2: Run and verify missing-module failures**
+- [x] **Step 2: Run and verify missing-module failures**
 
 Run: `node --test tests/runtime-records.test.mjs`
 
-- [ ] **Step 3: Implement minimal portable IDs**
+- [x] **Step 3: Implement minimal portable IDs**
 
 ```js
 export function makeId(prefix, { now = Date.now, random = crypto.randomUUID } = {}) {
@@ -170,7 +170,7 @@ export function makeId(prefix, { now = Date.now, random = crypto.randomUUID } = 
 
 Import `randomUUID` from `node:crypto` instead of relying on a global in production code.
 
-- [ ] **Step 4: Implement record validation with explicit required fields**
+- [x] **Step 4: Implement record validation with explicit required fields**
 
 `assertRecord()` must reject unknown entity types and validate each primary/foreign key listed in `25_LOCAL_DATA_MODEL`. It returns a structured clone and never mutates input.
 
@@ -186,13 +186,13 @@ if (type === 'revision') {
 }
 ```
 
-- [ ] **Step 5: Add tests for every V1 entity key and unknown-type rejection**
+- [x] **Step 5: Add tests for every V1 entity key and unknown-type rejection**
 
 Run: `node --test tests/runtime-records.test.mjs`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add runtime/lib/ids.mjs runtime/domain/records.mjs tests/runtime-records.test.mjs
