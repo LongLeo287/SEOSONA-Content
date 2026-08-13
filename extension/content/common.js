@@ -451,19 +451,30 @@
       return { success: false, error: 'TIMEOUT', message: 'Hết thời gian chờ.', text: last };
     }
 
+    // Tên message chung `provider:*` là BÍ DANH của đúng các nhánh cũ `srt:*`.
+    // Cố ý chỉ đổi tên, không đụng vào engine: chèn prompt 3 tầng, dò streaming, đổi model
+    // và cơ chế override selector giữ nguyên từng dòng. Đổi tên và đổi hành vi cùng lúc
+    // thì khi hỏng sẽ không biết vì cái nào.
+    const ACTION_ALIASES = {
+      'provider:ping': 'srt:ping',
+      'provider:abort': 'srt:abort',
+      'provider:submitAndWait': 'srt:submitAndWait',
+    };
+
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!msg || !msg.action) return;
+      const action = ACTION_ALIASES[msg.action] || msg.action;
 
-      if (msg.action === 'srt:ping') {
-        sendResponse({ ok: true, provider: cfg.name });
+      if (action === 'srt:ping') {
+        sendResponse({ ok: true, provider: cfg.name, providerId: cfg.name + '-web' });
         return;
       }
-      if (msg.action === 'srt:abort') {
+      if (action === 'srt:abort') {
         aborted = true;
         sendResponse({ ok: true });
         return;
       }
-      if (msg.action === 'srt:submitAndWait') {
+      if (action === 'srt:submitAndWait') {
         sendResponse({ accepted: true }); // ack ngay, kết quả gửi qua srt:jobResult
         submitAndWait(msg)
           .then((result) => {

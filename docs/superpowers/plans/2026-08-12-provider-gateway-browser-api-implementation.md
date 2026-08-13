@@ -388,15 +388,15 @@ git commit -m "feat(extension): execute runtime browser provider jobs"
   - `COMPLETED`
 - Preserve `modelState`, `chatUrl`, elapsed time internally for receipt metadata.
 
-- [ ] **Step 1: Add tests around normalization boundaries**
+- [x] **Step 1: Add tests around normalization boundaries**
 
 Do not attempt full browser DOM E2E in `node:test`; expose/test pure `normalizeBrowserResult(raw)` in `browser-provider-adapter.js` and keep DOM functions fixture-tested by existing selectors/contracts.
 
-- [ ] **Step 2: Add generic aliases without rewriting insertion/stream detection**
+- [x] **Step 2: Add generic aliases without rewriting insertion/stream detection**
 
 The current `insertText`, `submitPrompt`, `selectModel`, stable-cycle extraction and selector override mechanisms remain intact.
 
-- [ ] **Step 3: Run and commit**
+- [x] **Step 3: Run and commit**
 
 ```bash
 node --test tests/browser-provider-adapter.test.cjs

@@ -264,6 +264,27 @@ test('a retry that cannot reach the page gives up instead of looping', async () 
   assert.equal(await adapter.retry('task_1', normalizeBrowserResult({ success: false, error: 'TIMEOUT' })), false);
 });
 
+// ================================================================ Content script
+
+// Không chạy DOM thật trong node:test — kiểm ở mức hợp đồng: content script phải hiểu
+// cả tên mới lẫn tên cũ, và phải vẫn trả về đúng những trường mà biên nhận cần.
+test('the content script accepts generic provider messages alongside the legacy ones', () => {
+  const common = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '../extension/content/common.js'), 'utf8',
+  );
+  for (const alias of ['provider:ping', 'provider:abort', 'provider:submitAndWait']) {
+    assert.ok(common.includes(alias), `${alias} must be understood`);
+  }
+  for (const legacy of ['srt:ping', 'srt:abort', 'srt:submitAndWait', 'srt:jobResult']) {
+    assert.ok(common.includes(legacy), `${legacy} must keep working during migration`);
+  }
+  // Engine giữ nguyên: đây là những hàm không được viết lại trong bước đổi tên này.
+  for (const engine of ['insertText', 'submitPrompt', 'selectModel', 'srtSelectorOverrides']) {
+    assert.ok(common.includes(engine), `${engine} must survive the rename untouched`);
+  }
+  assert.match(common, /success: true, text: txt, elapsedMs, chatUrl: location\.href, modelState/);
+});
+
 // ================================================================ Cầu nối Runtime
 
 const { createRuntimeBridgeClient, isLoopbackUrl } = BrowserProviderAdapter;
