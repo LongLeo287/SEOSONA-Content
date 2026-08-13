@@ -336,11 +336,11 @@ git commit -m "feat(writing): add content job pack registry"
 - Brief requires: `objective`, `audience`, `intent`, `angle`, `language`, `evidencePolicy`.
 - Required evaluators: `factuality`, `claim-support`, `structure`, `brand`, `audience`, `readability`; `seo` and `geo` enabled when target/brief requests them.
 
-- [ ] **Step 1: Write failing ArticleIR and brief tests**
+- [x] **Step 1: Write failing ArticleIR and brief tests**
 
 Test required title/body/outline, heading hierarchy, unsupported citation reference, stale-evidence warning, and SEO fields remaining optional unless target requires them.
 
-- [ ] **Step 2: Implement article brief builder**
+- [x] **Step 2: Implement article brief builder**
 
 ```js
 buildBrief(input) {
@@ -355,15 +355,15 @@ buildBrief(input) {
 }
 ```
 
-- [ ] **Step 3: Implement structure planner from pack rules**
+- [x] **Step 3: Implement structure planner from pack rules**
 
 The generic `structure.mjs` accepts pack rules; Article pack supplies heading hierarchy and required section rules. Do not bake article headings into generic Core.
 
-- [ ] **Step 4: Implement deterministic article validation**
+- [x] **Step 4: Implement deterministic article validation**
 
 Validate schema, evidence refs, required headings, duplicated headings, empty sections, and target field constraints before model-based evaluation.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 node --test tests/job-pack-article.test.mjs
