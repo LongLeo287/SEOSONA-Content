@@ -11,3 +11,9 @@ Thumbs.db
 # Tài sản nội dung (ảnh carousel...) — để trên máy, không đưa vào git.
 # Ảnh nhị phân đưa lên sẽ nằm vĩnh viễn trong lịch sử repo và làm mọi lần clone nặng thêm.
 data/
+
+# Cấu hình MCP là của MÁY LẬP TRÌNH VIÊN, không phải của sản phẩm.
+# File này chứa đường dẫn tuyệt đối tới một máy cụ thể; đưa lên git nghĩa là mọi người clone
+# về đều nhận một cấu hình trỏ vào thư mục không tồn tại trên máy họ.
+# Writing Core chạy hoàn toàn bình thường khi không có file này.
+.mcp.json

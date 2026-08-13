@@ -108,6 +108,53 @@ test('legacy facebook actions remain behind their own message namespace', () => 
 
 // ---------------------------------------------------------------- quyền
 
+// ---------------------------------------------------------------- ranh giới & tính portable
+
+test('the writing core references no legacy facebook identifier', async () => {
+  const { auditWritingBoundary } = await import('../scripts/audit/writing-boundary-audit.mjs');
+  const result = await auditWritingBoundary({ rootDir: join(here, '..') });
+  assert.deepEqual(result.violations, [], 'runtime must not depend on the legacy media workflow');
+  assert.ok(result.forbidden.includes('facebook-factory'));
+});
+
+test('the legacy facebook code is still present and still loadable', () => {
+  // Máy quét ranh giới KHÔNG được thoả mãn bằng cách xóa code người dùng đang dùng.
+  for (const file of [
+    'extension/lib/facebook-factory.js',
+    'extension/lib/facebook-batch.js',
+    'extension/lib/facebook-orchestrator.js',
+  ]) {
+    assert.ok(read(file).length > 0, `${file} stays for compatibility`);
+  }
+});
+
+// Một cấu hình trỏ vào máy người khác hỏng lặng lẽ: công cụ báo "không tìm thấy" và người
+// dùng tưởng sản phẩm hỏng.
+test('no committed configuration carries a developer specific path', () => {
+  const MACHINE_PATHS = [/C:\\?\/Users\//i, /\/Users\/[a-z0-9._-]+\//i, /\/home\/[a-z0-9._-]+\//i];
+  const files = [
+    'package.json', '.gitignore', 'extension/manifest.json',
+    'runtime/index.mjs', 'runtime/http/server.mjs', 'runtime/studio/app.mjs',
+    'extension/background.js', 'extension/lib/runtime-client.js',
+    '.claude/launch.json',
+  ];
+  for (const file of files) {
+    const content = read(file);
+    for (const pattern of MACHINE_PATHS) {
+      assert.ok(!pattern.test(content), `${file} contains a machine specific path`);
+    }
+  }
+});
+
+test('the product does not require an mcp configuration to start', () => {
+  const ignore = read('.gitignore');
+  assert.ok(ignore.includes('.mcp.json'), 'developer-local integration config is untracked');
+  for (const file of ['runtime/index.mjs', 'runtime/http/server.mjs']) {
+    assert.ok(!read(file).includes('.mcp.json'), `${file} must not read an mcp config`);
+    assert.ok(!read(file).includes('mcpServers'), `${file} must not know about mcp servers`);
+  }
+});
+
 test('the manifest gained activeTab and nothing broader', () => {
   assert.ok(manifest.permissions.includes('activeTab'));
   assert.ok(!manifest.permissions.includes('<all_urls>'));

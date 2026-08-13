@@ -543,21 +543,21 @@ ASSET_READY
 
 Allow explanatory documentation comments only by scanning executable Runtime source files, not docs.
 
-- [ ] **Step 2: Add package script**
+- [x] **Step 2: Add package script**
 
 ```json
 "architecture:boundary": "node scripts/audit/writing-boundary-audit.mjs"
 ```
 
-- [ ] **Step 3: Move any accidental new-core legacy dependency behind adapters**
+- [x] **Step 3: Move any accidental new-core legacy dependency behind adapters**
 
 Do not delete legacy code merely to make scanner pass.
 
-- [ ] **Step 4: Document legacy boundary**
+- [x] **Step 4: Document legacy boundary**
 
 State exactly which old files are compatibility-only and that future Social Job Pack migration must consume generic Runtime/Provider contracts rather than promote Facebook code into Core.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 npm run architecture:boundary
@@ -581,19 +581,19 @@ git commit -m "refactor: isolate legacy facebook media workflow"
 - Developer-local MCP configuration is explicitly local/untracked.
 - No committed configuration contains `C:/Users/`, `/Users/<name>/`, `/home/<name>/`, or another developer-specific absolute path.
 
-- [ ] **Step 1: Write failing portable-path test**
+- [x] **Step 1: Write failing portable-path test**
 
 Scan committed text configuration files (`*.json`, `*.mjs`, `*.js`, selected docs exclusions) for known machine-specific path patterns. Explicit fixture strings in the test itself are excluded from scan.
 
-- [ ] **Step 2: Stop tracking `.mcp.json` and ignore local copies**
+- [x] **Step 2: Stop tracking `.mcp.json` and ignore local copies**
 
 Add `.mcp.json` to `.gitignore`. The user/developer may create their own local file; Runtime core cannot require it.
 
-- [ ] **Step 3: Document local integration configuration**
+- [x] **Step 3: Document local integration configuration**
 
 `docs/development/local-integrations.md` explains that optional knowledge MCP integrations are developer/user-local and provider-specific; the product's Writing Core runs without them.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 node --test tests/migration-contract.test.mjs
