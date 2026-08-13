@@ -8,10 +8,7 @@ import { createWorkspaceService } from '../runtime/domain/workspace-service.mjs'
 import { createContentService } from '../runtime/domain/content-service.mjs';
 import { createContextSnapshot } from '../runtime/domain/context-snapshot.mjs';
 
-function sequenceIds() {
-  let n = 0;
-  return (prefix) => `${prefix}_${++n}`;
-}
+function sequenceIds() { let n = 0; return (prefix) => `${prefix}_${++n}`; }
 
 async function setup() {
   const rootDir = await mkdtemp(join(tmpdir(), 'seosona-domain-'));
@@ -29,10 +26,7 @@ test('project requires an existing workspace and brand from the same workspace',
   const a = await workspace.createWorkspace({ name: 'A' });
   const b = await workspace.createWorkspace({ name: 'B' });
   const brand = await workspace.createBrand({ workspaceId: b.workspaceId, name: 'Brand B' });
-  await assert.rejects(
-    () => workspace.createProject({ workspaceId: a.workspaceId, brandId: brand.brandId, name: 'Wrong brand' }),
-    (error) => error && error.code === 'SCOPE_MISMATCH'
-  );
+  await assert.rejects(() => workspace.createProject({ workspaceId: a.workspaceId, brandId: brand.brandId, name: 'Wrong brand' }), (error) => error && error.code === 'SCOPE_MISMATCH');
   const ownBrand = await workspace.createBrand({ workspaceId: a.workspaceId, name: 'Brand A' });
   const project = await workspace.createProject({ workspaceId: a.workspaceId, brandId: ownBrand.brandId, name: 'Project' });
   assert.equal(project.brandId, ownBrand.brandId);
@@ -59,16 +53,10 @@ test('content creation appends immutable first revision and later revisions pres
   assert.equal(created.content.currentRevisionId, created.revision.revisionId);
   assert.equal(created.revision.operation, 'CREATE');
   assert.equal(created.revision.parentRevisionId, null);
-
   const updated = await content.appendRevision({ workspaceId: ws.workspaceId, contentId: created.content.contentId, operation: 'EDIT', payload: { body: 'v2' }, actor: 'user' });
   assert.equal(updated.revision.parentRevisionId, created.revision.revisionId);
   assert.equal(updated.content.currentRevisionId, updated.revision.revisionId);
-
-  await assert.rejects(
-    () => store.put('revision', ws.workspaceId, { ...created.revision, payload: { body: 'tampered' } }),
-    (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT'
-  );
-
+  await assert.rejects(() => store.put('revision', ws.workspaceId, { ...created.revision, payload: { body: 'tampered' } }), (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT');
   const history = await content.getContentHistory(ws.workspaceId, created.content.contentId);
   assert.deepEqual(history.revisions.map((x) => x.payload.body), ['v1', 'v2']);
 });
@@ -96,46 +84,43 @@ test('context snapshot hash is deterministic and changes when source or job pack
     audience: { pains: ['slow'], level: 'intermediate' },
     sourceRefs: [{ sourceId: 'source_1', revision: 'src-r1' }],
     evidenceRefs: [{ evidenceId: 'evidence_1', revision: 'ev-r1' }],
-    jobPack: { id: 'article', version: '1.0' },
-    targetPack: { id: 'web', version: '1.0' },
-    policy: { paidApi: false, privacy: { deny: [] } },
-    providerPolicy: { mode: 'auto', paidAllowed: false },
+    jobPack: { id: 'article', version: '1.0' }, targetPack: { id: 'web', version: '1.0' },
+    policy: { paidApi: false, privacy: { deny: [] } }, providerPolicy: { mode: 'auto', paidAllowed: false },
   };
   const one = await createContextSnapshot(base, deps);
   const two = await createContextSnapshot({
-    providerPolicy: { paidAllowed: false, mode: 'auto' },
-    policy: { privacy: { deny: [] }, paidApi: false },
-    targetPack: { version: '1.0', id: 'web' },
-    jobPack: { version: '1.0', id: 'article' },
-    evidenceRefs: [{ revision: 'ev-r1', evidenceId: 'evidence_1' }],
-    sourceRefs: [{ revision: 'src-r1', sourceId: 'source_1' }],
-    audience: { level: 'intermediate', pains: ['slow'] },
-    brand: { voice: { formal: false, tone: 'clear' }, revision: 'brand-r1', brandId: 'brand_1' },
-    project,
+    providerPolicy: { paidAllowed: false, mode: 'auto' }, policy: { privacy: { deny: [] }, paidApi: false },
+    targetPack: { version: '1.0', id: 'web' }, jobPack: { version: '1.0', id: 'article' },
+    evidenceRefs: [{ revision: 'ev-r1', evidenceId: 'evidence_1' }], sourceRefs: [{ revision: 'src-r1', sourceId: 'source_1' }],
+    audience: { level: 'intermediate', pains: ['slow'] }, brand: { voice: { formal: false, tone: 'clear' }, revision: 'brand-r1', brandId: 'brand_1' }, project,
   }, deps);
   assert.equal(one.hash, two.hash);
   assert.notEqual(one.contextSnapshotId, two.contextSnapshotId);
-
-  const changed = await createContextSnapshot({ ...base, jobPack: { id: 'article', version: '1.1' } }, deps);
-  assert.notEqual(changed.hash, one.hash);
-  const changedSource = await createContextSnapshot({ ...base, sourceRefs: [{ sourceId: 'source_1', revision: 'src-r2' }] }, deps);
-  assert.notEqual(changedSource.hash, one.hash);
+  assert.notEqual((await createContextSnapshot({ ...base, jobPack: { id: 'article', version: '1.1' } }, deps)).hash, one.hash);
+  assert.notEqual((await createContextSnapshot({ ...base, sourceRefs: [{ sourceId: 'source_1', revision: 'src-r2' }] }, deps)).hash, one.hash);
 });
 
 test('persisted context snapshots are immutable and input mutation cannot change stored snapshot', async () => {
   const { workspace, store } = await setup();
   const ws = await workspace.createWorkspace({ name: 'A' });
   const project = await workspace.createProject({ workspaceId: ws.workspaceId, name: 'P' });
-  const input = {
-    project, brand: null, audience: {}, sourceRefs: [], evidenceRefs: [],
-    jobPack: { id: 'product', version: '1.0' }, targetPack: null, policy: {}, providerPolicy: { paidAllowed: false },
-  };
+  const input = { project, brand: null, audience: {}, sourceRefs: [], evidenceRefs: [], jobPack: { id: 'product', version: '1.0' }, targetPack: null, policy: {}, providerPolicy: { paidAllowed: false } };
   const snapshot = await createContextSnapshot(input, { store, workspaceId: ws.workspaceId, idFactory: sequenceIds(), now: () => 'now' });
   input.jobPack.version = '9.9';
   const stored = await store.get('contextSnapshot', ws.workspaceId, snapshot.contextSnapshotId);
   assert.equal(stored.jobPack.version, '1.0');
-  await assert.rejects(
-    () => store.put('contextSnapshot', ws.workspaceId, { ...stored, hash: 'tampered' }),
-    (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT'
-  );
+  await assert.rejects(() => store.put('contextSnapshot', ws.workspaceId, { ...stored, hash: 'tampered' }), (error) => error && error.code === 'IMMUTABLE_RECORD_CONFLICT');
+});
+
+test('content and revision lineage updates use the recoverable store batch boundary', async () => {
+  const { workspace, content, store } = await setup();
+  const ws = await workspace.createWorkspace({ name: 'A' });
+  const project = await workspace.createProject({ workspaceId: ws.workspaceId, name: 'P' });
+  const originalPutBatch = store.putBatch.bind(store);
+  let batches = 0;
+  store.putBatch = async (entries) => { batches += 1; return originalPutBatch(entries); };
+  const created = await content.createContent({ workspaceId: ws.workspaceId, projectId: project.projectId, jobType: 'article', title: 'A', payload: { body: 'v1' } });
+  assert.equal(batches, 1);
+  await content.appendRevision({ workspaceId: ws.workspaceId, contentId: created.content.contentId, operation: 'EDIT', payload: { body: 'v2' } });
+  assert.equal(batches, 2);
 });
