@@ -678,15 +678,15 @@ git commit -m "feat(writing): orchestrate resumable write edit audit flow"
 - `POST /v1/jobs/:jobId/resume`
 - `POST /v1/jobs/:jobId/cancel`
 
-- [ ] **Step 1: Write failing authenticated HTTP tests with fake Gateway**
+- [x] **Step 1: Write failing authenticated HTTP tests with fake Gateway**
 
 Cover creation, invalid job type, invalid revision, provider blocked, audit result retrieval, transcript source mismatch, and job resume.
 
-- [ ] **Step 2: Mount thin handlers only**
+- [x] **Step 2: Mount thin handlers only**
 
 HTTP handlers validate request shape, call domain/workflow service, map typed errors to status codes, and return IDs/results. Do not compose prompts or evaluate claims inside route code.
 
-- [ ] **Step 3: Run and commit**
+- [x] **Step 3: Run and commit**
 
 ```bash
 node --test tests/writing-server.test.mjs

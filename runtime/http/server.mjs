@@ -10,6 +10,16 @@ import { createProviderGateway, createRecordStores } from '../providers/gateway.
 import { createBrowserBridgeAdapter } from '../providers/browser-bridge-adapter.mjs';
 import { routeProvider } from '../providers/router.mjs';
 import { assertProviderTask } from '../providers/contracts.mjs';
+import { createJobPackRegistry } from '../writing/job-packs/registry.mjs';
+import { articlePack } from '../writing/job-packs/article.mjs';
+import { productPack } from '../writing/job-packs/product.mjs';
+import { transcriptPack } from '../writing/job-packs/transcript.mjs';
+import { createWriter } from '../writing/writer.mjs';
+import { createEditor } from '../writing/editor.mjs';
+import { createEvaluator } from '../writing/evaluator.mjs';
+import { createRepurposer } from '../writing/repurpose.mjs';
+import { createWriteEditAuditWorkflow } from '../workflows/write-edit-audit.mjs';
+import { parseSrt } from '../writing/transcript/srt.mjs';
 
 export const API_VERSION = 'v1';
 export const SCHEMA_VERSION = '1.0.0';
@@ -31,6 +41,13 @@ const STATUS_BY_CODE = {
   SOURCE_NOT_FOUND: 404,
   TASK_NOT_FOUND: 404,
   PROVIDER_NOT_FOUND: 404,
+  JOB_NOT_FOUND: 404,
+  REVISION_NOT_FOUND: 404,
+  UNKNOWN_JOB_TYPE: 400,
+  TRANSCRIPT_UNPARSEABLE: 400,
+  UNSUPPORTED_REPURPOSE_ROUTE: 400,
+  MISSING_SOURCE_FOR_ROUTE: 400,
+  JOB_CANCELLED: 409,
   SECRET_NOT_ACCEPTED: 400,
   INVALID_TASK: 400,
   SCOPE_MISMATCH: 409,
@@ -117,6 +134,21 @@ export function createRuntimeServer({
     ...createRecordStores({ store, workspaceId, now, idFactory }),
     now,
     idFactory,
+  });
+
+  // ---------------------------------------------------------------- writing
+  // Handler HTTP ở dưới cố ý MỎNG: kiểm hình dạng request, gọi service, ánh xạ lỗi.
+  // Không soạn prompt, không xét luận điểm trong route — những việc đó có nhà riêng của chúng.
+  const packRegistry = createJobPackRegistry();
+  for (const pack of [articlePack, productPack, transcriptPack]) packRegistry.registerJobPack(pack);
+
+  const writingDeps = { gateway, packRegistry, contentService: content, now, idFactory };
+  const writer = createWriter(writingDeps);
+  const editor = createEditor(writingDeps);
+  const evaluator = createEvaluator(writingDeps);
+  const repurposer = createRepurposer({ writer, contentService: content, store, now, idFactory });
+  const workflow = createWriteEditAuditWorkflow({
+    writer, editor, evaluator, packRegistry, contentService: content, store, workspaceId, now, idFactory,
   });
 
   // Cấu hình provider được ghi lại dưới dạng record, nên bật/tắt một hãng không biến mất
@@ -278,6 +310,89 @@ export function createRuntimeServer({
     // lỗi máy chủ — nhưng vẫn phải là mã 4xx để client không tưởng đã chạy xong.
     return { status: result.status === 'BLOCKED' ? 409 : 200, body: result };
   });
+
+  // ---------------------------------------------------------------- writing endpoints
+
+  router.add('GET', /^\/v1\/job-packs$/, async () => ({
+    status: 200,
+    body: {
+      jobPacks: packRegistry.listJobPacks().map((pack) => ({
+        id: pack.id, version: pack.version, jobType: pack.jobType,
+        requiredBriefFields: pack.requiredBriefFields,
+        requiredEvaluators: pack.requiredEvaluators,
+        requiredCapabilities: pack.requiredCapabilities,
+        operations: pack.operations,
+        outputContract: pack.outputContract,
+      })),
+    },
+  }));
+
+  router.add('POST', /^\/v1\/projects\/([^/]+)\/briefs$/, async ({ body, match }) => {
+    const pack = packRegistry.getJobPack(body.jobType);
+    return { status: 201, body: { projectId: match[1], brief: pack.buildBrief(body.brief || body) } };
+  });
+
+  // Viết một bài = chạy cả quy trình. Trả về job để người gọi theo dõi và chạy tiếp được.
+  router.add('POST', /^\/v1\/projects\/([^/]+)\/write$/, async ({ body, match }) => {
+    const result = await workflow.start({ ...body, workspaceId: await ensureWorkspace(), projectId: match[1] });
+    return { status: result.status === 'completed' ? 201 : 202, body: result };
+  });
+
+  router.add('POST', /^\/v1\/content\/([^/]+)\/edit$/, async ({ body, match }) => ({
+    status: 200,
+    body: await editor.edit({ ...body, workspaceId: await ensureWorkspace(), contentId: match[1] }),
+  }));
+
+  router.add('POST', /^\/v1\/content\/([^/]+)\/audit$/, async ({ body, match }) => ({
+    status: 200,
+    body: { evaluations: await evaluator.evaluate({ ...body, workspaceId: await ensureWorkspace(), contentId: match[1] }) },
+  }));
+
+  router.add('POST', /^\/v1\/content\/([^/]+)\/repurpose$/, async ({ body, match }) => ({
+    status: 201,
+    body: await repurposer.repurpose({ ...body, workspaceId: await ensureWorkspace(), fromContentId: match[1] }),
+  }));
+
+  // Nạp transcript: lưu file gốc thành Source (nội dung được địa chỉ hóa) rồi trả về các cue.
+  // Chữ nguyên văn nằm ở blob, không ở đâu khác — bản cắt sau này đối chiếu về đúng đây.
+  router.add('POST', /^\/v1\/projects\/([^/]+)\/transcripts$/, async ({ body, match }) => {
+    const raw = String(body.srt || '');
+    if (!raw.trim()) {
+      const err = new Error('An "srt" body field is required.');
+      err.code = 'VALIDATION';
+      err.httpStatus = 400;
+      throw err;
+    }
+    const cues = parseSrt(raw);
+    if (!cues.length) {
+      const err = new Error('No cue could be parsed from this transcript.');
+      err.code = 'TRANSCRIPT_UNPARSEABLE';
+      err.httpStatus = 400;
+      throw err;
+    }
+    const ws = await ensureWorkspace();
+    const source = await content.addSource({
+      workspaceId: ws, projectId: match[1], kind: 'srt',
+      title: body.title || null, bytes: Buffer.from(raw, 'utf8'), parserVersion: 'srt@1',
+    });
+    return {
+      status: 201,
+      body: { sourceId: source.sourceId, sha256: source.sha256, cues, durationMs: cues.at(-1).endMs, language: body.language || null },
+    };
+  });
+
+  router.add('GET', /^\/v1\/jobs\/([^/]+)$/, async ({ match }) => {
+    const record = await workflow.get(await ensureWorkspace(), match[1]);
+    return { status: 200, body: { jobId: match[1], status: record.state.status, checkpoints: record.checkpoints, state: record.state } };
+  });
+
+  router.add('POST', /^\/v1\/jobs\/([^/]+)\/resume$/, async ({ match }) => ({
+    status: 200, body: await workflow.resume(await ensureWorkspace(), match[1]),
+  }));
+
+  router.add('POST', /^\/v1\/jobs\/([^/]+)\/cancel$/, async ({ body, match }) => ({
+    status: 200, body: await workflow.cancel(await ensureWorkspace(), match[1], body.reason || 'user'),
+  }));
 
   // ---------------------------------------------------------------- cầu nối job trình duyệt
   //
