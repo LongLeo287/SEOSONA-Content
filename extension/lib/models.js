@@ -45,10 +45,14 @@ const HEAVY_TASKS = new Set([
   'repurpose', 'chapters',
 ]);
 
+// Chấp nhận cả tên chung ('chatgpt-web') lẫn tên trang cũ ('chatgpt'). Danh mục model
+// gắn với TRANG WEB nào đang được lái, nên hai tên gọi phải quy về cùng một mục.
+const pageOf = (provider) => String(provider || '').replace(/-web$/, '');
+
 const ModelPicker = {
   // Danh sách model của một nhà (rỗng = nhà đó không hỗ trợ đổi model)
   list(provider) {
-    const p = MODEL_CATALOG[provider];
+    const p = MODEL_CATALOG[pageOf(provider)];
     return (p && p.models) ? p.models : [];
   },
   supports(provider) { return this.list(provider).length > 0; },

@@ -175,7 +175,13 @@ test('background owns the resumable factory and the sidepanel exposes variable b
   assert.match(background, /facebook:cancelBatch/);
   assert.match(background, /chrome\.alarms\.onAlarm/);
   assert.match(background, /provider_tab_closed/);
-  assert.match(background, /leaseUpdatedAt/);
+  // Sổ sách lease đã chuyển sang bộ điều hợp provider (test riêng, không cần Chrome).
+  // background chỉ còn nối nó vào và bổ sung điều adapter không biết: tab còn mở không.
+  assert.match(background, /BrowserProviderAdapter\.create/);
+  assert.match(
+    readFileSync(join(__dirname, '../extension/lib/browser-provider-adapter.js'), 'utf8'),
+    /leaseUpdatedAt/,
+  );
   assert.equal(JSON.parse(readFileSync(join(__dirname, '../extension/manifest.json'), 'utf8')).permissions.includes('alarms'), true);
   assert.match(app, /requestedCount/);
   assert.match(html, /id="fbRequestedCount"[\s\S]*min="1"[\s\S]*max="20"/);

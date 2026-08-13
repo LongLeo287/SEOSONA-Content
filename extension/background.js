@@ -2,34 +2,15 @@
 // Vai trò: điều phối tab provider, chuyển job từ side panel -> content script,
 // nhận kết quả từ content script -> lưu storage.session + broadcast cho UI.
 
-importScripts('lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js', 'lib/facebook-provider-lease.js', 'lib/facebook-orchestrator.js');
+importScripts(
+  'lib/provider-registry.js', 'lib/browser-provider-adapter.js',
+  'lib/facebook-factory.js', 'lib/facebook-batch.js', 'lib/facebook-state.js',
+  'lib/facebook-provider-lease.js', 'lib/facebook-orchestrator.js',
+);
 
-const PROVIDERS = {
-  chatgpt: {
-    label: 'ChatGPT',
-    baseUrl: 'https://chatgpt.com/',
-    match: ['*://chatgpt.com/*'],
-    scripts: ['content/common.js', 'content/chatgpt.js'],
-  },
-  gemini: {
-    label: 'Gemini',
-    baseUrl: 'https://gemini.google.com/app',
-    match: ['*://gemini.google.com/*'],
-    scripts: ['content/common.js', 'content/gemini.js'],
-  },
-  grok: {
-    label: 'Grok',
-    baseUrl: 'https://grok.com/',
-    match: ['https://grok.com/*', 'https://*.grok.com/*'],
-    scripts: ['content/common.js', 'content/grok.js'],
-  },
-  claude: {
-    label: 'Claude',
-    baseUrl: 'https://claude.ai/new',
-    match: ['https://claude.ai/*'],
-    scripts: ['content/common.js', 'content/claude.js'],
-  },
-};
+// Danh mục provider đã dọn sang lib/provider-registry.js để Runtime và test dùng chung
+// đúng một nguồn. Ở đây chỉ còn phần cần Chrome thật.
+const providerInfo = (provider) => BrowserProviderRegistry.get(provider);
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -86,7 +67,7 @@ function broadcast(payload) {
 
 // ---------------------------------------------------------------- tab utils
 async function findProviderTab(provider) {
-  const tabs = await chrome.tabs.query({ url: PROVIDERS[provider].match });
+  const tabs = await chrome.tabs.query({ url: providerInfo(provider).match });
   return tabs[0] || null;
 }
 
@@ -121,14 +102,14 @@ async function pingContent(tabId, provider, { tries = 30, gap = 500 } = {}) {
         try {
           await chrome.scripting.executeScript({
             target: { tabId },
-            files: PROVIDERS[provider].scripts,
+            files: providerInfo(provider).scripts,
           });
         } catch (_) {}
       }
     }
     await sleep(gap);
   }
-  throw new Error('Content script chưa sẵn sàng — hãy tải lại tab ' + PROVIDERS[provider].label);
+  throw new Error('Content script chưa sẵn sàng — hãy tải lại tab ' + providerInfo(provider).label);
 }
 
 // freshChat=true -> mở hội thoại mới (baseUrl). freshChat=false + chatUrl ->
@@ -137,11 +118,11 @@ async function ensureProviderTab(provider, { freshChat = false, chatUrl = null }
   let tab = await findProviderTab(provider);
   const continueUrl = (!freshChat && chatUrl) ? chatUrl : null;
   if (!tab) {
-    tab = await chrome.tabs.create({ url: continueUrl || PROVIDERS[provider].baseUrl, active: true });
+    tab = await chrome.tabs.create({ url: continueUrl || providerInfo(provider).baseUrl, active: true });
     await waitTabComplete(tab.id);
     await sleep(600);
   } else if (freshChat) {
-    await chrome.tabs.update(tab.id, { url: PROVIDERS[provider].baseUrl });
+    await chrome.tabs.update(tab.id, { url: providerInfo(provider).baseUrl });
     await waitTabComplete(tab.id);
     await sleep(800);
   } else if (continueUrl && !String(tab.url || '').startsWith(continueUrl.split('?')[0])) {
@@ -153,81 +134,43 @@ async function ensureProviderTab(provider, { freshChat = false, chatUrl = null }
   return tab;
 }
 
-// ---------------------------------------------------------------- handlers
-async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl, modelMatch }) {
-  if (!PROVIDERS[provider]) return { ok: false, error: 'Provider không hợp lệ: ' + provider };
-  try {
-    await setJob(jobId, { provider, status: 'preparing', startedAt: Date.now(), leaseUpdatedAt: Date.now() });
-    broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'preparing' });
-
-    const tab = await ensureProviderTab(provider, { freshChat, chatUrl });
-
-    // Tab phải active để tránh Chrome throttle timer/rAF của trang nền
-    await chrome.tabs.update(tab.id, { active: true });
-    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-    await sleep(500);
-
-    const ack = await chrome.tabs.sendMessage(tab.id, {
-      action: 'srt:submitAndWait',
-      jobId,
-      text,
-      timeout: timeout || 600000,
-      modelMatch: modelMatch || null,
-    });
-    if (!ack || !ack.accepted) throw new Error('Content script từ chối job');
-
-    // Lưu spec để auto-retry khi lỗi tạm thời
-    await setJob(jobId, { status: 'running', tabId: tab.id, spec: { text, timeout: timeout || 600000, modelMatch: modelMatch || null }, attempt: 0, maxRetries: 2, leaseUpdatedAt: Date.now() });
-    broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', tabId: tab.id });
-    return { ok: true, tabId: tab.id };
-  } catch (e) {
-    const error = String((e && e.message) || e);
-    await setJob(jobId, { status: 'error', result: { success: false, error } });
-    broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'error', result: { success: false, error } });
-    return { ok: false, error };
-  }
+async function getJob(jobId) {
+  const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
+  return srtJobs[jobId] || null;
 }
 
-// Lỗi tạm thời -> đáng thử lại. Lỗi do đăng nhập/nội dung/hủy -> không.
-// SUBMIT_LOST: prompt chèn xong nhưng không gửi đi được — thường do UI chưa sẵn sàng,
-// thử lại thường ăn. KHÔNG đưa vào đây các lỗi vĩnh viễn (chưa đăng nhập, bị chặn nội dung,
-// hết quota) vì thử lại chỉ tốn thêm lượt và có thể bị gắn cờ nặng hơn.
-const RETRYABLE_ERRORS = new Set(['NO_RESPONSE_STARTED', 'NO_RESPONSE', 'TIMEOUT', 'NETWORK', 'EXCEPTION', 'SUBMIT_LOST']);
-
-async function maybeRetry(jobId, provider, result) {
-  const err = result && result.error;
-  if (!RETRYABLE_ERRORS.has(err)) return false;
-  const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
-  const job = srtJobs[jobId];
-  if (!job || !job.spec) return false;
-  const attempt = (job.attempt || 0) + 1;
-  const max = job.maxRetries || 2;
-  if (attempt > max) return false;
-
-  await setJob(jobId, { attempt, status: 'running', leaseUpdatedAt: Date.now() });
-  broadcast({ action: 'srt:jobUpdate', jobId, provider, status: 'running', result: { retrying: true, attempt, message: `Thử lại ${attempt}/${max}…` } });
-  await sleep(3000 * attempt); // backoff: 3s, 6s
-
-  try {
-    const tab = await ensureProviderTab(provider, {});
+// ---------------------------------------------------------------- bộ điều hợp provider
+// Toàn bộ chính sách chạy job (chuẩn bị tab -> gửi prompt -> lease -> thử lại -> huỷ) nằm
+// trong lib/browser-provider-adapter.js và được test độc lập với Chrome. Ở đây chỉ nối
+// những phụ thuộc THẬT vào: tab, message, storage, thông báo.
+const browserProvider = BrowserProviderAdapter.create({
+  registry: BrowserProviderRegistry,
+  ensureProviderTab,
+  focusTab: async (tab) => {
     await chrome.tabs.update(tab.id, { active: true });
     await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-    await sleep(400);
-    const ack = await chrome.tabs.sendMessage(tab.id, {
-      action: 'srt:submitAndWait', jobId, text: job.spec.text, timeout: job.spec.timeout, modelMatch: job.spec.modelMatch || null,
-    });
-    if (!ack || !ack.accepted) throw new Error('reject');
-    await setJob(jobId, { tabId: tab.id, leaseUpdatedAt: Date.now() });
-    return true;
-  } catch (_) {
-    return false; // không retry được -> để finalize thành lỗi
-  }
+  },
+  sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
+  jobStore: { get: getJob, set: setJob },
+  broadcast,
+  sleep,
+  now: () => Date.now(),
+});
+
+// ---------------------------------------------------------------- handlers
+// Chữ ký cũ được giữ nguyên (jobId/provider/timeout, lỗi là chuỗi) vì Facebook orchestrator
+// và side panel đang gọi đúng hình dạng này.
+async function handleRunJob({ jobId, provider, text, timeout, freshChat, chatUrl, modelMatch }) {
+  const result = await browserProvider.start({
+    taskId: jobId, providerId: provider, text, timeoutMs: timeout, freshChat, chatUrl, modelMatch,
+  });
+  return result.ok ? result : { ok: false, error: result.error.message, code: result.error.code };
 }
 
 async function handleJobResult({ jobId, provider, result }) {
   const success = result && result.success;
   if (!success && jobId) {
-    const retried = await maybeRetry(jobId, provider, result);
+    const retried = await browserProvider.retry(jobId, browserProvider.normalizeResult(result));
     if (retried) return { finalized: false }; // đang thử lại, chưa chốt kết quả
   }
   const status = success ? 'done' : 'error';
@@ -240,7 +183,7 @@ async function handleJobResult({ jobId, provider, result }) {
 // Thông báo hệ thống khi job xong — hữu ích khi user đang ở tab khác.
 function notifyDone(jobId, provider, status, result) {
   try {
-    const label = (PROVIDERS[provider] && PROVIDERS[provider].label) || provider || '';
+    const label = (providerInfo(provider) && providerInfo(provider).label) || provider || '';
     let kind = jobId && jobId.startsWith('review_') ? 'Đánh giá'
       : jobId && jobId.startsWith('meta_') ? 'Metadata' : 'Phân tích';
     const title = status === 'done' ? `✅ ${kind} xong — ${label}` : `⚠ ${kind} lỗi — ${label}`;
@@ -275,14 +218,7 @@ async function handleOpenChat({ provider, url }) {
 }
 
 async function handleAbort({ jobId }) {
-  const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
-  const job = srtJobs[jobId];
-  if (job && job.tabId) {
-    try { await chrome.tabs.sendMessage(job.tabId, { action: 'srt:abort' }); } catch (_) {}
-  }
-  await setJob(jobId, { status: 'aborted' });
-  broadcast({ action: 'srt:jobUpdate', jobId, provider: job && job.provider, status: 'aborted' });
-  return { ok: true };
+  return browserProvider.abort(jobId);
 }
 
 function facebookError(error) {
@@ -374,10 +310,9 @@ const facebookOrchestrator = FacebookOrchestrator.createOrchestrator({
   },
   providerStart: handleRunJob,
   providerStatus: async (jobId) => {
-    const { srtJobs = {} } = await chrome.storage.session.get('srtJobs');
-    const job = srtJobs[jobId] || null;
+    // Lease do adapter tính; ở đây chỉ bổ sung một điều adapter không biết: tab còn mở không.
+    const job = await browserProvider.status(jobId);
     if (!job || !['preparing', 'running'].includes(job.status)) return job;
-    if (FacebookProviderLease.isExpired(job, Date.now())) return { ...job, status: 'stale', reason: 'lease_expired' };
     if (job.tabId) {
       try { await chrome.tabs.get(job.tabId); } catch { return { ...job, status: 'stale', reason: 'provider_tab_closed' }; }
     }
@@ -446,7 +381,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.action === 'srt:listProviders') {
-    sendResponse(Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.label])));
+    sendResponse(BrowserProviderRegistry.labels());
+    return;
+  }
+  // Tên message chung, không dính SRT. Các tên `srt:*` phía trên là BÍ DANH của đúng
+  // những hàm này và còn được giữ cho đến khi side panel di trú xong.
+  if (msg.action === 'provider:runBrowserJob') {
+    browserProvider.start(msg.task || msg).then(sendResponse);
+    return true;
+  }
+  if (msg.action === 'provider:abortBrowserJob') {
+    browserProvider.abort(msg.taskId || msg.jobId).then(sendResponse);
+    return true;
+  }
+  if (msg.action === 'provider:getBrowserJob') {
+    browserProvider.status(msg.taskId || msg.jobId).then((job) => sendResponse({ ok: true, job }));
+    return true;
+  }
+  if (msg.action === 'provider:listBrowserProviders') {
+    sendResponse({ ok: true, providers: BrowserProviderRegistry.list() });
     return;
   }
   if (msg.action.startsWith('facebook:')) {

@@ -285,19 +285,19 @@ git commit -m "feat(providers): bridge runtime browser jobs to extension"
   - `grok-web -> grok`
 - Legacy `srt:runJob`, `srt:abortJob`, `srt:jobResult` remain aliases until migration acceptance.
 
-- [ ] **Step 1: Write failing pure adapter tests with mocked Chrome dependencies**
+- [x] **Step 1: Write failing pure adapter tests with mocked Chrome dependencies**
 
 Test invalid provider, preparing/running/done state, retryable error normalization, abort, lease expiry, and model match resolution.
 
-- [ ] **Step 2: Move provider metadata out of `background.js`**
+- [x] **Step 2: Move provider metadata out of `background.js`**
 
 `PROVIDERS` becomes `BrowserProviderRegistry`. Do not change host permissions or content-script selectors in this step.
 
-- [ ] **Step 3: Wrap existing `handleRunJob` behavior behind adapter dependencies**
+- [x] **Step 3: Wrap existing `handleRunJob` behavior behind adapter dependencies**
 
 Dependencies include `findProviderTab`, `ensureProviderTab`, `sendMessage`, `jobStore`, `broadcast`, `sleep`, `now`. Keep DOM/tab-specific behavior extension-side.
 
-- [ ] **Step 4: Add generic messages**
+- [x] **Step 4: Add generic messages**
 
 ```text
 provider:runBrowserJob
@@ -308,13 +308,13 @@ provider:listBrowserProviders
 
 Legacy SRT messages call the same implementation.
 
-- [ ] **Step 5: Run existing content-script/background contract tests and new adapter tests**
+- [x] **Step 5: Run existing content-script/background contract tests and new adapter tests**
 
 ```bash
 node --test tests/browser-provider-adapter.test.cjs tests/facebook-*.test.cjs
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add extension/lib/provider-registry.js extension/lib/browser-provider-adapter.js extension/background.js extension/lib/models.js tests/browser-provider-adapter.test.cjs
